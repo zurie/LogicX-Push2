@@ -51,7 +51,7 @@ class MIDICCControl(object):
         radius = height/2
 
         display_w = push2_python.constants.DISPLAY_LINE_PIXELS
-        x = (display_w // 8) * x_part
+        x = ((display_w // 8) * x_part) + ((display_w // 8) * .25)
         y = margin_top + name_height + val_height + radius + 5
         
         start_rad = (90 + circle_break_degrees // 2) * (math.pi / 180)

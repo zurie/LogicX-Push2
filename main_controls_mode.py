@@ -1,4 +1,5 @@
 import definitions
+import mido
 import push2_python
 import time
 
@@ -30,6 +31,8 @@ class MainControlsMode(definitions.PyshaMode):
     def update_buttons(self):
         # Note button, to toggle melodic/rhythmic mode
         self.push.buttons.set_button_color(MELODIC_RHYTHMIC_TOGGLE_BUTTON, definitions.WHITE)
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB)
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
 
         # Mute button, to toggle display on/off
         if self.app.use_push2_display:
@@ -74,16 +77,35 @@ class MainControlsMode(definitions.PyshaMode):
             self.app.pads_need_update = True
             self.app.buttons_need_update = True
             return True
+
+        # PRESSED button play
+        elif button_name == push2_python.constants.BUTTON_PLAY:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.BLACK)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.BLACK)
+
+            msg = mido.Message('control_change', control=109, value=127)
+            self.app.send_midi(msg)
+            return True
+
+        # PRESSED button record
+        elif button_name == push2_python.constants.BUTTON_RECORD:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.BLACK)
+            msg = mido.Message('control_change', control=100, value=127)
+            self.app.send_midi(msg)
+            return True
+
         elif button_name == SETTINGS_BUTTON:
             self.app.toggle_and_rotate_settings_mode()
             self.app.buttons_need_update = True
             return True
+
         elif button_name == TOGGLE_DISPLAY_BUTTON:
             self.app.use_push2_display = not self.app.use_push2_display
             if not self.app.use_push2_display:
                 self.push.display.send_to_display(self.push.display.prepare_frame(self.push.display.make_black_frame()))
             self.app.buttons_need_update = True
             return True
+
         elif button_name == PYRAMID_TRACK_TRIGGERING_BUTTON:
             if self.app.is_mode_active(self.app.track_triggering_mode):
                 # If already active, deactivate and set pressing time to None
@@ -132,6 +154,21 @@ class MainControlsMode(definitions.PyshaMode):
                 self.app.buttons_need_update = True
 
             return True
+
+# RELEASED button play
+        elif button_name == push2_python.constants.BUTTON_PLAY:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.YELLOW)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN_RGB)
+            msg = mido.Message('control_change', control=109, value=0)
+            self.app.send_midi(msg)
+
+        # RELEASED button record
+        elif button_name == push2_python.constants.BUTTON_RECORD:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB)
+
+            msg = mido.Message('control_change', control=100, value=0)
+            self.app.send_midi(msg)
 
         elif button_name == PRESET_SELECTION_MODE_BUTTON:
             # Decide if short press or long press

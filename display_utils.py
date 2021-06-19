@@ -32,7 +32,7 @@ def draw_text_at(ctx, x, y, text, font_size = 12, color=[1, 1, 1]):
     ctx.show_text(text)
 
 
-def show_text(ctx, x_part, pixels_from_top, text, height=20, font_color=definitions.WHITE, background_color=None, margin_left=4, margin_top=4, font_size_percentage=0.8, center_vertically=True, center_horizontally=False, rectangle_padding=0):
+def show_text(ctx, x_part, pixels_from_top, text, height=20, font_color=definitions.WHITE, background_color=None, margin_left=4, margin_top=4, font_size_percentage=0.8, center_vertically=True, center_horizontally=definitions.CENTER_LABELS, rectangle_padding=0):
     assert 0 <= x_part < 8
     assert type(x_part) == int
 

@@ -80,6 +80,7 @@ COLORS_NAMES += to_add_in_color_names  # Update list of color names with darkifi
 
 FONT_COLOR_DELAYED_ACTIONS = ORANGE
 FONT_COLOR_DISABLED = GRAY_LIGHT
+CENTER_LABELS = True
 OFF_BTN_COLOR = GRAY_DARK
 NOTE_ON_COLOR = GREEN
 
