@@ -5,17 +5,16 @@ import asyncio
 import time
 
 osc_send_host = "127.0.0.1"
-osc_send_port = 9003
-osc_receive_port = 9004
+osc_send_port = 7000
+osc_receive_port = 9000
 
 tracks_state_fps = 4.0
 transport_state_fps = 10.0
 
 
 class ShepherdInterface(object):
-
     app = None
-
+    count = 0
     osc_sender = None
     osc_server = None
 
@@ -31,11 +30,13 @@ class ShepherdInterface(object):
         self.osc_sender = OSCClient(osc_send_host, osc_send_port, encoding='utf8')
 
         self.osc_server = OSCThreadServer()
-        sock = self.osc_server.listen(address='0.0.0.0', port=osc_receive_port, default=True)
+        sock = self.osc_server.listen(address='127.0.0.1', port=osc_receive_port, default=True)
         self.osc_server.bind(b'/stateFromShepherd', self.receive_state_from_shepherd)
 
-        self.run_get_state_transport_thread()
-        self.run_get_state_tracks_thread()
+        def callback(values):
+            print("got values: {}".format(values))
+        # self.run_get_state_transport_thread()
+        # self.run_get_state_tracks_thread()
 
     def run_get_state_transport_thread(self):
         self.state_transport_check_thread = threading.Thread(target=self.check_transport_state)
@@ -47,16 +48,16 @@ class ShepherdInterface(object):
 
     def check_transport_state(self):
         while True:
-            time.sleep(1.0/transport_state_fps)
+            time.sleep(1.0 / transport_state_fps)
             self.osc_sender.send_message('/state/transport', [])
 
     def check_tracks_state(self):
         while True:
-            time.sleep(1.0/tracks_state_fps)
+            time.sleep(1.0 / tracks_state_fps)
             self.osc_sender.send_message('/state/tracks', [])
 
     def receive_state_from_shepherd(self, values):
-
+        print(values)
         state = values.decode("utf-8")
         if state.startswith("transport"):
             parts = state.split(',')
@@ -86,9 +87,9 @@ class ShepherdInterface(object):
                     self.app.track_selection_mode.select_track(self.parsed_state['selectedTrack'])
 
             if old_is_playing != self.parsed_state['isPlaying'] or \
-                old_is_recording != self.parsed_state['isRecording'] or \
+                    old_is_recording != self.parsed_state['isRecording'] or \
                     old_metronome_on != self.parsed_state['metronomeOn'] or \
-                        old_selected_scene != self.parsed_state['selectedScene']:
+                    old_selected_scene != self.parsed_state['selectedScene']:
                 self.app.buttons_need_update = True
 
         elif state.startswith("tracks"):
@@ -101,7 +102,8 @@ class ShepherdInterface(object):
                     if part == "t":
                         in_track = True
                         if current_track_clips_state:
-                            track_clips_state.append(current_track_clips_state[1:])  # Remove first element which is # clips per track)
+                            track_clips_state.append(
+                                current_track_clips_state[1:])  # Remove first element which is # clips per track)
                         current_track_clips_state = []
                     else:
                         if in_track:
@@ -141,13 +143,18 @@ class ShepherdInterface(object):
         self.osc_sender.send_message('/scene/duplicate', [scene_number])
 
     def global_play_stop(self):
-        self.osc_sender.send_message('/transport/playStop', [])
+        self.osc_sender.send_message('/logic/transport/play', [1.00])
 
     def global_record(self):
-        self.osc_sender.send_message('/transport/recordOnOff', [])
+        self.count += 1
+        print({self.count % 2})
+        if (self.count % 2) == 1:
+            self.osc_sender.send_message('/logic/transport/record', [1.0])
+        else:
+            self.osc_sender.send_message('/logic/transport/play', [1.00])
 
     def metronome_on_off(self):
-        self.osc_sender.send_message('/metronome/onOff', [])
+        self.osc_sender.send_message('/logic/transport/click', [1.00])
 
     def get_buttons_state(self):
         is_playing = self.parsed_state.get('isPlaying', False)

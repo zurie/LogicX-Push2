@@ -6,7 +6,7 @@ import push2_python
 def show_title(ctx, x, h, text, color=[1, 1, 1]):
     text = str(text)
     ctx.set_source_rgb(*color)
-    ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    ctx.select_font_face("Apple SD Gothic Neo", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
     font_size = h//12
     ctx.set_font_size(font_size)
     ctx.move_to(x + 3, 20)
@@ -16,7 +16,7 @@ def show_title(ctx, x, h, text, color=[1, 1, 1]):
 def show_value(ctx, x, h, text, color=[1, 1, 1]):
     text = str(text)
     ctx.set_source_rgb(*color)
-    ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    ctx.select_font_face("Apple SD Gothic Neo", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
     font_size = h//8
     ctx.set_font_size(font_size)
     ctx.move_to(x + 3, 45)
@@ -26,7 +26,7 @@ def show_value(ctx, x, h, text, color=[1, 1, 1]):
 def draw_text_at(ctx, x, y, text, font_size = 12, color=[1, 1, 1]):
     text = str(text)
     ctx.set_source_rgb(*color)
-    ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    ctx.select_font_face("Apple SD Gothic Neo", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
     ctx.set_font_size(font_size)
     ctx.move_to(x, y)
     ctx.show_text(text)
@@ -49,7 +49,7 @@ def show_text(ctx, x_part, pixels_from_top, text, height=20, font_color=definiti
         ctx.rectangle(x1 + rectangle_padding, y1 + rectangle_padding, part_w - rectangle_padding * 2, height - rectangle_padding * 2)
         ctx.fill()
     ctx.set_source_rgb(*definitions.get_color_rgb_float(font_color))
-    ctx.select_font_face("Arial", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    ctx.select_font_face("Apple SD Gothic Neo", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
     font_size = round(int(height * font_size_percentage))
     text_lines = text.split('\n')
     n_lines = len(text_lines)
