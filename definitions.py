@@ -4,6 +4,9 @@ import colorsys
 VERSION = '0.26'
 
 DELAYED_ACTIONS_APPLY_TIME = 1.0  # Encoder changes won't be applied until this time has passed since last moved
+isPlaying: False
+isMetronome: False
+isRecording: False
 
 LAYOUT_MELODIC = 'lmelodic'
 LAYOUT_RHYTHMIC = 'lrhythmic'

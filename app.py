@@ -505,7 +505,7 @@ class PyshaApp(object):
                     self.actual_frame_rate = self.current_frame_rate_measurement
                     self.current_frame_rate_measurement = 0
                     self.current_frame_rate_measurement_second = now
-                    #print('{0} fps'.format(self.actual_frame_rate))
+                    # print('{0} fps'.format(self.actual_frame_rate))
 
                 # Check if any delayed actions need to be applied
                 self.check_for_delayed_actions()

@@ -1,6 +1,7 @@
 import definitions
-import mido
 import push2_python
+
+import mido
 import time
 
 TOGGLE_DISPLAY_BUTTON = push2_python.constants.BUTTON_USER
@@ -33,9 +34,12 @@ class MainControlsMode(definitions.PyshaMode):
     def update_buttons(self):
         # Note button, to toggle melodic/rhythmic mode
         self.push.buttons.set_button_color(MELODIC_RHYTHMIC_TOGGLE_BUTTON, definitions.WHITE)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.OFF_BTN_COLOR)
+        # self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB)
+        # self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED_RGB)
+        # self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.WHITE)
+
+        if definitions.isPlaying:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB, animation=definitions.DEFAULT_ANIMATION)
 
         # Mute button, to toggle display on/off
         if self.app.use_push2_display:
@@ -83,7 +87,7 @@ class MainControlsMode(definitions.PyshaMode):
 
         # PRESSED metronome
         elif button_name == push2_python.constants.BUTTON_METRONOME:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.WHITE)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.BLACK)
             return True
 
         # PRESSED button play
@@ -98,7 +102,7 @@ class MainControlsMode(definitions.PyshaMode):
         # PRESSED button record
         elif button_name == push2_python.constants.BUTTON_RECORD:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.BLACK)
-            self.record_button_pressing_time = time.time()
+            # self.app.shepherd_interface.global_record()
             return True
 
         elif button_name == SETTINGS_BUTTON:
@@ -164,7 +168,7 @@ class MainControlsMode(definitions.PyshaMode):
 
         # RELEASED metronome
         elif button_name == push2_python.constants.BUTTON_METRONOME:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.OFF_BTN_COLOR)
+            # self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.WHITE)
 
             self.app.shepherd_interface.metronome_on_off()
 
@@ -182,26 +186,25 @@ class MainControlsMode(definitions.PyshaMode):
                     # Consider this is a long press
                     is_long_press = True
                 self.play_button_pressing_time = None
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.RED)
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN_RGB)
+                # self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.RED)
+                # self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN_RGB)
                 self.app.shepherd_interface.global_play_stop()
             if is_long_press:
                 # If long press, deactivate preset selection mode, else do nothing
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.YELLOW)
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.ORANGE_RGB)
-                self.app.shepherd_interface.global_play_stop()
-                self.app.buttons_need_update = True
+                # self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.YELLOW)
+                # self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.ORANGE_RGB)
+                self.app.shepherd_interface.global_pause()
+                # self.app.buttons_need_update = True
 
             return True
 
-
         # RELEASED button record
         elif button_name == push2_python.constants.BUTTON_RECORD:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN_RGB)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB)
-
             self.app.shepherd_interface.global_record()
 
+            return True
 
         elif button_name == PRESET_SELECTION_MODE_BUTTON:
             # Decide if short press or long press
