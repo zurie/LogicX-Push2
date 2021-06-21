@@ -120,7 +120,7 @@ class ShepherdInterface(definitions.PyshaMode):
             self.osc_sender.send_message('/logic/transport/record', [1.00])
 
     def metronome_on_off(self):
-        self.osc_sender.send_message('/logic/transport/click', [0.00])
+        self.osc_sender.send_message('/logic/transport/click', [1.00])
 
     def get_buttons_state(self):
         if definitions.isPlaying:
