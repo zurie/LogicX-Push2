@@ -36,7 +36,6 @@ class SettingsMode(definitions.PyshaMode):
     n_pages = 3
     encoders_state = {}
     is_running_sw_update = False
-    is_running_sw_update_shepherd = False
 
     def move_to_next_page(self):
         self.app.buttons_need_update = True
@@ -119,8 +118,7 @@ class SettingsMode(definitions.PyshaMode):
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_3, definitions.BLACK)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_3, definitions.RED, animation=definitions.DEFAULT_ANIMATION)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_4, definitions.OFF_BTN_COLOR)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_5, definitions.BLACK)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_5, definitions.RED, animation=definitions.DEFAULT_ANIMATION)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_5, definitions.OFF_BTN_COLOR)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_6, definitions.OFF_BTN_COLOR)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_7, definitions.OFF_BTN_COLOR)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, definitions.OFF_BTN_COLOR)
@@ -262,11 +260,6 @@ class SettingsMode(definitions.PyshaMode):
                 elif i == 3:  # FPS indicator
                     show_title(ctx, part_x, h, 'FPS')
                     show_value(ctx, part_x, h, self.app.actual_frame_rate, color)
-
-                elif i == 4:  # Software update shepherd
-                    show_title(ctx, part_x, h, 'SHEP UPDATE')
-                    if self.is_running_sw_update_shepherd:
-                        show_value(ctx, part_x, h, 'Running... ', color)
 
         # After drawing all labels and values, draw other stuff if required
         if self.current_page == 0:  # Performance settings
@@ -471,13 +464,6 @@ class SettingsMode(definitions.PyshaMode):
                 run_sw_update()
                 return True
 
-            elif button_name == push2_python.constants.BUTTON_UPPER_ROW_5:
-                # Run software update for shepherd
-                self.is_running_sw_update_shepherd = True
-                run_sw_update_shepherd()
-                self.is_running_sw_update_shepherd = False
-                return True
-
 
 def restart_program():
     """Restarts the current program, with file objects and descriptors cleanup
@@ -502,9 +488,3 @@ def run_sw_update():
     os.system('git pull')
     print('- restarting process')
     restart_program()
-
-def run_sw_update_shepherd():
-    """Checksout shepherd repository, rebuilds and restarts service"""
-    print('Running SW update shepherd...')
-    os.system('cd /home/pi/shepherd/Shepherd/Builds/LinuxMakefile; git pull; make CONFIG=Release -j4;')
-    os.system('sudo systemctl restart shepherd')

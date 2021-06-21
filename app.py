@@ -12,7 +12,7 @@ import push2_python
 
 from melodic_mode import MelodicMode
 from track_selection_mode import TrackSelectionMode
-from track_triggering_mode import TrackTriggeringMode
+from pyramid_track_triggering_mode import PyramidTrackTriggeringMode
 from rhythmic_mode import RhythmicMode
 from slice_notes_mode import SliceNotesMode
 from settings_mode import SettingsMode
@@ -20,7 +20,6 @@ from main_controls_mode import MainControlsMode
 from midi_cc_mode import MIDICCMode
 from preset_selection_mode import PresetSelectionMode
 from ddrm_tone_selector_mode import DDRMToneSelectorMode
-from shepherd_interface import ShepherdInterface
 
 from display_utils import show_notification
 
@@ -65,16 +64,11 @@ class PyshaApp(object):
     last_cp_value_recevied = 0
     last_cp_value_recevied_time = 0
 
-    # interface with shepherd
-    shepherd_interface = None
-
     def __init__(self):
         if os.path.exists('settings.json'):
             settings = json.load(open('settings.json'))
         else:
             settings = {}
-
-        self.shepherd_interface = ShepherdInterface(self)
 
         self.set_midi_in_channel(settings.get('midi_in_default_channel', 0))
         self.set_midi_out_channel(settings.get('midi_out_default_channel', 0))
@@ -98,7 +92,7 @@ class PyshaApp(object):
         self.set_melodic_mode()
 
         self.track_selection_mode = TrackSelectionMode(self, settings=settings)
-        self.track_triggering_mode = TrackTriggeringMode(self, settings=settings)
+        self.pyramid_track_triggering_mode = PyramidTrackTriggeringMode(self, settings=settings)
         self.preset_selection_mode = PresetSelectionMode(self, settings=settings)
         self.midi_cc_mode = MIDICCMode(self, settings=settings)  # Must be initialized after track selection mode so it gets info about loaded tracks
         self.active_modes += [self.track_selection_mode, self.midi_cc_mode]
@@ -213,11 +207,11 @@ class PyshaApp(object):
     def set_slice_notes_mode(self):
         self.set_mode_for_xor_group(self.slice_notes_mode)
 
-    def set_track_triggering_mode(self):
-        self.set_mode_for_xor_group(self.track_triggering_mode)
+    def set_pyramid_track_triggering_mode(self):
+        self.set_mode_for_xor_group(self.pyramid_track_triggering_mode)
 
-    def unset_track_triggering_mode(self):
-        self.unset_mode_for_xor_group(self.track_triggering_mode)
+    def unset_pyramid_track_triggering_mode(self):
+        self.unset_mode_for_xor_group(self.pyramid_track_triggering_mode)
 
     def set_preset_selection_mode(self):
         self.set_mode_for_xor_group(self.preset_selection_mode)

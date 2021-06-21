@@ -32,7 +32,7 @@ def draw_text_at(ctx, x, y, text, font_size = 12, color=[1, 1, 1]):
     ctx.show_text(text)
 
 
-def show_text(ctx, x_part, pixels_from_top, text, height=20, font_color=definitions.WHITE, background_color=None, margin_left=4, margin_top=4, font_size_percentage=0.8, center_vertically=True, center_horizontally=definitions.CENTER_LABELS, rectangle_padding=0):
+def show_text(ctx, x_part, pixels_from_top, text, height=20, font_color=definitions.WHITE, background_color=None, margin_left=4, margin_top=4, font_size_percentage=0.8, center_vertically=True, center_horizontally=definitions.CENTER_LABELS, rectangle_padding=0, rectangle_width_percentage=1.0):
     assert 0 <= x_part < 8
     assert type(x_part) == int
 
@@ -46,7 +46,7 @@ def show_text(ctx, x_part, pixels_from_top, text, height=20, font_color=definiti
 
     if background_color is not None:
         ctx.set_source_rgb(*definitions.get_color_rgb_float(background_color))
-        ctx.rectangle(x1 + rectangle_padding, y1 + rectangle_padding, part_w - rectangle_padding * 2, height - rectangle_padding * 2)
+        ctx.rectangle(x1 + rectangle_padding, y1 + rectangle_padding, rectangle_width_percentage * (part_w - rectangle_padding * 2), height - rectangle_padding * 2)
         ctx.fill()
     ctx.set_source_rgb(*definitions.get_color_rgb_float(font_color))
     ctx.select_font_face("Apple SD Gothic Neo", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
