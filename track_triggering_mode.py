@@ -77,7 +77,7 @@ class TrackTriggeringMode(definitions.PyshaMode):
             self.push.buttons.set_button_color(self.clear_clip_button, definitions.BLACK)
             self.push.buttons.set_button_color(self.clear_clip_button, definitions.WHITE, animation=definitions.DEFAULT_ANIMATION)
 
-        is_playing, is_recording, metronome_on = self.app.shepherd_interface.get_buttons_state()
+        is_playing, metronome_on, is_recording = self.app.shepherd_interface.get_buttons_state()
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.WHITE if not is_playing else definitions.GREEN)
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.WHITE if not is_recording else definitions.RED)
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.BLACK if not metronome_on else definitions.WHITE)

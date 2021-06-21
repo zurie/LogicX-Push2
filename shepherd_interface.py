@@ -56,8 +56,7 @@ class ShepherdInterface(definitions.PyshaMode):
             time.sleep(1.0 / tracks_state_fps)
             self.osc_sender.send_message('/logic/tracks', [])
 
-    def receive_state_from_shepherd(self, play, click, record, solo):
-
+    def receive_state_from_shepherd(self, play, click, record):
         if self.toUTF8(play) == '1.00':
             definitions.isPlaying = True
         else:
@@ -72,6 +71,7 @@ class ShepherdInterface(definitions.PyshaMode):
             definitions.isRecording = True
         else:
             definitions.isRecording = False
+        self.app.shepherd_interface.get_buttons_state()
 
     def track_select(self, track_number):
         self.osc_sender.send_message('/track/select', [track_number])
@@ -130,18 +130,31 @@ class ShepherdInterface(definitions.PyshaMode):
 
 
     def metronome_on_off(self):
-        if definitions.isMetronome:
-            self.osc_sender.send_message('/logic/transport/click', [0.00])
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.OFF_BTN_COLOR)
-        else:
-            self.osc_sender.send_message('/logic/transport/click', [1.00])
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.WHITE_RGB)
+        self.osc_sender.send_message('/logic/transport/click', [0.00])
+
+        # if definitions.isMetronome:
+        #     self.osc_sender.send_message('/logic/transport/click', [0.00])
+        #     self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.OFF_BTN_COLOR)
+        # else:
+        #     self.osc_sender.send_message('/logic/transport/click', [1.00])
+        #     self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.WHITE_RGB)
 
     def get_buttons_state(self):
-        is_playing = definitions.isPlaying
-        is_recording = definitions.isRecording
-        metronome_on = definitions.isMetronome
-        return is_playing, is_recording, metronome_on
+        if definitions.isPlaying:
+            is_playing = True
+        else:
+            is_playing = False
+
+        if definitions.isMetronome:
+            metronome_on = True
+        else:
+            metronome_on = False
+
+        if definitions.isRecording:
+            is_recording = True
+        else:
+            is_recording = False
+        return is_playing, metronome_on, is_recording
 
     def get_selected_scene(self):
         return self.parsed_state.get('selectedScene', 0)
