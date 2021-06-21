@@ -33,13 +33,6 @@ class MainControlsMode(definitions.PyshaMode):
     def update_buttons(self):
         # Note button, to toggle melodic/rhythmic mode
         self.push.buttons.set_button_color(MELODIC_RHYTHMIC_TOGGLE_BUTTON, definitions.WHITE)
-        # self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB)
-        # self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED_RGB)
-        # self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.WHITE)
-
-        if definitions.isPlaying:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB,
-                                               animation=definitions.DEFAULT_ANIMATION)
 
         # Mute button, to toggle display on/off
         if self.app.use_push2_display:
@@ -93,22 +86,17 @@ class MainControlsMode(definitions.PyshaMode):
         # PRESSED metronome
         elif button_name == push2_python.constants.BUTTON_METRONOME:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.BLACK)
-
             return True
 
         # PRESSED button play
         elif button_name == push2_python.constants.BUTTON_PLAY:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.BLACK)
             self.play_button_pressing_time = time.time()
-
-            # msg = mido.Message('control_change', control=109, value=127)
-            # self.app.send_midi(msg)
             return True
 
         # PRESSED button record
         elif button_name == push2_python.constants.BUTTON_RECORD:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.BLACK)
-            # self.app.shepherd_interface.global_record()
             return True
 
         elif button_name == SETTINGS_BUTTON:
@@ -152,7 +140,7 @@ class MainControlsMode(definitions.PyshaMode):
             return True
 
     def on_button_released(self, button_name):
-        # is_playing, metronome_on, is_recording = self.app.shepherd_interface.get_buttons_state()
+
         if button_name == PYRAMID_TRACK_TRIGGERING_BUTTON:
             # Decide if short press or long press
             pressing_time = self.pyramid_track_triggering_button_pressing_time
@@ -175,8 +163,6 @@ class MainControlsMode(definitions.PyshaMode):
 
         # RELEASED metronome
         elif button_name == push2_python.constants.BUTTON_METRONOME:
-            # self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.WHITE)
-
             self.app.shepherd_interface.metronome_on_off()
 
             return True
@@ -193,13 +179,8 @@ class MainControlsMode(definitions.PyshaMode):
                     # Consider this is a long press
                     is_long_press = True
                 self.play_button_pressing_time = None
-                # self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.RED)
-                # self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN_RGB)
                 self.app.shepherd_interface.global_play_stop()
             if is_long_press:
-                # If long press, deactivate preset selection mode, else do nothing
-                # self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.YELLOW)
-                # self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.ORANGE_RGB)
                 self.app.shepherd_interface.global_pause()
                 # self.app.buttons_need_update = True
 
@@ -207,8 +188,6 @@ class MainControlsMode(definitions.PyshaMode):
 
         # RELEASED button record
         elif button_name == push2_python.constants.BUTTON_RECORD:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN_RGB)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB)
             self.app.shepherd_interface.global_record()
 
             return True

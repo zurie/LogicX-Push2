@@ -103,41 +103,24 @@ class ShepherdInterface(definitions.PyshaMode):
     def global_pause(self):
         if definitions.isPlaying:
             self.osc_sender.send_message('/logic/transport/pause', [1.00])
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.YELLOW_RGB)
 
     def global_play_stop(self):
         if definitions.isPlaying:
             self.osc_sender.send_message('/logic/transport/stop', [1.00])
         else:
             self.osc_sender.send_message('/logic/transport/play', [1.00])
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB,
-                                               animation=definitions.DEFAULT_ANIMATION)
 
     def global_record(self):
-        if definitions.isRecording:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN_RGB)
-
-        if not definitions.isRecording:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
 
         if definitions.isPlaying:
             self.osc_sender.send_message('/logic/transport/record', [0.00])
 
         # Sitting IDLE
         elif not definitions.isRecording and not definitions.isPlaying:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED, animation=definitions.DEFAULT_ANIMATION)
             self.osc_sender.send_message('/logic/transport/record', [1.00])
-
 
     def metronome_on_off(self):
         self.osc_sender.send_message('/logic/transport/click', [0.00])
-
-        # if definitions.isMetronome:
-        #     self.osc_sender.send_message('/logic/transport/click', [0.00])
-        #     self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.OFF_BTN_COLOR)
-        # else:
-        #     self.osc_sender.send_message('/logic/transport/click', [1.00])
-        #     self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.WHITE_RGB)
 
     def get_buttons_state(self):
         if definitions.isPlaying:
@@ -154,6 +137,17 @@ class ShepherdInterface(definitions.PyshaMode):
             is_recording = True
         else:
             is_recording = False
+
+        if is_playing:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB, animation=definitions.DEFAULT_ANIMATION)
+        else:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.YELLOW, animation=push2_python.constants.ANIMATION_STATIC)
+
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD,
+                                           definitions.GREEN_RGB if not is_recording else definitions.RED)
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME,
+                                           definitions.OFF_BTN_COLOR if not metronome_on else definitions.WHITE)
+
         return is_playing, metronome_on, is_recording
 
     def get_selected_scene(self):
