@@ -1,0 +1,166 @@
+{
+    "n_banks": 1,
+    "midi_cc": [
+        {
+            "section": "VCO",
+            "controls": [
+                [
+                    "VCO1 LEV",
+                    15
+                ],
+                [
+                    "VCO2 LEV",
+                    16
+                ],
+                [
+                    "VCO1 WAVE",
+                    70
+                ],
+                [
+                    "VCO2 WAVE",
+                    71
+                ],
+                [
+                    "GLIDE RATE",
+                    5
+                ],
+                [
+                    "LEG GLIDE",
+                    83
+                ],
+                [
+                    "GLIDE TYPE",
+                    92
+                ],
+                [
+                    "GLIDE SWITCH",
+                    65
+                ],
+                [
+                    "VCO2FREQ",
+                    17
+                ],
+                [
+                    "VCO2BEAT",
+                    18
+                ]
+            ]
+        },
+        {
+            "section": "VCF",
+            "controls": [
+                [
+                    "CUTOFF",
+                    19
+                ],
+                [
+                    "RESSO",
+                    21
+                ],
+                [
+                    "KB TRACK",
+                    20
+                ],
+                [
+                    "EG AMT",
+                    22
+                ],
+                [
+                    "ATTACK",
+                    23
+                ],
+                [
+                    "DEC/REL",
+                    24
+                ],
+                [
+                    "SUSTAIN",
+                    25
+                ]
+            ]
+        },
+        {
+            "section": "VCA",
+            "controls": [
+                [
+                    "OUT LEV",
+                    7
+                ],
+                [
+                    "ATTACK",
+                    28
+                ],
+                [
+                    "DEC/REL",
+                    29
+                ],
+                [
+                    "SUSTAIN",
+                    30
+                ]
+            ]
+        },
+        {
+            "section": "LFO",
+            "controls": [
+                [
+                    "RATE",
+                    3
+                ],
+                [
+                    "VCO AMT",
+                    13
+                ],
+                [
+                    "VCF AMT",
+                    12
+                ],
+                [
+                    "CLOCK DIV",
+                    86
+                ]
+            ]
+        },
+        {
+            "section": "OTHER",
+            "controls": [
+                [
+                    "FILT VEL",
+                    89
+                ],
+                [
+                    "VOL VEL",
+                    90
+                ],
+                [
+                    "EXT IN",
+                    27
+                ],
+                [
+                    "REL SWITCH",
+                    72
+                ],
+                [
+                    "TRIG MODE",
+                    73
+                ],
+                [
+                    "NOTE SYNC",
+                    81
+                ],
+                [
+                    "KEY PRIOR",
+                    91
+                ],
+                [
+                    "BEND UP",
+                    107
+                ],
+                [
+                    "BEND DOWN",
+                    108
+                ]
+            ]
+        }
+    ]
+}
