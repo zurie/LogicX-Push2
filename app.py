@@ -3,6 +3,7 @@ import os
 import platform
 import time
 import traceback
+from collections import defaultdict
 
 import cairo
 from push2_python.constants import BUTTON_SELECT
@@ -372,7 +373,7 @@ class PyshaApp(object):
     def send_midi(self, msg, use_original_msg_channel=False):
         # Unless we specifically say we want to use the original msg mnidi channel, set it to global midi out channel or to the channel of the current track
         if not use_original_msg_channel and hasattr(msg, 'channel'):
-            midi_out_channel = self.midi_out_channel    
+            midi_out_channel = self.midi_out_channel
             if self.midi_out_channel == -1:
                 # Send the message to the midi channel of the currently selected track (or to track 1 if selected track has no midi channel information)
                 track_midi_channel = self.track_selection_mode.get_current_track_info()['midi_channel']
@@ -381,7 +382,7 @@ class PyshaApp(object):
                 else:
                     midi_out_channel = track_midi_channel - 1 # msg.channel is 0-indexed
             msg = msg.copy(channel=midi_out_channel)
-        
+
         if self.midi_out is not None:
             self.midi_out.send(msg)
 
@@ -402,7 +403,7 @@ class PyshaApp(object):
                     else:
                         self.last_cp_value_recevied = msg.value
                     self.last_cp_value_recevied_time = time.time()
-                    
+
                 if not skip_message:
                     # Forward message to the main MIDI out
                     self.send_midi(msg)
@@ -600,9 +601,16 @@ def on_pad_aftertouch(_, pad_n, pad_ij, velocity):
        print('Error:  {}'.format(str(e)))
        traceback.print_exc()
 
+buttons_pressing_log = defaultdict(list)
+buttons_timers = defaultdict(None)
+buttons_pressed_state = {}
+buttons_should_ignore_next_release_action = {}
+buttons_waiting_to_trigger_processed_action = {}
 
 @push2_python.on_button_pressed()
-def on_button_pressed_raw(_, name):
+def on_button_pressed(_, name):
+    global buttons_pressing_log, buttons_timers, buttons_pressed_state, buttons_should_ignore_next_release_action, buttons_waiting_to_trigger_processed_action
+
     try:
         for mode in app.active_modes[::-1]:
             action_performed = mode.on_button_pressed_raw(name)
