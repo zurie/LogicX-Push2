@@ -716,12 +716,7 @@ class DDRMToneSelectorMode(PyshaMode):
     def activate(self):
         self.update_buttons()
 
-    def deactivate(self):
-        for button_name in self.upper_row_button_names + self.lower_row_button_names + [push2_python.constants.BUTTON_PAGE_LEFT, push2_python.constants.BUTTON_PAGE_RIGHT]:
-            self.push.buttons.set_button_color(button_name, definitions.BLACK)
-
     def update_buttons(self):
-
         for count, name in enumerate(self.upper_row_button_names):
             try:
                 tone_name = self.upper_row_names[count + self.page_n * 8]
@@ -771,7 +766,7 @@ class DDRMToneSelectorMode(PyshaMode):
                     show_text(ctx, i, top_offset, name.upper(), height=height,
                               font_color=font_color, background_color=background_color, font_size_percentage=0.2, center_vertically=True, center_horizontally=True, rectangle_padding=1)
 
-    def on_button_pressed_raw(self, button_name):
+    def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
         if button_name in self.upper_row_button_names:
             start = self.page_n * 8
             button_idx = self.upper_row_button_names.index(button_name)
@@ -800,5 +795,4 @@ class DDRMToneSelectorMode(PyshaMode):
                 self.page_n = 0
             elif button_name == self.button_right and show_next:
                 self.page_n = 1
-            self.app.buttons_need_update = True
             return True
