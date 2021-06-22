@@ -26,6 +26,12 @@ class MelodicMode(definitions.PyshaMode):
     lumi_midi_out = None
     last_time_tried_initialize_lumi = 0
 
+    octave_up_button = push2_python.constants.BUTTON_OCTAVE_UP
+    octave_down_button = push2_python.constants.BUTTON_OCTAVE_DOWN
+    accent_button = push2_python.constants.BUTTON_ACCENT
+
+    buttons_used = [octave_up_button, octave_down_button, accent_button]
+
     def init_lumi_midi_out(self):
         print('Configuring LUMI notes MIDI out...')
         self.last_time_tried_initialize_lumi = time.time()
@@ -173,10 +179,8 @@ class MelodicMode(definitions.PyshaMode):
         self.update_pads()
 
     def deactivate(self):
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_DOWN, definitions.BLACK)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_UP, definitions.BLACK)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_ACCENT, definitions.BLACK)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_SHIFT, definitions.BLACK)
+        # Run supperclass deactivate to set all used buttons to black
+        super().deactivate()
 
     def check_for_delayed_actions(self):
         if self.last_time_at_params_edited is not None and time.time() - self.last_time_at_params_edited > definitions.DELAYED_ACTIONS_APPLY_TIME:
@@ -197,8 +201,8 @@ class MelodicMode(definitions.PyshaMode):
         self.app.pads_need_update = True
 
     def update_octave_buttons(self):
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_DOWN, definitions.WHITE)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_OCTAVE_UP, definitions.WHITE)
+        self.set_button_color(self.octave_down_button)
+        self.set_button_color(self.octave_up_button)
 
     def update_accent_button(self):
         if self.fixed_velocity_mode:
@@ -305,7 +309,7 @@ class MelodicMode(definitions.PyshaMode):
             ))
             return True
 
-        elif button_name == push2_python.constants.BUTTON_OCTAVE_DOWN:
+        elif button_name == self.octave_down_button:
             self.set_root_midi_note(self.root_midi_note - 12)
             self.app.pads_need_update = True
             self.app.add_display_notification("Octave down: from {0} to {1}".format(

@@ -4,80 +4,89 @@ import push2_python
 import mido
 import time
 
-TOGGLE_DISPLAY_BUTTON = push2_python.constants.BUTTON_USER
-SETTINGS_BUTTON = push2_python.constants.BUTTON_SETUP
-MELODIC_RHYTHMIC_TOGGLE_BUTTON = push2_python.constants.BUTTON_NOTE
-PYRAMID_TRACK_TRIGGERING_BUTTON = push2_python.constants.BUTTON_ADD_TRACK
-PRESET_SELECTION_MODE_BUTTON = push2_python.constants.BUTTON_ADD_DEVICE
-DDRM_TONE_SELECTION_MODE_BUTTON = push2_python.constants.BUTTON_DEVICE
-
 
 class MainControlsMode(definitions.PyshaMode):
-
     pyramid_track_triggering_button_pressing_time = None
+    track_triggering_button_pressing_time = None
     record_button_pressing_time = None
     play_button_pressing_time = None
     preset_selection_button_pressing_time = None
     button_quick_press_time = 0.400
 
+    last_tap_tempo_times = []
+
+    toggle_display_button = push2_python.constants.BUTTON_USER
+    settings_button = push2_python.constants.BUTTON_SETUP
+    melodic_rhythmic_toggle_button = push2_python.constants.BUTTON_NOTE
+    pyramid_track_triggering_button = push2_python.constants.BUTTON_ADD_TRACK
+    track_triggering_button = push2_python.constants.BUTTON_SESSION
+    preset_selection_mode_button = push2_python.constants.BUTTON_ADD_DEVICE
+    ddrm_tone_selection_mode_button = push2_python.constants.BUTTON_DEVICE
+    shift_button = push2_python.constants.BUTTON_SHIFT
+    select_button = push2_python.constants.BUTTON_SELECT
+    play_button = push2_python.constants.BUTTON_PLAY
+    record_button = push2_python.constants.BUTTON_RECORD
+    metronome_button = push2_python.constants.BUTTON_METRONOME
+    tap_tempo_button = push2_python.constants.BUTTON_TAP_TEMPO
+    fixed_length_button = push2_python.constants.BUTTON_FIXED_LENGTH
+    record_automation_button = push2_python.constants.BUTTON_AUTOMATE
+
+    buttons_used = [toggle_display_button, settings_button, melodic_rhythmic_toggle_button, track_triggering_button,
+                    preset_selection_mode_button,
+                    ddrm_tone_selection_mode_button, shift_button, select_button, play_button, record_button,
+                    metronome_button, fixed_length_button,
+                    record_automation_button]
+
     def activate(self):
         self.update_buttons()
 
-    def deactivate(self):
-        self.push.buttons.set_button_color(MELODIC_RHYTHMIC_TOGGLE_BUTTON, definitions.BLACK)
-        self.push.buttons.set_button_color(TOGGLE_DISPLAY_BUTTON, definitions.BLACK)
-        self.push.buttons.set_button_color(SETTINGS_BUTTON, definitions.BLACK)
-        self.push.buttons.set_button_color(PYRAMID_TRACK_TRIGGERING_BUTTON, definitions.BLACK)
-        self.push.buttons.set_button_color(PRESET_SELECTION_MODE_BUTTON, definitions.BLACK)
-        self.push.buttons.set_button_color(DDRM_TONE_SELECTION_MODE_BUTTON, definitions.BLACK)
-
     def update_buttons(self):
         # Note button, to toggle melodic/rhythmic mode
-        self.push.buttons.set_button_color(MELODIC_RHYTHMIC_TOGGLE_BUTTON, definitions.WHITE)
+        self.push.buttons.set_button_color(self.melodic_rhythmic_toggle_button, definitions.WHITE)
 
         # Mute button, to toggle display on/off
         if self.app.use_push2_display:
-            self.push.buttons.set_button_color(TOGGLE_DISPLAY_BUTTON, definitions.WHITE)
+            self.push.buttons.set_button_color(self.toggle_display_button, definitions.WHITE)
         else:
-            self.push.buttons.set_button_color(TOGGLE_DISPLAY_BUTTON, definitions.OFF_BTN_COLOR)
+            self.push.buttons.set_button_color(self.toggle_display_button, definitions.OFF_BTN_COLOR)
 
         # Settings button, to toggle settings mode
         if self.app.is_mode_active(self.app.settings_mode):
-            self.push.buttons.set_button_color(SETTINGS_BUTTON, definitions.BLACK)
-            self.push.buttons.set_button_color(SETTINGS_BUTTON, definitions.WHITE,
+            self.push.buttons.set_button_color(self.settings_button, definitions.BLACK)
+            self.push.buttons.set_button_color(self.settings_button, definitions.WHITE,
                                                animation=definitions.DEFAULT_ANIMATION)
         else:
-            self.push.buttons.set_button_color(SETTINGS_BUTTON, definitions.OFF_BTN_COLOR)
+            self.push.buttons.set_button_color(self.settings_button, definitions.OFF_BTN_COLOR)
 
         # Pyramid track triggering mode
         if self.app.is_mode_active(self.app.pyramid_track_triggering_mode):
-            self.push.buttons.set_button_color(PYRAMID_TRACK_TRIGGERING_BUTTON, definitions.BLACK)
-            self.push.buttons.set_button_color(PYRAMID_TRACK_TRIGGERING_BUTTON, definitions.WHITE,
+            self.push.buttons.set_button_color(self.pyramid_track_triggering_button, definitions.BLACK)
+            self.push.buttons.set_button_color(self.pyramid_track_triggering_button, definitions.WHITE,
                                                animation=definitions.DEFAULT_ANIMATION)
         else:
-            self.push.buttons.set_button_color(PYRAMID_TRACK_TRIGGERING_BUTTON, definitions.OFF_BTN_COLOR)
+            self.push.buttons.set_button_color(self.pyramid_track_triggering_button, definitions.OFF_BTN_COLOR)
 
         # Preset selection mode
         if self.app.is_mode_active(self.app.preset_selection_mode):
-            self.push.buttons.set_button_color(PRESET_SELECTION_MODE_BUTTON, definitions.BLACK)
-            self.push.buttons.set_button_color(PRESET_SELECTION_MODE_BUTTON, definitions.WHITE,
+            self.push.buttons.set_button_color(self.preset_selection_mode_button, definitions.BLACK)
+            self.push.buttons.set_button_color(self.preset_selection_mode_button, definitions.WHITE,
                                                animation=definitions.DEFAULT_ANIMATION)
         else:
-            self.push.buttons.set_button_color(PRESET_SELECTION_MODE_BUTTON, definitions.OFF_BTN_COLOR)
+            self.push.buttons.set_button_color(self.preset_selection_mode_button, definitions.OFF_BTN_COLOR)
 
         # DDRM tone selector mode
         if self.app.ddrm_tone_selector_mode.should_be_enabled():
             if self.app.is_mode_active(self.app.ddrm_tone_selector_mode):
-                self.push.buttons.set_button_color(DDRM_TONE_SELECTION_MODE_BUTTON, definitions.BLACK)
-                self.push.buttons.set_button_color(DDRM_TONE_SELECTION_MODE_BUTTON, definitions.WHITE,
+                self.push.buttons.set_button_color(self.ddrm_tone_selection_mode_button, definitions.BLACK)
+                self.push.buttons.set_button_color(self.ddrm_tone_selection_mode_button, definitions.WHITE,
                                                    animation=definitions.DEFAULT_ANIMATION)
             else:
-                self.push.buttons.set_button_color(DDRM_TONE_SELECTION_MODE_BUTTON, definitions.OFF_BTN_COLOR)
+                self.push.buttons.set_button_color(self.ddrm_tone_selection_mode_button, definitions.OFF_BTN_COLOR)
         else:
-            self.push.buttons.set_button_color(DDRM_TONE_SELECTION_MODE_BUTTON, definitions.BLACK)
+            self.push.buttons.set_button_color(self.ddrm_tone_selection_mode_button, definitions.BLACK)
 
     def on_button_pressed_raw(self, button_name):
-        if button_name == MELODIC_RHYTHMIC_TOGGLE_BUTTON:
+        if button_name == self.melodic_rhythmic_toggle_button:
             self.app.toggle_melodic_rhythmic_slice_modes()
             self.app.pads_need_update = True
             self.app.buttons_need_update = True
@@ -99,17 +108,17 @@ class MainControlsMode(definitions.PyshaMode):
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.BLACK)
             return True
 
-        elif button_name == SETTINGS_BUTTON:
+        elif button_name == self.settings_button:
             self.app.toggle_and_rotate_settings_mode()
             self.app.buttons_need_update = True
             return True
-        elif button_name == TOGGLE_DISPLAY_BUTTON:
+        elif button_name == self.toggle_display_button:
             self.app.use_push2_display = not self.app.use_push2_display
             if not self.app.use_push2_display:
                 self.push.display.send_to_display(self.push.display.prepare_frame(self.push.display.make_black_frame()))
             self.app.buttons_need_update = True
             return True
-        elif button_name == PYRAMID_TRACK_TRIGGERING_BUTTON:
+        elif button_name == self.pyramid_track_triggering_button:
             if self.app.is_mode_active(self.app.pyramid_track_triggering_mode):
                 # If already active, deactivate and set pressing time to None
                 self.app.unset_pyramid_track_triggering_mode()
@@ -120,7 +129,7 @@ class MainControlsMode(definitions.PyshaMode):
                 self.pyramid_track_triggering_button_pressing_time = time.time()
             self.app.buttons_need_update = True
             return True
-        elif button_name == PRESET_SELECTION_MODE_BUTTON:
+        elif button_name == self.preset_selection_mode_button:
             if self.app.is_mode_active(self.app.preset_selection_mode):
                 # If already active, deactivate and set pressing time to None
                 self.app.unset_preset_selection_mode()
@@ -131,14 +140,14 @@ class MainControlsMode(definitions.PyshaMode):
                 self.preset_selection_button_pressing_time = time.time()
             self.app.buttons_need_update = True
             return True
-        elif button_name == DDRM_TONE_SELECTION_MODE_BUTTON:
+        elif button_name == self.ddrm_tone_selection_mode_button:
             if self.app.ddrm_tone_selector_mode.should_be_enabled():
                 self.app.toggle_ddrm_tone_selector_mode()
                 self.app.buttons_need_update = True
             return True
 
     def on_button_released_raw(self, button_name):
-        if button_name == PYRAMID_TRACK_TRIGGERING_BUTTON:
+        if button_name == self.pyramid_track_triggering_button:
             # Decide if short press or long press
             pressing_time = self.pyramid_track_triggering_button_pressing_time
             is_long_press = False
@@ -189,7 +198,7 @@ class MainControlsMode(definitions.PyshaMode):
 
             return True
 
-        elif button_name == PRESET_SELECTION_MODE_BUTTON:
+        elif button_name == self.preset_selection_mode_button:
             # Decide if short press or long press
             pressing_time = self.preset_selection_button_pressing_time
             is_long_press = False

@@ -275,7 +275,7 @@ class SettingsMode(definitions.PyshaMode):
 
                 elif i == 1:  # definitions.VERSION info
                     show_title(ctx, part_x, h, 'VERSION')
-                    show_value(ctx, part_x, h, 'Pysha ' + definitions.VERSION, color)
+                    show_value(ctx, part_x, h, 'LogicX ' + definitions.VERSION, color)
 
                 elif i == 2:  # Software update
                     show_title(ctx, part_x, h, 'SW UPDATE')
