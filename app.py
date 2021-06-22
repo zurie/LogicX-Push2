@@ -5,6 +5,7 @@ import time
 import traceback
 
 import cairo
+from push2_python.constants import BUTTON_SELECT
 import definitions
 import mido
 import numpy
@@ -565,10 +566,10 @@ def on_encoder_rotated(_, encoder_name, increment):
 
 
 @push2_python.on_pad_pressed()
-def on_pad_pressed(_, pad_n, pad_ij, velocity):
+def on_pad_pressed_raw(_, pad_n, pad_ij, velocity):
     try:
         for mode in app.active_modes[::-1]:
-            action_performed = mode.on_pad_pressed(pad_n, pad_ij, velocity)
+            action_performed = mode.on_pad_pressed_raw(pad_n, pad_ij, velocity)
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:
@@ -601,10 +602,10 @@ def on_pad_aftertouch(_, pad_n, pad_ij, velocity):
 
 
 @push2_python.on_button_pressed()
-def on_button_pressed(_, name):
+def on_button_pressed_raw(_, name):
     try:
         for mode in app.active_modes[::-1]:
-            action_performed = mode.on_button_pressed(name)
+            action_performed = mode.on_button_pressed_raw(name)
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:

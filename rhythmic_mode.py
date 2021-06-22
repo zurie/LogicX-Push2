@@ -51,10 +51,10 @@ class RhythmicMode(MelodicMode):
 
         self.push.pads.set_pads_color(color_matrix)
 
-    def on_button_pressed(self, button_name):
+    def on_button_presse_raw(self, button_name):
         if button_name == push2_python.constants.BUTTON_OCTAVE_UP or button_name == push2_python.constants.BUTTON_OCTAVE_DOWN:
             # Don't react to octave up/down buttons as these are not used in rhythm mode
             pass
         else:
             # For the other buttons, refer to the base class
-            super().on_button_pressed(button_name)
+            super().on_button_presse_raw(button_name)

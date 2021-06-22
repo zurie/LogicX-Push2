@@ -263,7 +263,7 @@ class MIDICCMode(PyshaMode):
                         continue
  
     
-    def on_button_pressed(self, button_name):
+    def on_button_pressed_raw(self, button_name):
         if  button_name in self.midi_cc_button_names:
             current_track_sections = self.get_current_track_midi_cc_sections()
             n_sections = len(current_track_sections)

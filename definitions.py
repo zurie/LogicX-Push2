@@ -1,5 +1,12 @@
 import push2_python
 import colorsys
+import os
+import subprocess
+import threading
+
+from functools import wraps
+
+from push2_python.constants import ANIMATION_STATIC
 
 VERSION = '0.27'
 
@@ -44,13 +51,16 @@ TURQUOISE = 'turquoise'
 GREEN = 'green'
 LIME = 'lime'
 
-COLORS_NAMES = [ORANGE, YELLOW, TURQUOISE, LIME, RED, PINK, PURPLE, BLUE, CYAN, GREEN, BLACK, GRAY_DARK, GRAY_LIGHT, WHITE]
+COLORS_NAMES = [ORANGE, YELLOW, TURQUOISE, LIME, RED, PINK, PURPLE, BLUE, CYAN, GREEN, BLACK, GRAY_DARK, GRAY_LIGHT,
+                WHITE]
+
 
 def get_color_rgb(color_name):
     return globals().get('{0}_RGB'.format(color_name.upper()), [0, 0, 0])
 
+
 def get_color_rgb_float(color_name):
-    return [x/255 for x in get_color_rgb(color_name)]
+    return [x / 255 for x in get_color_rgb(color_name)]
 
 
 # Create darker1 and darker2 versions of each color in COLOR_NAMES, add new colors back to COLOR_NAMES
@@ -90,7 +100,55 @@ NOTE_ON_COLOR = GREEN
 DEFAULT_ANIMATION = push2_python.constants.ANIMATION_PULSING_QUARTER
 
 INSTRUMENT_DEFINITION_FOLDER = 'instrument_definitions'
+DEVICE_DEFINITION_FOLDER = 'device_definitions'
 TRACK_LISTING_PATH = 'track_listing.json'
+
+BUTTON_LONG_PRESS_TIME = 0.25
+BUTTON_DOUBLE_PRESS_TIME = 0.2
+
+
+# -- Timer for delayed actions
+
+def delay(delay=0.):
+    """
+    Decorator delaying the execution of a function for a while.
+    Adapted from: https://codeburst.io/javascript-like-settimeout-functionality-in-python-18c4773fa1fd
+    """
+
+    def wrap(f):
+        @wraps(f)
+        def delayed(*args, **kwargs):
+            timer = threading.Timer(delay, f, args=args, kwargs=kwargs)
+            timer.start()
+
+        return delayed
+
+    return wrap
+
+
+class Timer():
+    """
+    Adapted from: https://codeburst.io/javascript-like-settimeout-functionality-in-python-18c4773fa1fd
+    """
+    toClearTimer = False
+
+    def setTimeout(self, fn, args, time):
+        isInvokationCancelled = False
+
+        @delay(time)
+        def some_fn():
+            if self.toClearTimer is False:
+                fn(*args)
+            else:
+                # Invokation is cleared!
+                pass
+
+        some_fn()
+        return isInvokationCancelled
+
+    def setClearTimer(self):
+        self.toClearTimer = True
+
 
 class PyshaMode(object):
     """
@@ -98,6 +156,7 @@ class PyshaMode(object):
 
     name = ''
     xor_group = None
+    buttons_used = []
 
     def __init__(self, app, settings=None):
         self.app = app
@@ -121,7 +180,8 @@ class PyshaMode(object):
         pass
 
     def deactivate(self):
-        pass
+        # Default implementation is to set all buttons used (if any) to black
+        self.set_buttons_to_color(self.buttons_used, BLACK)
 
     # Method called at every iteration in the main loop to see if any actions need to be performed at the end of the iteration
     # This is used to avoid some actions unncessesarily being repeated many times
@@ -142,18 +202,50 @@ class PyshaMode(object):
     def update_display(self, ctx, w, h):
         pass
 
+    # Some update helper methods
+    def set_button_color(self, button_name, color=WHITE, animation=ANIMATION_STATIC, animation_end_color=BLACK):
+        self.push.buttons.set_button_color(button_name, color, animation=animation,
+                                           animation_end_color=animation_end_color)
+
+    def set_button_color_if_pressed(self, button_name, color=WHITE, off_color=OFF_BTN_COLOR, animation=ANIMATION_STATIC,
+                                    animation_end_color=BLACK):
+        if not self.app.is_button_being_pressed(button_name):
+            self.push.buttons.set_button_color(button_name, off_color)
+        else:
+            self.push.buttons.set_button_color(button_name, color, animation=animation,
+                                               animation_end_color=animation_end_color)
+
+    def set_button_color_if_expression(self, button_name, expression, color=WHITE, false_color=OFF_BTN_COLOR,
+                                       animation=ANIMATION_STATIC, animation_end_color=BLACK,
+                                       also_include_is_pressed=False):
+        if also_include_is_pressed:
+            expression = expression or self.app.is_button_being_pressed(button_name)
+        if not expression:
+            self.push.buttons.set_button_color(button_name, false_color)
+        else:
+            self.push.buttons.set_button_color(button_name, color, animation=animation,
+                                               animation_end_color=animation_end_color)
+
+    def set_buttons_to_color(self, button_names, color=WHITE, animation=ANIMATION_STATIC, animation_end_color=BLACK):
+        for button_name in button_names:
+            self.push.buttons.set_button_color(button_name, color, animation=animation,
+                                               animation_end_color=animation_end_color)
+
+    def set_buttons_need_update_if_button_used(self, button_name):
+        if button_name in self.buttons_used:
+            self.app.buttons_need_update = True
+
     # Push2 action callbacks (these methods should return True if some action was carried out, otherwise return None)
     def on_encoder_rotated(self, encoder_name, increment):
         pass
 
-    def on_button_pressed(self, button_name):
+    def on_button_pressed_raw(self, button_name):
         pass
 
     def on_button_released(self, button_name):
         pass
 
-
-    def on_pad_pressed(self, pad_n, pad_ij, velocity):
+    def on_pad_pressed_raw(self, pad_n, pad_ij, velocity):
         pass
 
     def on_pad_released(self, pad_n, pad_ij, velocity):
@@ -166,4 +258,11 @@ class PyshaMode(object):
         pass
 
     def on_sustain_pedal(self, sustain_on):
+        pass
+
+    # Processed Push2 action callbacks that allow to easily diferentiate between actions like "button single press", "button double press", "button long press", "button single press + shift"...
+    def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
+        pass
+
+    def on_pad_pressed(self, pad_n, pad_ij, velocity, shift=False, select=False, long_press=False, double_press=False):
         pass

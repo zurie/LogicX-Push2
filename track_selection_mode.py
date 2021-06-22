@@ -207,7 +207,7 @@ class TrackSelectionMode(definitions.PyshaMode):
             show_text(ctx, i, h - height, instrument_short_name, height=height,
                       font_color=font_color, background_color=background_color)
  
-    def on_button_pressed(self, button_name):
+    def on_button_pressed_raw(self, button_name):
         if button_name in self.track_button_names_a:
             self.track_selection_button_a = button_name
             self.track_selection_button_a_pressing_time = time.time()

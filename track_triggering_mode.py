@@ -115,7 +115,7 @@ class TrackTriggeringMode(definitions.PyshaMode):
             color_matrix.append(row_colors)
         self.push.pads.set_pads_color(color_matrix)
 
-    def on_button_pressed(self, button_name):
+    def on_button_pressed_raw(self, button_name):
         if button_name in self.scene_trigger_buttons:
             triggered_scene_row = self.scene_trigger_buttons.index(button_name)
             self.app.shepherd_interface.scene_play(triggered_scene_row)
@@ -160,7 +160,7 @@ class TrackTriggeringMode(definitions.PyshaMode):
             self.app.shepherd_interface.set_bpm(new_bpm)
             return True  # Prevent other modes to get this event
 
-    def on_pad_pressed(self, pad_n, pad_ij, velocity):
+    def on_pad_pressed_raw(self, pad_n, pad_ij, velocity):
 
         if not self.clear_clip_button_being_pressed and not self.double_clip_button_being_pressed:
             # Send clip play/stop in shepherd

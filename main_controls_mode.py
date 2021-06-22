@@ -76,7 +76,7 @@ class MainControlsMode(definitions.PyshaMode):
         else:
             self.push.buttons.set_button_color(DDRM_TONE_SELECTION_MODE_BUTTON, definitions.BLACK)
 
-    def on_button_pressed(self, button_name):
+    def on_button_pressed_raw(self, button_name):
         if button_name == MELODIC_RHYTHMIC_TOGGLE_BUTTON:
             self.app.toggle_melodic_rhythmic_slice_modes()
             self.app.pads_need_update = True

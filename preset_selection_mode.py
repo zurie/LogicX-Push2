@@ -167,7 +167,7 @@ class PresetSelectionMode(definitions.PyshaMode):
             color_matrix.append(row_colors)
         self.push.pads.set_pads_color(color_matrix)
 
-    def on_pad_pressed(self, pad_n, pad_ij, velocity):
+    def on_pad_pressed_raw(self, pad_n, pad_ij, velocity):
         self.pad_pressing_states[pad_n] = time.time()  # Store time at which pad_n was pressed
         self.push.pads.set_pad_color(pad_ij, color=definitions.GREEN)
         return True  # Prevent other modes to get this event
@@ -209,7 +209,7 @@ class PresetSelectionMode(definitions.PyshaMode):
         self.app.pads_need_update = True
         return True  # Prevent other modes to get this event
 
-    def on_button_pressed(self, button_name):
+    def on_button_released(self, button_name):
        if button_name in [push2_python.constants.BUTTON_LEFT, push2_python.constants.BUTTON_RIGHT]:
             show_prev, show_next = self.has_prev_next_pages()
             if button_name == push2_python.constants.BUTTON_LEFT and show_prev:

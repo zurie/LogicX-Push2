@@ -241,7 +241,7 @@ class MelodicMode(definitions.PyshaMode):
 
         self.push.pads.set_pads_color(color_matrix)
 
-    def on_pad_pressed(self, pad_n, pad_ij, velocity):
+    def on_pad_pressed_raw(self, pad_n, pad_ij, velocity):
         midi_note = self.pad_ij_to_midi_note(pad_ij)
         if midi_note is not None:
             self.latest_velocity_value = (time.time(), velocity)
@@ -295,7 +295,7 @@ class MelodicMode(definitions.PyshaMode):
         self.app.send_midi(msg)
         return True
 
-    def on_button_pressed(self, button_name):
+    def on_button_released(self, button_name):
         if button_name == push2_python.constants.BUTTON_OCTAVE_UP:
             self.set_root_midi_note(self.root_midi_note + 12)
             self.app.pads_need_update = True

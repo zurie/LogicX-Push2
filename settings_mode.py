@@ -376,7 +376,7 @@ class SettingsMode(definitions.PyshaMode):
 
         return True  # Always return True because encoder should not be used in any other mode if this is first active
 
-    def on_button_pressed(self, button_name):
+    def on_button_pressed_raw(self, button_name):
 
         if self.current_page == 0:  # Performance settings
             if button_name == push2_python.constants.BUTTON_UPPER_ROW_1:

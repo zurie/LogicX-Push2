@@ -111,16 +111,11 @@ class ShepherdInterface(definitions.PyshaMode):
             self.osc_sender.send_message('/logic/transport/play', [1.00])
 
     def global_record(self):
-
-        if definitions.isPlaying:
-            self.osc_sender.send_message('/logic/transport/record', [0.00])
-
-        # Sitting IDLE
-        elif not definitions.isRecording and not definitions.isPlaying:
-            self.osc_sender.send_message('/logic/transport/record', [1.00])
+        self.osc_sender.send_message('/logic/transport/record', [1.00])
 
     def metronome_on_off(self):
         self.osc_sender.send_message('/logic/transport/click', [1.00])
+        self.app.add_display_notification("Metronome: {0}".format('On' if not definitions.isMetronome else 'Off'))
 
     def get_buttons_state(self):
         if definitions.isPlaying:
