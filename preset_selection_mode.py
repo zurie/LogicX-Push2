@@ -9,9 +9,8 @@ from display_utils import show_notification
 
 
 class PresetSelectionMode(definitions.PyshaMode):
-
     xor_group = 'pads'
-    
+
     favourtie_presets = {}
     favourtie_presets_filename = 'favourite_presets.json'
     pad_pressing_states = {}
@@ -31,24 +30,25 @@ class PresetSelectionMode(definitions.PyshaMode):
         self.current_page = 0
         self.app.pads_need_update = True
         self.app.buttons_need_update = True
-    
+
     def add_favourite_preset(self, preset_number, bank_number):
-        instrument_short_name = self.app.track_selection_mode.get_current_track_instrument_short_name() 
+        instrument_short_name = self.app.track_selection_mode.get_current_track_instrument_short_name()
         if instrument_short_name not in self.favourtie_presets:
             self.favourtie_presets[instrument_short_name] = []
         self.favourtie_presets[instrument_short_name].append((preset_number, bank_number))
         json.dump(self.favourtie_presets, open(self.favourtie_presets_filename, 'w'))  # Save to file
 
     def remove_favourite_preset(self, preset_number, bank_number):
-        instrument_short_name = self.app.track_selection_mode.get_current_track_instrument_short_name() 
+        instrument_short_name = self.app.track_selection_mode.get_current_track_instrument_short_name()
         if instrument_short_name in self.favourtie_presets:
             self.favourtie_presets[instrument_short_name] = \
-                [(fp_preset_number, fp_bank_number) for fp_preset_number, fp_bank_number in self.favourtie_presets[instrument_short_name] 
-                if preset_number != fp_preset_number or bank_number != fp_bank_number]
+                [(fp_preset_number, fp_bank_number) for fp_preset_number, fp_bank_number in
+                 self.favourtie_presets[instrument_short_name]
+                 if preset_number != fp_preset_number or bank_number != fp_bank_number]
             json.dump(self.favourtie_presets, open(self.favourtie_presets_filename, 'w'))  # Save to file
 
     def preset_num_in_favourites(self, preset_number, bank_number):
-        instrument_short_name = self.app.track_selection_mode.get_current_track_instrument_short_name() 
+        instrument_short_name = self.app.track_selection_mode.get_current_track_instrument_short_name()
         if instrument_short_name not in self.favourtie_presets:
             return False
         for fp_preset_number, fp_bank_number in self.favourtie_presets[instrument_short_name]:
@@ -64,7 +64,7 @@ class PresetSelectionMode(definitions.PyshaMode):
         # page 3 = bank 1, presets 64-127
         # ...
         # The number of total available pages depends on the synth.
-        return self.current_page    
+        return self.current_page
 
     def get_num_banks(self):
         # Returns the number of available banks of the selected instrument
@@ -122,7 +122,7 @@ class PresetSelectionMode(definitions.PyshaMode):
 
     def notify_status_in_display(self):
         bank_number = self.get_current_page() // 2 + 1
-        bank_names = self.get_bank_names() 
+        bank_names = self.get_bank_names()
         if bank_names is not None:
             bank_name = bank_names[bank_number - 1]
         else:
@@ -153,8 +153,8 @@ class PresetSelectionMode(definitions.PyshaMode):
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_RIGHT, definitions.BLACK)
 
     def update_pads(self):
-        instrument_short_name = self.app.track_selection_mode.get_current_track_instrument_short_name() 
-        track_color = self.app.track_selection_mode.get_current_track_color() 
+        instrument_short_name = self.app.track_selection_mode.get_current_track_instrument_short_name()
+        track_color = self.app.track_selection_mode.get_current_track_color()
         color_matrix = []
         for i in range(0, 8):
             row_colors = []
@@ -172,7 +172,7 @@ class PresetSelectionMode(definitions.PyshaMode):
         self.push.pads.set_pad_color(pad_ij, color=definitions.GREEN)
         return True  # Prevent other modes to get this event
 
-    def on_pad_released(self, pad_n, pad_ij, velocity):
+    def on_pad_released_raw(self, pad_n, pad_ij, velocity):
         pressing_time = self.pad_pressing_states.get(pad_n, None)
         is_long_press = False
         if pressing_time is None:
@@ -205,12 +205,12 @@ class PresetSelectionMode(definitions.PyshaMode):
                 bank_name,  # Show 1-indexed value
                 preset_num + 1  # Show 1-indexed value
             ))
-            
+
         self.app.pads_need_update = True
         return True  # Prevent other modes to get this event
 
-    def on_button_released(self, button_name):
-       if button_name in [push2_python.constants.BUTTON_LEFT, push2_python.constants.BUTTON_RIGHT]:
+    def on_button_released_raw(self, button_name):
+        if button_name in [push2_python.constants.BUTTON_LEFT, push2_python.constants.BUTTON_RIGHT]:
             show_prev, show_next = self.has_prev_next_pages()
             if button_name == push2_python.constants.BUTTON_LEFT and show_prev:
                 self.prev_page()

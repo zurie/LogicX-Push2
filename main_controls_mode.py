@@ -137,7 +137,7 @@ class MainControlsMode(definitions.PyshaMode):
                 self.app.buttons_need_update = True
             return True
 
-    def on_button_released(self, button_name):
+    def on_button_released_raw(self, button_name):
         if button_name == PYRAMID_TRACK_TRIGGERING_BUTTON:
             # Decide if short press or long press
             pressing_time = self.pyramid_track_triggering_button_pressing_time

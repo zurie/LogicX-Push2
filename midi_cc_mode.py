@@ -11,7 +11,6 @@ from display_utils import show_text
 
 
 class MIDICCControl(object):
-
     color = definitions.GRAY_LIGHT
     color_rgb = None
     name = 'Unknown'
@@ -33,7 +32,7 @@ class MIDICCControl(object):
 
     def draw(self, ctx, x_part):
         margin_top = 25
-        
+
         # Param name
         name_height = 20
         show_text(ctx, x_part, margin_top, self.name, height=name_height, font_color=definitions.WHITE)
@@ -41,19 +40,20 @@ class MIDICCControl(object):
         # Param value
         val_height = 30
         color = self.get_color_func()
-        show_text(ctx, x_part, margin_top + name_height, self.value_labels_map.get(str(self.value), str(self.value)), height=val_height, font_color=color)
+        show_text(ctx, x_part, margin_top + name_height, self.value_labels_map.get(str(self.value), str(self.value)),
+                  height=val_height, font_color=color)
 
         # Knob
         ctx.save()
 
         circle_break_degrees = 80
         height = 55
-        radius = height/2
+        radius = height / 2
 
         display_w = push2_python.constants.DISPLAY_LINE_PIXELS
         x = ((display_w // 8) * x_part) + ((display_w // 8) * .25)
         y = margin_top + name_height + val_height + radius + 5
-        
+
         start_rad = (90 + circle_break_degrees // 2) * (math.pi / 180)
         end_rad = (90 - circle_break_degrees // 2) * (math.pi / 180)
         xc = x + radius + 3
@@ -61,7 +61,7 @@ class MIDICCControl(object):
 
         def get_rad_for_value(value):
             total_degrees = 360 - circle_break_degrees
-            return start_rad + total_degrees * ((value - self.vmin)/(self.vmax - self.vmin)) * (math.pi / 180)
+            return start_rad + total_degrees * ((value - self.vmin) / (self.vmax - self.vmin)) * (math.pi / 180)
 
         # This is needed to prevent showing line from previous position
         ctx.set_source_rgb(0, 0, 0)
@@ -76,13 +76,13 @@ class MIDICCControl(object):
 
         # Outer circle
         ctx.arc(xc, yc, radius, start_rad, get_rad_for_value(self.value))
-        ctx.set_source_rgb(* definitions.get_color_rgb_float(color))
+        ctx.set_source_rgb(*definitions.get_color_rgb_float(color))
         ctx.set_line_width(3)
         ctx.stroke()
 
         ctx.restore()
-    
-    def update_value(self, increment): 
+
+    def update_value(self, increment):
         if self.value + increment > self.vmax:
             self.value = self.vmax
         elif self.value + increment < self.vmin:
@@ -96,7 +96,6 @@ class MIDICCControl(object):
 
 
 class MIDICCMode(PyshaMode):
-
     midi_cc_button_names = [
         push2_python.constants.BUTTON_UPPER_ROW_1,
         push2_python.constants.BUTTON_UPPER_ROW_2,
@@ -117,7 +116,7 @@ class MIDICCMode(PyshaMode):
                 midi_cc = json.load(open(os.path.join(definitions.INSTRUMENT_DEFINITION_FOLDER, '{}.json'.format(instrument_short_name)))).get('midi_cc', None)
             except FileNotFoundError:
                 midi_cc = None
-            
+
             if midi_cc is not None:
                 # Create MIDI CC mappings for instruments with definitions
                 self.instrument_midi_control_ccs[instrument_short_name] = []
@@ -138,7 +137,7 @@ class MIDICCMode(PyshaMode):
                     control = MIDICCControl(i, 'CC {0}'.format(i), '{0} to {1}'.format(section_s, section_e), self.get_current_track_color_helper, self.app.send_midi)
                     self.instrument_midi_control_ccs[instrument_short_name].append(control)
                 print('Loaded default MIDI cc mappings for instrument {0}'.format(instrument_short_name))
-      
+
         # Fill in current page and section variables
         for instrument_short_name in self.instrument_midi_control_ccs:
             self.current_selected_section_and_page[instrument_short_name] = (self.instrument_midi_control_ccs[instrument_short_name][0].section, 0)
@@ -238,7 +237,7 @@ class MIDICCMode(PyshaMode):
                 height = 20
                 for i, section_name in enumerate(section_names):
                     show_text(ctx, i, 0, section_name, background_color=definitions.RED)
-                    
+
                     is_selected = False
                     selected_section, _ = self.get_currently_selected_midi_cc_section_and_page()
                     if selected_section == section_name:
@@ -261,10 +260,9 @@ class MIDICCMode(PyshaMode):
                         self.active_midi_control_ccs[i].draw(ctx, i)
                     except IndexError:
                         continue
- 
-    
+
     def on_button_pressed_raw(self, button_name):
-        if  button_name in self.midi_cc_button_names:
+        if button_name in self.midi_cc_button_names:
             current_track_sections = self.get_current_track_midi_cc_sections()
             n_sections = len(current_track_sections)
             idx = self.midi_cc_button_names.index(button_name)
@@ -282,7 +280,6 @@ class MIDICCMode(PyshaMode):
                 self.update_current_section_page(new_page=current_page + 1)
             return True
 
-
     def on_encoder_rotated(self, encoder_name, increment):
         try:
             encoder_num = [
@@ -297,6 +294,6 @@ class MIDICCMode(PyshaMode):
             ].index(encoder_name)
             if self.active_midi_control_ccs:
                 self.active_midi_control_ccs[encoder_num].update_value(increment)
-        except ValueError: 
+        except ValueError:
             pass  # Encoder not in list 
         return True  # Always return True because encoder should not be used in any other mode if this is first active

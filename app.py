@@ -581,7 +581,7 @@ def on_pad_pressed_raw(_, pad_n, pad_ij, velocity):
 def on_pad_released(_, pad_n, pad_ij, velocity):
     try:
         for mode in app.active_modes[::-1]:
-            action_performed = mode.on_pad_released(pad_n, pad_ij, velocity)
+            action_performed = mode.on_pad_released_raw(pad_n, pad_ij, velocity)
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:
@@ -617,7 +617,7 @@ def on_button_pressed_raw(_, name):
 def on_button_released(_, name):
     try:
         for mode in app.active_modes[::-1]:
-            action_performed = mode.on_button_released(name)
+            action_performed = mode.on_button_released_raw(name)
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:

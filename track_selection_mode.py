@@ -231,7 +231,7 @@ class TrackSelectionMode(definitions.PyshaMode):
                 self.app.pads_need_update = True
                 return True
 
-    def on_button_released(self, button_name):
+    def on_button_released_raw(self, button_name):
         if button_name in self.track_button_names_a:
             if self.track_selection_button_a:
                 if time.time() - self.track_selection_button_a_pressing_time < self.track_selection_quick_press_time:

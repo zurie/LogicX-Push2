@@ -146,7 +146,7 @@ class TrackTriggeringMode(definitions.PyshaMode):
             self.app.shepherd_interface.scene_duplicate(self.app.shepherd_interface.get_selected_scene())
             return True  # Prevent other modes to get this event
 
-    def on_button_released(self, button_name):
+    def on_button_released_raw(self, button_name):
         if button_name == self.clear_clip_button:
             self.clear_clip_button_being_pressed = False
             return True  # Prevent other modes to get this event

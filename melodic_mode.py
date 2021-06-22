@@ -257,7 +257,7 @@ class MelodicMode(definitions.PyshaMode):
             self.update_pads()  # Directly calling update pads method because we want user to feel feedback as quick as possible
             return True
 
-    def on_pad_released(self, pad_n, pad_ij, velocity):
+    def on_pad_released_raw(self, pad_n, pad_ij, velocity):
         midi_note = self.pad_ij_to_midi_note(pad_ij)
         if midi_note is not None:
             if self.app.track_selection_mode.get_current_track_info().get('illuminate_local_notes', True) or self.app.notes_midi_in is None:
@@ -295,7 +295,7 @@ class MelodicMode(definitions.PyshaMode):
         self.app.send_midi(msg)
         return True
 
-    def on_button_released(self, button_name):
+    def on_button_released_raw(self, button_name):
         if button_name == push2_python.constants.BUTTON_OCTAVE_UP:
             self.set_root_midi_note(self.root_midi_note + 12)
             self.app.pads_need_update = True

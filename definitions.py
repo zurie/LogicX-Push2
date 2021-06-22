@@ -242,13 +242,13 @@ class PyshaMode(object):
     def on_button_pressed_raw(self, button_name):
         pass
 
-    def on_button_released(self, button_name):
+    def on_button_released_raw(self, button_name):
         pass
 
     def on_pad_pressed_raw(self, pad_n, pad_ij, velocity):
         pass
 
-    def on_pad_released(self, pad_n, pad_ij, velocity):
+    def on_pad_released_raw(self, pad_n, pad_ij, velocity):
         pass
 
     def on_pad_aftertouch(self, pad_n, pad_ij, velocity):

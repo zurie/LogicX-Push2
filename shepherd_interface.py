@@ -54,7 +54,7 @@ class ShepherdInterface(definitions.PyshaMode):
     def check_tracks_state(self):
         while True:
             time.sleep(1.0 / tracks_state_fps)
-            self.osc_sender.send_message('/logic/tracks', [])
+            self.osc_sender.send_message('/state/tracks', [])
 
     def receive_state_from_shepherd(self, play, click, record):
         if self.toUTF8(play) == '1.00':
