@@ -17,14 +17,14 @@ class PresetSelectionMode(definitions.PyshaMode):
     pad_quick_press_time = 0.400
     current_page = 0
 
+    page_left_button = push2_python.constants.BUTTON_LEFT
+    page_right_button = push2_python.constants.BUTTON_RIGHT
+
+    buttons_used = [page_left_button, page_right_button]
+
     def initialize(self, settings=None):
         if os.path.exists(self.favourtie_presets_filename):
             self.favourtie_presets = json.load(open(self.favourtie_presets_filename))
-
-    def activate(self):
-        self.current_page = 0
-        self.update_buttons()
-        self.update_pads()
 
     def new_track_selected(self):
         self.current_page = 0
@@ -68,11 +68,11 @@ class PresetSelectionMode(definitions.PyshaMode):
 
     def get_num_banks(self):
         # Returns the number of available banks of the selected instrument
-        return self.app.track_selection_mode.get_current_track_info()['n_banks']
+        return self.app.track_selection_mode.get_current_track_info().get('n_banks', 1)
 
     def get_bank_names(self):
         # Returns list of bank names
-        return self.app.track_selection_mode.get_current_track_info()['bank_names']
+        return self.app.track_selection_mode.get_current_track_info().get('bank_names', None)
 
     def get_num_pages(self):
         # Returns the number of available preset pages per instrument (2 per bank)
@@ -108,7 +108,7 @@ class PresetSelectionMode(definitions.PyshaMode):
     def pad_ij_to_bank_and_preset_num(self, pad_ij):
         preset_num = (self.get_current_page() % 2) * 64 + pad_ij[0] * 8 + pad_ij[1]
         bank_num = self.get_current_page() // 2
-        return (preset_num, bank_num)
+        return preset_num, bank_num
 
     def send_select_new_preset(self, preset_num):
         msg = mido.Message('program_change', program=preset_num)  # Should this be 1-indexed?
@@ -133,24 +133,20 @@ class PresetSelectionMode(definitions.PyshaMode):
         ))
 
     def activate(self):
+        self.update_buttons()
         self.update_pads()
         self.notify_status_in_display()
 
     def deactivate(self):
+        # Run supperclass deactivate to set all used buttons to black
+        super().deactivate()
+        # Also set all pads to black
         self.app.push.pads.set_all_pads_to_color(color=definitions.BLACK)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_LEFT, definitions.BLACK)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_RIGHT, definitions.BLACK)
 
     def update_buttons(self):
         show_prev, show_next = self.has_prev_next_pages()
-        if show_prev:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_LEFT, definitions.WHITE)
-        else:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_LEFT, definitions.BLACK)
-        if show_next:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RIGHT, definitions.WHITE)
-        else:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RIGHT, definitions.BLACK)
+        self.set_button_color_if_expression(self.page_left_button, show_prev)
+        self.set_button_color_if_expression(self.page_right_button, show_next)
 
     def update_pads(self):
         instrument_short_name = self.app.track_selection_mode.get_current_track_instrument_short_name()
@@ -209,11 +205,15 @@ class PresetSelectionMode(definitions.PyshaMode):
         self.app.pads_need_update = True
         return True  # Prevent other modes to get this event
 
-    def on_button_released_raw(self, button_name):
-        if button_name in [push2_python.constants.BUTTON_LEFT, push2_python.constants.BUTTON_RIGHT]:
+    def on_pad_pressed(self, pad_n, pad_ij, velocity, shift=False, select=False, long_press=False, double_press=False):
+        self.app.add_display_notification('Nothing is working')
+        return True  # Prevent other modes to get this event
+
+    def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
+       if button_name in [self.page_left_button, self.page_right_button]:
             show_prev, show_next = self.has_prev_next_pages()
-            if button_name == push2_python.constants.BUTTON_LEFT and show_prev:
+            if button_name == self.page_left_button and show_prev:
                 self.prev_page()
-            elif button_name == push2_python.constants.BUTTON_RIGHT and show_next:
+            elif button_name == self.page_right_button and show_next:
                 self.next_page()
             return True
