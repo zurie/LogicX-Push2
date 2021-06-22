@@ -12,6 +12,8 @@ import mido
 import numpy
 import push2_python
 
+from collections import defaultdict
+
 from melodic_mode import MelodicMode
 from track_selection_mode import TrackSelectionMode
 from pyramid_track_triggering_mode import PyramidTrackTriggeringMode
@@ -439,6 +441,10 @@ class PyshaApp(object):
         self.notification_text = text
         self.notification_time = time.time()
 
+    def clear_display_notification(self):
+        self.notification_text = None
+        self.notification_time = time.time()
+
     def init_push(self):
         print('Configuring Push...')
         self.push = push2_python.Push2(run_simulator=platform.system() != "Linux")
@@ -561,6 +567,15 @@ class PyshaApp(object):
         app.update_push2_buttons()
         app.update_push2_pads()
 
+    def is_button_being_pressed(self, button_name):
+        global buttons_pressed_state
+        return buttons_pressed_state.get(button_name, False)
+
+    def set_button_ignore_next_action_if_not_yet_triggered(self, button_name):
+        global buttons_should_ignore_next_release_action, buttons_waiting_to_trigger_processed_action
+        if buttons_waiting_to_trigger_processed_action.get(button_name, False):
+            buttons_should_ignore_next_release_action[button_name] = True
+
 
 # Bind push action handlers with class methods
 @push2_python.on_encoder_rotated()
@@ -596,52 +611,55 @@ def on_pad_pressed(_, pad_n, pad_ij, velocity):
         print('Error:  {}'.format(str(e)))
         traceback.print_exc()
 
-        # - Trigger processed pad actions
-        def delayed_long_press_pad_check(pad_n, pad_ij, velocity):
-            # If the maximum time to consider a long press has passed and pad has not yet been released,
-            # trigger the long press pad action already and make sure when pad is actually released
-            # no new processed pad action is triggered
-            if pads_pressed_state.get(pad_n, False):
-                # If pad has not been released, trigger the long press action
-                try:
-                    for mode in app.active_modes[::-1]:
-                        action_performed = mode.on_pad_pressed(pad_n, pad_ij, velocity, long_press=True,
-                                                               shift=pads_pressed_state.get(
-                                                                   push2_python.constants.BUTTON_SHIFT, False),
-                                                               select=pads_pressed_state.get(
-                                                                   push2_python.constants.BUTTON_SELECT, False))
-                        if action_performed:
-                            break  # If mode took action, stop event propagation
-                except NameError as e:
-                    print('Error:  {}'.format(str(e)))
-                    traceback.print_exc()
+    # - Trigger processed pad actions
+    def delayed_long_press_pad_check(pad_n, pad_ij, velocity):
+        # If the maximum time to consider a long press has passed and pad has not yet been released,
+        # trigger the long press pad action already and make sure when pad is actually released
+        # no new processed pad action is triggered
+        if pads_pressed_state.get(pad_n, False):
+            # If pad has not been released, trigger the long press action
+            try:
+                for mode in app.active_modes[::-1]:
+                    action_performed = mode.on_pad_pressed(pad_n, pad_ij, velocity, long_press=True,
+                                                           shift=pads_pressed_state.get(
+                                                               push2_python.constants.BUTTON_SHIFT, False),
+                                                           select=pads_pressed_state.get(
+                                                               push2_python.constants.BUTTON_SELECT, False))
+                    if action_performed:
+                        break  # If mode took action, stop event propagation
+            except NameError as e:
+                print('Error:  {}'.format(str(e)))
+                traceback.print_exc()
 
-                # Store that next release action should be ignored so that long press action is not retriggered when
-                # actual pad release takes place
-                pads_should_ignore_next_release_action[pad_n] = True
+            # Store that next release action should be ignored so that long press action is not retriggered when
+            # actual pad release takes place
+            pads_should_ignore_next_release_action[pad_n] = True
 
-        # Save the current time the pad is pressed and clear any delayed execution timer that existed Also save
-        # velocity of the current pressing as it will be used when triggering the actual porcessed action when
-        # release action is triggered
-        pads_last_pressed_veocity[pad_n] = velocity
-        pads_pressing_log[pad_n].append(time.time())
-        pads_pressing_log[pad_n] = pads_pressing_log[pad_n][
-                                   -2:]  # Keep only last 2 records (needed to check double presses)
-        if pads_timers.get(pad_n, None) is not None:
-            pads_timers[pad_n].setClearTimer()
+    # Save the current time the pad is pressed and clear any delayed execution timer that existed Also save
+    # velocity of the current pressing as it will be used when triggering the actual porcessed action when
+    # release action is triggered
+    pads_last_pressed_veocity[pad_n] = velocity
+    pads_pressing_log[pad_n].append(time.time())
+    pads_pressing_log[pad_n] = pads_pressing_log[pad_n][
+                               -2:]  # Keep only last 2 records (needed to check double presses)
+    if pads_timers.get(pad_n, None) is not None:
+        pads_timers[pad_n].setClearTimer()
 
-        # Schedule a delayed action for the pad long press that will fire as soon as the pad is being pressed for
-        # more than definitions.BUTTON_LONG_PRESS_TIME
-        pads_timers[pad_n] = definitions.Timer()
-        pads_timers[pad_n].setTimeout(delayed_long_press_pad_check, [pad_n, pad_ij, velocity],
-                                      definitions.BUTTON_LONG_PRESS_TIME)
+    # Schedule a delayed action for the pad long press that will fire as soon as the pad is being pressed for
+    # more than definitions.BUTTON_LONG_PRESS_TIME
+    pads_timers[pad_n] = definitions.Timer()
+    pads_timers[pad_n].setTimeout(delayed_long_press_pad_check, [pad_n, pad_ij, velocity],
+                                  definitions.BUTTON_LONG_PRESS_TIME)
 
-        # - Store pad pressed state
-        pads_pressed_state[pad_n] = True
+    # - Store pad pressed state
+    pads_pressed_state[pad_n] = True
 
 
 @push2_python.on_pad_released()
 def on_pad_released(_, pad_n, pad_ij, velocity):
+    global pads_pressing_log, pads_timers, pads_pressed_state, pads_should_ignore_next_release_action
+
+    # - Trigger raw pad released action
     try:
         for mode in app.active_modes[::-1]:
             action_performed = mode.on_pad_released_raw(pad_n, pad_ij, velocity)
@@ -650,6 +668,57 @@ def on_pad_released(_, pad_n, pad_ij, velocity):
     except NameError as e:
         print('Error:  {}'.format(str(e)))
         traceback.print_exc()
+
+    # - Trigger processed pad actions
+    def delayed_double_press_pad_check(pad_n, pad_ij, velocity):
+        last_time_pressed = pads_pressing_log[pad_n][-1]
+        try:
+            previous_time_pressed = pads_pressing_log[pad_n][-2]
+        except IndexError:
+            previous_time_pressed = 0
+        if last_time_pressed - previous_time_pressed < definitions.BUTTON_DOUBLE_PRESS_TIME:
+            # If time between last 2 pressings is shorter than BUTTON_DOUBLE_PRESS_TIME, trigger double press action
+            try:
+                for mode in app.active_modes[::-1]:
+                    action_performed = mode.on_pad_pressed(pad_n, pad_ij, velocity, double_press=True,
+                                                           shift=pads_pressed_state.get(
+                                                               push2_python.constants.BUTTON_SHIFT, False),
+                                                           select=pads_pressed_state.get(
+                                                               push2_python.constants.BUTTON_SELECT, False))
+                    if action_performed:
+                        break  # If mode took action, stop event propagation
+            except NameError as e:
+                print('Error:  {}'.format(str(e)))
+                traceback.print_exc()
+        else:
+            try:
+                for mode in app.active_modes[::-1]:
+                    action_performed = mode.on_pad_pressed(pad_n, pad_ij, velocity,
+                                                           shift=pads_pressed_state.get(
+                                                               push2_python.constants.BUTTON_SHIFT, False),
+                                                           select=pads_pressed_state.get(
+                                                               push2_python.constants.BUTTON_SELECT, False))
+                    if action_performed:
+                        break  # If mode took action, stop event propagation
+            except NameError as e:
+                print('Error:  {}'.format(str(e)))
+                traceback.print_exc()
+
+    if not pads_should_ignore_next_release_action.get(pad_n, False):
+        # If pad is not marked to ignore the next release action, then use the delayed_double_press_pad_check to decide whether
+        # a "normal press" or a "double press" should be triggered
+        # Clear any delayed execution timer that existed to avoid duplicated events
+        if pads_timers.get(pad_n, None) is not None:
+            pads_timers[pad_n].setClearTimer()
+        pads_timers[pad_n] = definitions.Timer()
+        velocity_of_press_action = pads_last_pressed_veocity.get(pad_n, velocity)
+        pads_timers[pad_n].setTimeout(delayed_double_press_pad_check, [pad_n, pad_ij, velocity_of_press_action],
+                                      definitions.BUTTON_DOUBLE_PRESS_TIME)
+    else:
+        pads_should_ignore_next_release_action[pad_n] = False
+
+    # Store pad pressed state
+    pads_pressed_state[pad_n] = False
 
 
 @push2_python.on_pad_aftertouch()
@@ -730,14 +799,71 @@ def on_button_pressed(_, name):
 
 @push2_python.on_button_released()
 def on_button_released(_, name):
+    global buttons_pressing_log, buttons_timers, buttons_pressed_state, buttons_should_ignore_next_release_action, buttons_waiting_to_trigger_processed_action
+
+    # - Trigger raw button released action
     try:
         for mode in app.active_modes[::-1]:
             action_performed = mode.on_button_released_raw(name)
+            mode.set_buttons_need_update_if_button_used(name)
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:
         print('Error:  {}'.format(str(e)))
         traceback.print_exc()
+
+    # - Trigger processed button actions
+    def delayed_double_press_button_check(name):
+        last_time_pressed = buttons_pressing_log[name][-1]
+        try:
+            previous_time_pressed = buttons_pressing_log[name][-2]
+        except IndexError:
+            previous_time_pressed = 0
+        if last_time_pressed - previous_time_pressed < definitions.BUTTON_DOUBLE_PRESS_TIME:
+            # If time between last 2 pressings is shorter than BUTTON_DOUBLE_PRESS_TIME, trigger double press action
+            try:
+                for mode in app.active_modes[::-1]:
+                    action_performed = mode.on_button_pressed(name, double_press=True,
+                                                              shift=buttons_pressed_state.get(
+                                                                  push2_python.constants.BUTTON_SHIFT, False),
+                                                              select=buttons_pressed_state.get(
+                                                                  push2_python.constants.BUTTON_SELECT, False))
+                    mode.set_buttons_need_update_if_button_used(name)
+                    if action_performed:
+                        break  # If mode took action, stop event propagation
+                buttons_waiting_to_trigger_processed_action[name] = False
+            except NameError as e:
+                print('Error:  {}'.format(str(e)))
+                traceback.print_exc()
+        else:
+            try:
+                for mode in app.active_modes[::-1]:
+                    action_performed = mode.on_button_pressed(name,
+                                                              shift=buttons_pressed_state.get(
+                                                                  push2_python.constants.BUTTON_SHIFT, False),
+                                                              select=buttons_pressed_state.get(
+                                                                  push2_python.constants.BUTTON_SELECT, False))
+                    mode.set_buttons_need_update_if_button_used(name)
+                    if action_performed:
+                        break  # If mode took action, stop event propagation
+                buttons_waiting_to_trigger_processed_action[name] = False
+            except NameError as e:
+                print('Error:  {}'.format(str(e)))
+                traceback.print_exc()
+
+    if not buttons_should_ignore_next_release_action.get(name, False):
+        # If button is not marked to ignore the next release action, then use the delayed_double_press_button_check to decide whether
+        # a "normal press" or a "double press" should be triggered
+        # Clear any delayed execution timer that existed to avoid duplicated events
+        if buttons_timers.get(name, None) is not None:
+            buttons_timers[name].setClearTimer()
+        buttons_timers[name] = definitions.Timer()
+        buttons_timers[name].setTimeout(delayed_double_press_button_check, [name], definitions.BUTTON_DOUBLE_PRESS_TIME)
+    else:
+        buttons_should_ignore_next_release_action[name] = False
+
+    # Store button pressed state
+    buttons_pressed_state[name] = False
 
 
 @push2_python.on_touchstrip()

@@ -58,6 +58,13 @@ class MelodicMode(definitions.PyshaMode):
                 msg = mido.Message('sysex', data=[0x00, 0x21, 0x10, 0x77, 0x27, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04])
             self.lumi_midi_out.send(msg)
    
+    def send_all_note_offs_to_lumi(self):
+        for i in range(0, 128):
+            msg = mido.Message('note_off', note=i)
+            if self.lumi_midi_out is not None:
+                self.lumi_midi_out.send(msg)
+
+   
     def initialize(self, settings=None):
         if settings is not None:
             self.use_poly_at = settings.get('use_poly_at', True)
@@ -205,22 +212,10 @@ class MelodicMode(definitions.PyshaMode):
         self.set_button_color(self.octave_up_button)
 
     def update_accent_button(self):
-        if self.fixed_velocity_mode:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_ACCENT, definitions.BLACK)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_ACCENT, definitions.WHITE, animation=definitions.DEFAULT_ANIMATION)
-        else:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_ACCENT, definitions.OFF_BTN_COLOR)
-
-    def update_modulation_wheel_mode_button(self):
-        if self.modulation_wheel_mode:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_SHIFT, definitions.BLACK)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_SHIFT, definitions.WHITE, animation=definitions.DEFAULT_ANIMATION)
-        else:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_SHIFT, definitions.OFF_BTN_COLOR)
+        self.set_button_color_if_expression(self.accent_button, self.fixed_velocity_mode, animation=definitions.DEFAULT_ANIMATION)
 
     def update_buttons(self):
         self.update_octave_buttons()
-        self.update_modulation_wheel_mode_button()
         self.update_accent_button()
 
     def update_pads(self):
@@ -299,8 +294,8 @@ class MelodicMode(definitions.PyshaMode):
         self.app.send_midi(msg)
         return True
 
-    def on_button_released_raw(self, button_name):
-        if button_name == push2_python.constants.BUTTON_OCTAVE_UP:
+    def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
+        if button_name == self.octave_up_button:
             self.set_root_midi_note(self.root_midi_note + 12)
             self.app.pads_need_update = True
             self.app.add_display_notification("Octave up: from {0} to {1}".format(
@@ -318,19 +313,21 @@ class MelodicMode(definitions.PyshaMode):
             ))
             return True
 
-        elif button_name == push2_python.constants.BUTTON_ACCENT:
-            self.fixed_velocity_mode = not self.fixed_velocity_mode
-            self.app.buttons_need_update = True
-            self.app.pads_need_update = True
-            self.app.add_display_notification("Fixed velocity: {0}".format('On' if self.fixed_velocity_mode else 'Off'))
-            return True
-
-        elif button_name == push2_python.constants.BUTTON_SHIFT:
-            self.modulation_wheel_mode = not self.modulation_wheel_mode
-            if self.modulation_wheel_mode:
-                self.push.touchstrip.set_modulation_wheel_mode()
+        elif button_name == self.accent_button:
+            if shift:
+                # Toggle modwheel mode
+                self.modulation_wheel_mode = not self.modulation_wheel_mode
+                if self.modulation_wheel_mode:
+                    self.push.touchstrip.set_modulation_wheel_mode()
+                else:
+                    self.push.touchstrip.set_pitch_bend_mode()
+                self.app.add_display_notification("Touchstrip mode: {0}".format('Modulation wheel' if self.modulation_wheel_mode else 'Pitch bend'))
+                return True
             else:
-                self.push.touchstrip.set_pitch_bend_mode()
-            self.app.buttons_need_update = True
-            self.app.add_display_notification("Touchstrip mode: {0}".format('Modulation wheel' if self.modulation_wheel_mode else 'Pitch bend'))
-            return True
+                # Toggle accept mode
+                self.fixed_velocity_mode = not self.fixed_velocity_mode
+                self.app.buttons_need_update = True
+                self.app.pads_need_update = True
+                self.app.add_display_notification(
+                    "Fixed velocity: {0}".format('On' if self.fixed_velocity_mode else 'Off'))
+                return True
