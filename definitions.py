@@ -16,7 +16,6 @@ isRecording = False
 LAYOUT_MELODIC = 'lmelodic'
 LAYOUT_RHYTHMIC = 'lrhythmic'
 LAYOUT_SLICES = 'lslices'
-LAYOUT_CHROMATIC = 'lchromatic'
 
 NOTIFICATION_TIME = 3
 

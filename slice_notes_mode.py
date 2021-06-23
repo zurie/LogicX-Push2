@@ -24,6 +24,10 @@ class SliceNotesMode(MelodicMode):
     def pad_ij_to_midi_note(self, pad_ij):
         return self.start_note + 8 * (7 - pad_ij[0]) + pad_ij[1]
 
+    def update_scale_button(self):
+        # Rhythmic does not have scale buttons
+        pass
+
     def update_pads(self):
         color_matrix = []
         for i in range(0, 8):

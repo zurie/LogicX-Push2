@@ -19,6 +19,7 @@ class MelodicMode(definitions.PyshaMode):
     latest_velocity_value = (0, 0)
     last_time_at_params_edited = None
     modulation_wheel_mode = False
+    scale = definitions.Major
 
     lumi_midi_out = None
     last_time_tried_initialize_lumi = 0
@@ -26,8 +27,9 @@ class MelodicMode(definitions.PyshaMode):
     octave_up_button = push2_python.constants.BUTTON_OCTAVE_UP
     octave_down_button = push2_python.constants.BUTTON_OCTAVE_DOWN
     accent_button = push2_python.constants.BUTTON_ACCENT
+    scale_button = push2_python.constants.BUTTON_SCALE
 
-    buttons_used = [octave_up_button, octave_down_button, accent_button]
+    buttons_used = [octave_up_button, octave_down_button, accent_button, scale_button]
 
     def init_lumi_midi_out(self):
         print('Configuring LUMI notes MIDI out...')
@@ -131,6 +133,136 @@ class MelodicMode(definitions.PyshaMode):
     def remove_all_notes_being_played(self):
         self.notes_being_played = []
 
+    def toggle_scale(self):
+
+        if self.scale == definitions.Minor:
+            self.scale = definitions.Dorian
+            s = 'Dorian'
+            self.update_pads()
+
+        elif self.scale == definitions.Dorian:
+            self.scale = definitions.Mixolydian
+            s = 'Mixolydian'
+            self.update_pads()
+
+        elif self.scale == definitions.Mixolydian:
+            self.scale = definitions.Major
+            s = 'Major'
+            self.update_pads()
+
+        elif self.scale == definitions.Major:
+            self.scale = definitions.Lydian
+            s = 'Lydian'
+            self.update_pads()
+
+        elif self.scale == definitions.Lydian:
+            self.scale = definitions.Phrygian
+            s = 'Phrygian'
+            self.update_pads()
+
+        elif self.scale == definitions.Phrygian:
+            self.scale = definitions.Locrian
+            s = 'Locrian'
+            self.update_pads()
+
+        elif self.scale == definitions.Locrian:
+            self.scale = definitions.Diminished
+            s = 'Diminished'
+            self.update_pads()
+
+        elif self.scale == definitions.Diminished:
+            self.scale = definitions.Whole_half
+            s = 'Whole_half'
+            self.update_pads()
+
+        elif self.scale == definitions.Whole_half:
+            self.scale = definitions.Whole_Tone
+            s = 'Whole_Tone'
+            self.update_pads()
+
+        elif self.scale == definitions.Whole_Tone:
+            self.scale = definitions.Minor_Blues
+            s = 'Minor_Blues'
+            self.update_pads()
+
+        elif self.scale == definitions.Minor_Blues:
+            self.scale = definitions.Minor_Pentatonic
+            s = 'Minor_Pentatonic'
+            self.update_pads()
+
+        elif self.scale == definitions.Minor_Pentatonic:
+            self.scale = definitions.Major_Pentatonic
+            s = 'Major_Pentatonic'
+            self.update_pads()
+
+        elif self.scale == definitions.Major_Pentatonic:
+            self.scale = definitions.Harmonic_Minor
+            s = 'Harmonic_Minor'
+            self.update_pads()
+
+        elif self.scale == definitions.Harmonic_Minor:
+            self.scale = definitions.Melodic_Minor
+            s = 'Melodic_Minor'
+            self.update_pads()
+
+        elif self.scale == definitions.Melodic_Minor:
+            self.scale = definitions.Super_Locrian
+            s = 'Super_Locrian'
+            self.update_pads()
+
+        elif self.scale == definitions.Super_Locrian:
+            self.scale = definitions.Bhairav
+            s = 'Bhairav'
+            self.update_pads()
+
+        elif self.scale == definitions.Bhairav:
+            self.scale = definitions.Hungarian_Minor
+            s = 'Hungarian_Minor'
+            self.update_pads()
+
+        elif self.scale == definitions.Hungarian_Minor:
+            self.scale = definitions.Minor_Gypsy
+            s = 'Minor_Gypsy'
+            self.update_pads()
+
+        elif self.scale == definitions.Minor_Gypsy:
+            self.scale = definitions.Hirojoshi
+            s = 'Hirojoshi'
+            self.update_pads()
+
+        elif self.scale == definitions.Hirojoshi:
+            self.scale = definitions.In_Sen
+            s = 'In_Sen'
+            self.update_pads()
+
+        elif self.scale == definitions.In_Sen:
+            self.scale = definitions.Iwato
+            s = 'Iwato'
+            self.update_pads()
+
+        elif self.scale == definitions.Iwato:
+            self.scale = definitions.Kumoi
+            s = 'Kumoi'
+            self.update_pads()
+
+        elif self.scale == definitions.Kumoi:
+            self.scale = definitions.Pelog
+            s = 'Pelog'
+            self.update_pads()
+
+        elif self.scale == definitions.Pelog:
+            self.scale = definitions.Spanish
+            s = 'Spanish'
+            self.update_pads()
+
+        elif self.scale == definitions.Spanish:
+            self.scale = definitions.Minor
+            s = 'Minor'
+            self.update_pads()
+
+        self.app.add_display_notification("{0} {1} Scale".format(self.note_number_to_name(self.root_midi_note), s))
+        return True
+
     def pad_ij_to_midi_note(self, pad_ij):
         return self.root_midi_note + ((7 - pad_ij[0]) * 5 + pad_ij[1])
 
@@ -140,7 +272,7 @@ class MelodicMode(definitions.PyshaMode):
 
     def is_black_key_midi_note(self, midi_note):
         relative_midi_note = (midi_note - self.root_midi_note) % 12
-        return not definitions.Major[relative_midi_note]
+        return not self.scale[relative_midi_note]
 
     def is_midi_note_being_played(self, midi_note):
         for note in self.notes_being_played:
@@ -212,9 +344,13 @@ class MelodicMode(definitions.PyshaMode):
         self.set_button_color_if_expression(self.accent_button, self.fixed_velocity_mode,
                                             animation=definitions.DEFAULT_ANIMATION)
 
+    def update_scale_button(self):
+        self.set_button_color_if_expression(self.scale_button, definitions.WHITE)
+
     def update_buttons(self):
         self.update_octave_buttons()
         self.update_accent_button()
+        self.update_scale_button()
 
     def update_pads(self):
         color_matrix = []
@@ -332,3 +468,7 @@ class MelodicMode(definitions.PyshaMode):
                 self.app.add_display_notification(
                     "Fixed velocity: {0}".format('On' if self.fixed_velocity_mode else 'Off'))
                 return True
+
+        elif button_name == push2_python.constants.BUTTON_SCALE:
+            self.toggle_scale()
+            return True

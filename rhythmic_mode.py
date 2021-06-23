@@ -23,6 +23,10 @@ class RhythmicMode(MelodicMode):
     def pad_ij_to_midi_note(self, pad_ij):
         return self.rhythmic_notes_matrix[pad_ij[0]][pad_ij[1]]
 
+    def update_scale_button(self):
+        # Rythmic does not have scale buttons
+        pass
+
     def update_octave_buttons(self):
         # Rhythmic does not have octave buttons
         pass
