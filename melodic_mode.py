@@ -7,10 +7,8 @@ import time
 class MelodicMode(definitions.PyshaMode):
 
     xor_group = 'pads'
-
     notes_being_played = []
     root_midi_note = 0  # default redefined in initialize
-    scale_pattern = [True, False, True, False, True, True, False, True, False, True, False, True]
     fixed_velocity_mode = False
     use_poly_at = False  # default redefined in initialize
     channel_at_range_start = 401  # default redefined in initialize
@@ -73,7 +71,6 @@ class MelodicMode(definitions.PyshaMode):
             self.channel_at_range_end = settings.get('channel_at_range_end', 800)
             self.poly_at_max_range = settings.get('poly_at_max_range', 40)
             self.poly_at_curve_bending = settings.get('poly_at_curve_bending', 50)
-        self.init_lumi_midi_out()
 
     def get_settings_to_save(self):
         return {
@@ -143,7 +140,7 @@ class MelodicMode(definitions.PyshaMode):
 
     def is_black_key_midi_note(self, midi_note):
         relative_midi_note = (midi_note - self.root_midi_note) % 12
-        return not self.scale_pattern[relative_midi_note]
+        return not definitions.Major[relative_midi_note]
 
     def is_midi_note_being_played(self, midi_note):
         for note in self.notes_being_played:
@@ -172,8 +169,6 @@ class MelodicMode(definitions.PyshaMode):
             self.push.pads.set_channel_aftertouch()
         self.push.pads.set_channel_aftertouch_range(range_start=self.channel_at_range_start, range_end=self.channel_at_range_end)
         self.push.pads.set_velocity_curve(velocities=self.get_poly_at_curve())
-
-        self.set_lumi_pressure_mode()
 
         # Configure touchstrip behaviour
         if self.modulation_wheel_mode:

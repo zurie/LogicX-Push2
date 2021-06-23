@@ -53,6 +53,32 @@ LIME = 'lime'
 COLORS_NAMES = [ORANGE, YELLOW, TURQUOISE, LIME, RED, PINK, PURPLE, BLUE, CYAN, GREEN, BLACK, GRAY_DARK, GRAY_LIGHT,
                 WHITE]
 
+Major =             [True, False, True, False, True, True, False, True, False, True, False, True]
+Minor =             [True, False, True, True, False, True, False, True, True, False, True, False, False]
+Dorian =            [True, False, True, True, False, True, False, True, False, True, True, False, True]
+Mixolydian =        [True, False, True, False, True, True, False, True, False, True, True, False, False]
+Lydian =            [True, False, True, False, True, False, True, True, False, True, False, True, False]
+Phrygian =          [True, True, False, True, False, True, False, True, True, False, True, False, False]
+Locrian =           [True, True, False, True, True, False, False, True, True, False, True, False, False]
+Diminished =        [True, True, False, True, True, False, True, True, False, True, True, False, False]
+Whole_half =        [True, False, True, True, False, True, True, False, True, True, False, True, True]
+Whole_Tone =        [True, False, True, False, True, False, True, False, True, False, True, False, False]
+Minor_Blues =       [True, False, False, True, False, True, True, True, False, False, True, False, False]
+Minor_Pentatonic =  [True, False, False, True, False, True, False, True, False, False, True, False, False]
+Major_Pentatonic =  [True, False, True, False, True, False, False, True, False, True, False, False, False]
+Harmonic_Minor =    [True, False, True, True, False, True, False, True, True, False, False, True, False]
+Melodic_Minor =     [True, False, True, True, False, True, False, True, False, True, False, True, False]
+Super_Locrian =     [True, True, True, True, False, True, False, True, False, True, False, False]
+Bhairav =           [True, True, False, False, True, True, False, True, True, False, False, True, False]
+Hungarian_Minor =   [True, False, True, True, False, False, True, True, True, False, False, True, False]
+Minor_Gypsy =       [True, True, False, False, True, True, False, True, True, False, True, False, False]
+Hirojoshi =         [True, False, True, True, False, False, False, True, True, False, False, False, False]
+In_Sen =            [True, True, False, False, False, True, False, True, False, False, True, False, False]
+Iwato =             [True, True, False, False, False, True, True, False, False, False, True, False, False]
+Kumoi =             [True, False, True, True, False, False, False, True, False, True, False, False, False]
+Pelog =             [True, True, False, True, True, False, False, True, True, False, False, False, False]
+Spanish =           [True, True, False, True, True, True, True, False, True, False, True, False, False]
+
 
 def get_color_rgb(color_name):
     return globals().get('{0}_RGB'.format(color_name.upper()), [0, 0, 0])

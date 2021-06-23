@@ -17,7 +17,7 @@ from track_selection_mode import TrackSelectionMode
 from pyramid_track_triggering_mode import PyramidTrackTriggeringMode
 from rhythmic_mode import RhythmicMode
 from slice_notes_mode import SliceNotesMode
-from chromatic_mode import ChromaticMode
+from scale_mode import ChromaticMode
 from settings_mode import SettingsMode
 from main_controls_mode import MainControlsMode
 from midi_cc_mode import MIDICCMode
