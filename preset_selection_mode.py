@@ -13,8 +13,7 @@ class PresetSelectionMode(definitions.PyshaMode):
 
     favourtie_presets = {}
     favourtie_presets_filename = 'favourite_presets.json'
-    pad_pressing_states = {}
-    pad_quick_press_time = 0.400
+    
     current_page = 0
 
     page_left_button = push2_python.constants.BUTTON_LEFT
@@ -163,26 +162,9 @@ class PresetSelectionMode(definitions.PyshaMode):
             color_matrix.append(row_colors)
         self.push.pads.set_pads_color(color_matrix)
 
-    def on_pad_pressed_raw(self, pad_n, pad_ij, velocity):
-        self.pad_pressing_states[pad_n] = time.time()  # Store time at which pad_n was pressed
-        self.push.pads.set_pad_color(pad_ij, color=definitions.GREEN)
-        return True  # Prevent other modes to get this event
-
-    def on_pad_released_raw(self, pad_n, pad_ij, velocity):
-        pressing_time = self.pad_pressing_states.get(pad_n, None)
-        is_long_press = False
-        if pressing_time is None:
-            # Consider quick press (this should not happen as self.pad_pressing_states[pad_n] should have been set before)
-            pass
-        else:
-            if time.time() - pressing_time > self.pad_quick_press_time:
-                # Consider this is a long press
-                is_long_press = True
-            self.pad_pressing_states[pad_n] = None  # Reset pressing time to none
-
+    def on_pad_pressed(self, pad_n, pad_ij, velocity, shift=False, select=False, long_press=False, double_press=False):
         preset_num, bank_num = self.pad_ij_to_bank_and_preset_num(pad_ij)
-
-        if is_long_press:
+        if long_press:
             # Add/remove preset to favourites, don't send any MIDI
             if not self.preset_num_in_favourites(preset_num, bank_num):
                 self.add_favourite_preset(preset_num, bank_num)
@@ -201,12 +183,7 @@ class PresetSelectionMode(definitions.PyshaMode):
                 bank_name,  # Show 1-indexed value
                 preset_num + 1  # Show 1-indexed value
             ))
-
         self.app.pads_need_update = True
-        return True  # Prevent other modes to get this event
-
-    def on_pad_pressed(self, pad_n, pad_ij, velocity, shift=False, select=False, long_press=False, double_press=False):
-        self.app.add_display_notification('Nothing is working')
         return True  # Prevent other modes to get this event
 
     def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):

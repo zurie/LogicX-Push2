@@ -1,11 +1,10 @@
 import json
 import os
-import platform
 import time
 import traceback
-from collections import defaultdict
 
 import cairo
+import platform
 from push2_python.constants import BUTTON_SELECT
 import definitions
 import mido
@@ -25,7 +24,6 @@ from midi_cc_mode import MIDICCMode
 from preset_selection_mode import PresetSelectionMode
 from ddrm_tone_selector_mode import DDRMToneSelectorMode
 from shepherd_interface import ShepherdInterface
-
 from display_utils import show_notification
 
 
