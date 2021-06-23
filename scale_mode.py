@@ -49,40 +49,6 @@ class ChromaticMode(MelodicMode):
         relative_midi_note = (midi_note - self.root_midi_note) % 12
         return not self.scale[relative_midi_note]
 
-    def update_pads(self):
-        color_matrix = []
-        for i in range(0, 8):
-            row_colors = []
-            for j in range(0, 8):
-                corresponding_midi_note = self.pad_ij_to_midi_note([i, j])
-                cell_color = definitions.WHITE
-                if self.is_black_key_midi_note(corresponding_midi_note):
-                    cell_color = definitions.BLACK
-                if self.is_midi_note_root_octave(corresponding_midi_note):
-                    try:
-                        cell_color = self.app.track_selection_mode.get_current_track_color()
-                    except AttributeError:
-                        cell_color = definitions.YELLOW
-                if self.is_midi_note_being_played(corresponding_midi_note):
-                    cell_color = definitions.NOTE_ON_COLOR
-
-                row_colors.append(cell_color)
-            color_matrix.append(row_colors)
-
-        self.push.pads.set_pads_color(color_matrix)
-
-    def on_pad_released_raw(self, pad_n, pad_ij, velocity):
-        midi_note = self.pad_ij_to_midi_note(pad_ij)
-        if midi_note is not None:
-            if self.app.track_selection_mode.get_current_track_info().get('illuminate_local_notes', True) or self.app.notes_midi_in is None:
-                # see comment in "on_pad_pressed" above
-                self.remove_note_being_played(midi_note, 'push')
-            msg = mido.Message('note_off', note=midi_note, velocity=velocity)
-            self.app.send_midi(msg)
-            self.app.add_display_notification("Padded Presed: {0}".format(midi_note))
-            self.update_pads()  # Directly calling update pads method because we want user to feel feedback as quick as possible
-            return True
-
     def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
         if button_name == push2_python.constants.BUTTON_SCALE:
             self.toggle_scale()

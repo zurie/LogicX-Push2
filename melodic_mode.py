@@ -5,7 +5,6 @@ import time
 
 
 class MelodicMode(definitions.PyshaMode):
-
     xor_group = 'pads'
     notes_being_played = []
     root_midi_note = 0  # default redefined in initialize
@@ -55,14 +54,13 @@ class MelodicMode(definitions.PyshaMode):
             else:
                 msg = mido.Message('sysex', data=[0x00, 0x21, 0x10, 0x77, 0x27, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04])
             self.lumi_midi_out.send(msg)
-   
+
     def send_all_note_offs_to_lumi(self):
         for i in range(0, 128):
             msg = mido.Message('note_off', note=i)
             if self.lumi_midi_out is not None:
                 self.lumi_midi_out.send(msg)
 
-   
     def initialize(self, settings=None):
         if settings is not None:
             self.use_poly_at = settings.get('use_poly_at', True)
@@ -119,14 +117,16 @@ class MelodicMode(definitions.PyshaMode):
         self.last_time_at_params_edited = time.time()
 
     def get_poly_at_curve(self):
-        pow_curve = [pow(e, 3*self.poly_at_curve_bending/100) for e in [i/self.poly_at_max_range for i in range(0, self.poly_at_max_range)]]
+        pow_curve = [pow(e, 3 * self.poly_at_curve_bending / 100) for e in
+                     [i / self.poly_at_max_range for i in range(0, self.poly_at_max_range)]]
         return [int(127 * pow_curve[i]) if i < self.poly_at_max_range else 127 for i in range(0, 128)]
 
     def add_note_being_played(self, midi_note, source):
         self.notes_being_played.append({'note': midi_note, 'source': source})
 
     def remove_note_being_played(self, midi_note, source):
-        self.notes_being_played = [note for note in self.notes_being_played if note['note'] != midi_note or note['source'] != source]
+        self.notes_being_played = [note for note in self.notes_being_played if
+                                   note['note'] != midi_note or note['source'] != source]
 
     def remove_all_notes_being_played(self):
         self.notes_being_played = []
@@ -151,7 +151,7 @@ class MelodicMode(definitions.PyshaMode):
     def note_number_to_name(self, note_number):
         semis = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
         note_number = int(round(note_number))
-        return semis[note_number % 12] + str(note_number//12 - 2)
+        return semis[note_number % 12] + str(note_number // 12 - 2)
 
     def set_root_midi_note(self, note_number):
         self.root_midi_note = note_number
@@ -167,7 +167,8 @@ class MelodicMode(definitions.PyshaMode):
             self.push.pads.set_polyphonic_aftertouch()
         else:
             self.push.pads.set_channel_aftertouch()
-        self.push.pads.set_channel_aftertouch_range(range_start=self.channel_at_range_start, range_end=self.channel_at_range_end)
+        self.push.pads.set_channel_aftertouch_range(range_start=self.channel_at_range_start,
+                                                    range_end=self.channel_at_range_end)
         self.push.pads.set_velocity_curve(velocities=self.get_poly_at_curve())
 
         # Configure touchstrip behaviour
@@ -187,7 +188,8 @@ class MelodicMode(definitions.PyshaMode):
     def check_for_delayed_actions(self):
         if self.last_time_at_params_edited is not None and time.time() - self.last_time_at_params_edited > definitions.DELAYED_ACTIONS_APPLY_TIME:
             # Update channel and poly AT parameters
-            self.push.pads.set_channel_aftertouch_range(range_start=self.channel_at_range_start, range_end=self.channel_at_range_end)
+            self.push.pads.set_channel_aftertouch_range(range_start=self.channel_at_range_start,
+                                                        range_end=self.channel_at_range_end)
             self.push.pads.set_velocity_curve(velocities=self.get_poly_at_curve())
             self.last_time_at_params_edited = None
 
@@ -207,7 +209,8 @@ class MelodicMode(definitions.PyshaMode):
         self.set_button_color(self.octave_up_button)
 
     def update_accent_button(self):
-        self.set_button_color_if_expression(self.accent_button, self.fixed_velocity_mode, animation=definitions.DEFAULT_ANIMATION)
+        self.set_button_color_if_expression(self.accent_button, self.fixed_velocity_mode,
+                                            animation=definitions.DEFAULT_ANIMATION)
 
     def update_buttons(self):
         self.update_octave_buttons()
@@ -237,24 +240,26 @@ class MelodicMode(definitions.PyshaMode):
 
     def on_pad_pressed_raw(self, pad_n, pad_ij, velocity):
         midi_note = self.pad_ij_to_midi_note(pad_ij)
-        if midi_note is not None:
-            self.latest_velocity_value = (time.time(), velocity)
-            if self.app.track_selection_mode.get_current_track_info().get('illuminate_local_notes', True) or self.app.notes_midi_in is None:
-                # illuminate_local_notes is used to decide wether a pad/key should be lighted when pressing it. This will probably be the default behaviour,
-                # but in synth definitions this can be disabled because we will be receiving back note events at the "notes_midi_in" device and in this
-                # case we don't want to light the pad "twice" (or if the note pressed gets processed and another note is actually played we don't want to
-                # light the currently presed pad). However, if "notes_midi_in" input is not configured, we do want to liht the pad as we won't have
-                # notes info comming from any other source
-                self.add_note_being_played(midi_note, 'push')
-            msg = mido.Message('note_on', note=midi_note, velocity=velocity if not self.fixed_velocity_mode else 127)
-            self.app.send_midi(msg)
-            self.update_pads()  # Directly calling update pads method because we want user to feel feedback as quick as possible
-            return True
+
+        self.latest_velocity_value = (time.time(), velocity)
+        if self.app.track_selection_mode.get_current_track_info().get('illuminate_local_notes',
+                                                                      True) or self.app.notes_midi_in is None:
+            # illuminate_local_notes is used to decide wether a pad/key should be lighted when pressing it. This will probably be the default behaviour,
+            # but in synth definitions this can be disabled because we will be receiving back note events at the "notes_midi_in" device and in this
+            # case we don't want to light the pad "twice" (or if the note pressed gets processed and another note is actually played we don't want to
+            # light the currently presed pad). However, if "notes_midi_in" input is not configured, we do want to liht the pad as we won't have
+            # notes info comming from any other source
+            self.add_note_being_played(midi_note, 'push')
+        msg = mido.Message('note_on', note=midi_note, velocity=velocity if not self.fixed_velocity_mode else 127)
+        self.app.send_midi(msg)
+        self.update_pads()  # Directly calling update pads method because we want user to feel feedback as quick as possible
+        return True
 
     def on_pad_released_raw(self, pad_n, pad_ij, velocity):
         midi_note = self.pad_ij_to_midi_note(pad_ij)
         if midi_note is not None:
-            if self.app.track_selection_mode.get_current_track_info().get('illuminate_local_notes', True) or self.app.notes_midi_in is None:
+            if self.app.track_selection_mode.get_current_track_info().get('illuminate_local_notes',
+                                                                          True) or self.app.notes_midi_in is None:
                 # see comment in "on_pad_pressed" above
                 self.remove_note_being_played(midi_note, 'push')
             msg = mido.Message('note_off', note=midi_note, velocity=velocity)
@@ -316,7 +321,8 @@ class MelodicMode(definitions.PyshaMode):
                     self.push.touchstrip.set_modulation_wheel_mode()
                 else:
                     self.push.touchstrip.set_pitch_bend_mode()
-                self.app.add_display_notification("Touchstrip mode: {0}".format('Modulation wheel' if self.modulation_wheel_mode else 'Pitch bend'))
+                self.app.add_display_notification(
+                    "Touchstrip mode: {0}".format('Modulation wheel' if self.modulation_wheel_mode else 'Pitch bend'))
                 return True
             else:
                 # Toggle accept mode
