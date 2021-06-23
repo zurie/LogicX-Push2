@@ -1,19 +1,15 @@
 import definitions
 import mido
 import push2_python
-import time
 import os
 import json
-
-from display_utils import show_notification
-
 
 class PresetSelectionMode(definitions.PyshaMode):
     xor_group = 'pads'
 
     favourtie_presets = {}
     favourtie_presets_filename = 'favourite_presets.json'
-    
+
     current_page = 0
 
     page_left_button = push2_python.constants.BUTTON_LEFT
@@ -187,7 +183,7 @@ class PresetSelectionMode(definitions.PyshaMode):
         return True  # Prevent other modes to get this event
 
     def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
-       if button_name in [self.page_left_button, self.page_right_button]:
+        if button_name in [self.page_left_button, self.page_right_button]:
             show_prev, show_next = self.has_prev_next_pages()
             if button_name == self.page_left_button and show_prev:
                 self.prev_page()

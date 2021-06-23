@@ -1,7 +1,5 @@
 import push2_python
 import colorsys
-import os
-import subprocess
 import threading
 
 from functools import wraps
@@ -18,6 +16,7 @@ isRecording = False
 LAYOUT_MELODIC = 'lmelodic'
 LAYOUT_RHYTHMIC = 'lrhythmic'
 LAYOUT_SLICES = 'lslices'
+LAYOUT_CHROMATIC = 'lchromatic'
 
 NOTIFICATION_TIME = 3
 

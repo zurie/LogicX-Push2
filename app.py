@@ -5,7 +5,6 @@ import traceback
 
 import cairo
 import platform
-from push2_python.constants import BUTTON_SELECT
 import definitions
 import mido
 import numpy
@@ -18,6 +17,7 @@ from track_selection_mode import TrackSelectionMode
 from pyramid_track_triggering_mode import PyramidTrackTriggeringMode
 from rhythmic_mode import RhythmicMode
 from slice_notes_mode import SliceNotesMode
+from chromatic_mode import ChromaticMode
 from settings_mode import SettingsMode
 from main_controls_mode import MainControlsMode
 from midi_cc_mode import MIDICCMode
@@ -96,6 +96,7 @@ class PyshaApp(object):
         self.melodic_mode = MelodicMode(self, settings=settings)
         self.rhyhtmic_mode = RhythmicMode(self, settings=settings)
         self.slice_notes_mode = SliceNotesMode(self, settings=settings)
+        self.chromatic_mode = ChromaticMode(self, settings=settings)
         self.set_melodic_mode()
 
         self.track_selection_mode = TrackSelectionMode(self, settings=settings)
@@ -203,6 +204,8 @@ class PyshaApp(object):
         elif self.is_mode_active(self.rhyhtmic_mode):
             self.set_slice_notes_mode()
         elif self.is_mode_active(self.slice_notes_mode):
+            self.set_chromatic_mode()
+        elif self.is_mode_active(self.chromatic_mode):
             self.set_melodic_mode()
         else:
             # If none of melodic or rhythmic or slice modes were active, enable melodic by default
@@ -216,6 +219,9 @@ class PyshaApp(object):
 
     def set_slice_notes_mode(self):
         self.set_mode_for_xor_group(self.slice_notes_mode)
+
+    def set_chromatic_mode(self):
+        self.set_mode_for_xor_group(self.chromatic_mode)
 
     def set_pyramid_track_triggering_mode(self):
         self.set_mode_for_xor_group(self.pyramid_track_triggering_mode)
