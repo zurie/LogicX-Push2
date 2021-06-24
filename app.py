@@ -18,6 +18,7 @@ from pyramid_track_triggering_mode import PyramidTrackTriggeringMode
 from rhythmic_mode import RhythmicMode
 from slice_notes_mode import SliceNotesMode
 from settings_mode import SettingsMode
+from scalemenu_mode import ScaleMenuMode
 from main_controls_mode import MainControlsMode
 from midi_cc_mode import MIDICCMode
 from preset_selection_mode import PresetSelectionMode
@@ -107,6 +108,7 @@ class PyshaApp(object):
         self.ddrm_tone_selector_mode = DDRMToneSelectorMode(self, settings=settings)
 
         self.settings_mode = SettingsMode(self, settings=settings)
+        self.scalemenu_mode = ScaleMenuMode(self, settings=settings)
 
     def get_all_modes(self):
         return [getattr(self, element) for element in vars(self) if
@@ -124,6 +126,16 @@ class PyshaApp(object):
         else:
             self.active_modes.append(self.settings_mode)
             self.settings_mode.activate()
+
+    def toggle_and_rotate_scalemenu_mode(self):
+        if self.is_mode_active(self.scalemenu_mode):
+            rotation_finished = self.scalemenu_mode.move_to_next_page()
+            if rotation_finished:
+                self.active_modes = [mode for mode in self.active_modes if mode != self.scalemenu_mode]
+                self.scalemenu_mode.deactivate()
+        else:
+            self.active_modes.append(self.scalemenu_mode)
+            self.scalemenu_mode.activate()
 
     def toggle_ddrm_tone_selector_mode(self):
         if self.is_mode_active(self.ddrm_tone_selector_mode):

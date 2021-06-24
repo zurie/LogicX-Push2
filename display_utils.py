@@ -7,7 +7,7 @@ def show_title(ctx, x, h, text, color=[1, 1, 1]):
     text = str(text)
     ctx.set_source_rgb(*color)
     ctx.select_font_face("Apple SD Gothic Neo", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-    font_size = h//12
+    font_size = h // 12
     ctx.set_font_size(font_size)
     ctx.move_to(x + 3, 20)
     ctx.show_text(text)
@@ -17,13 +17,23 @@ def show_value(ctx, x, h, text, color=[1, 1, 1]):
     text = str(text)
     ctx.set_source_rgb(*color)
     ctx.select_font_face("Apple SD Gothic Neo", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-    font_size = h//8
+    font_size = h // 8
     ctx.set_font_size(font_size)
     ctx.move_to(x + 3, 45)
     ctx.show_text(text)
 
 
-def draw_text_at(ctx, x, y, text, font_size = 12, color=[1, 1, 1]):
+def show_bigvalue(ctx, x, h, text, color=[1, 1, 1]):
+    text = str(text)
+    ctx.set_source_rgb(*color)
+    ctx.select_font_face("Apple SD Gothic Neo", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    font_size = h // 2
+    ctx.set_font_size(font_size)
+    ctx.move_to(x + 3, 100)
+    ctx.show_text(text)
+
+
+def draw_text_at(ctx, x, y, text, font_size=12, color=[1, 1, 1]):
     text = str(text)
     ctx.set_source_rgb(*color)
     ctx.select_font_face("Apple SD Gothic Neo", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
@@ -32,7 +42,9 @@ def draw_text_at(ctx, x, y, text, font_size = 12, color=[1, 1, 1]):
     ctx.show_text(text)
 
 
-def show_text(ctx, x_part, pixels_from_top, text, height=20, font_color=definitions.WHITE, background_color=None, margin_left=4, margin_top=4, font_size_percentage=0.8, center_vertically=True, center_horizontally=definitions.CENTER_LABELS, rectangle_padding=0, rectangle_width_percentage=1.0):
+def show_text(ctx, x_part, pixels_from_top, text, height=20, font_color=definitions.WHITE, background_color=None,
+              margin_left=4, margin_top=4, font_size_percentage=0.8, center_vertically=True,
+              center_horizontally=definitions.CENTER_LABELS, rectangle_padding=0, rectangle_width_percentage=1.0):
     assert 0 <= x_part < 8
     assert type(x_part) == int
 
@@ -46,7 +58,8 @@ def show_text(ctx, x_part, pixels_from_top, text, height=20, font_color=definiti
 
     if background_color is not None:
         ctx.set_source_rgb(*definitions.get_color_rgb_float(background_color))
-        ctx.rectangle(x1 + rectangle_padding, y1 + rectangle_padding, rectangle_width_percentage * (part_w - rectangle_padding * 2), height - rectangle_padding * 2)
+        ctx.rectangle(x1 + rectangle_padding, y1 + rectangle_padding,
+                      rectangle_width_percentage * (part_w - rectangle_padding * 2), height - rectangle_padding * 2)
         ctx.fill()
     ctx.set_source_rgb(*definitions.get_color_rgb_float(font_color))
     ctx.select_font_face("Apple SD Gothic Neo", cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
@@ -59,12 +72,13 @@ def show_text(ctx, x_part, pixels_from_top, text, height=20, font_color=definiti
     for i, line in enumerate(text_lines):
         if center_horizontally:
             (_, _, l_width, _, _, _) = ctx.text_extents(line)
-            ctx.move_to(x1 + part_w/2 - l_width/2, y1 + font_size * (i + 1) + margin_top - 2)
+            ctx.move_to(x1 + part_w / 2 - l_width / 2, y1 + font_size * (i + 1) + margin_top - 2)
         else:
             ctx.move_to(x1 + margin_left, y1 + font_size * (i + 1) + margin_top - 2)
         ctx.show_text(line)
 
     ctx.restore()
+
 
 def show_notification(ctx, text, opacity=1.0):
     ctx.save()

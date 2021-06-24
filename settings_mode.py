@@ -5,7 +5,7 @@ import os
 import sys
 import psutil
 
-from display_utils import show_title, show_value, draw_text_at
+from display_utils import show_title, show_value, show_bigvalue, draw_text_at
 
 
 class SettingsMode(definitions.PyshaMode):

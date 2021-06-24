@@ -17,6 +17,7 @@ class MainControlsMode(definitions.PyshaMode):
 
     toggle_display_button = push2_python.constants.BUTTON_USER
     settings_button = push2_python.constants.BUTTON_SETUP
+    scalemode_button = push2_python.constants.BUTTON_SCALE
     melodic_rhythmic_toggle_button = push2_python.constants.BUTTON_NOTE
     pyramid_track_triggering_button = push2_python.constants.BUTTON_ADD_TRACK
     track_triggering_button = push2_python.constants.BUTTON_SESSION
@@ -31,7 +32,7 @@ class MainControlsMode(definitions.PyshaMode):
     fixed_length_button = push2_python.constants.BUTTON_FIXED_LENGTH
     record_automation_button = push2_python.constants.BUTTON_AUTOMATE
 
-    buttons_used = [toggle_display_button, settings_button, melodic_rhythmic_toggle_button, track_triggering_button,
+    buttons_used = [toggle_display_button, settings_button, scalemode_button, melodic_rhythmic_toggle_button, track_triggering_button,
                     preset_selection_mode_button,
                     ddrm_tone_selection_mode_button, shift_button, select_button, play_button, record_button,
                     metronome_button, fixed_length_button,
@@ -54,6 +55,11 @@ class MainControlsMode(definitions.PyshaMode):
         # Settings button, to toggle settings mode
         self.set_button_color_if_expression(self.settings_button, self.app.is_mode_active(self.app.settings_mode),
                                             animation=definitions.DEFAULT_ANIMATION)
+
+        # # Scale Mode button, to toggle scale mode
+        self.set_button_color_if_expression(self.scalemode_button, self.app.is_mode_active(self.app.scalemenu_mode),
+                                            animation=definitions.DEFAULT_ANIMATION)
+
         # Track triggering mode
         self.set_button_color_if_expression(self.pyramid_track_triggering_button,
                                             self.app.is_mode_active(self.app.pyramid_track_triggering_mode),
@@ -104,6 +110,12 @@ class MainControlsMode(definitions.PyshaMode):
             self.app.toggle_and_rotate_settings_mode()
             self.app.buttons_need_update = True
             return True
+
+        elif button_name == self.scalemode_button:
+            self.app.toggle_and_rotate_scalemenu_mode()
+            self.app.buttons_need_update = True
+            return True
+
         elif button_name == self.toggle_display_button:
             self.app.use_push2_display = not self.app.use_push2_display
             if not self.app.use_push2_display:

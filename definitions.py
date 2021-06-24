@@ -51,6 +51,7 @@ LIME = 'lime'
 
 COLORS_NAMES = [ORANGE, YELLOW, TURQUOISE, LIME, RED, PINK, PURPLE, BLUE, CYAN, GREEN, BLACK, GRAY_DARK, GRAY_LIGHT,
                 WHITE]
+SCALE_NAME = 'Major'
 
 Major =             [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1]
 Minor =             [1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0]

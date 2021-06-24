@@ -736,7 +736,7 @@ class DDRMToneSelectorMode(PyshaMode):
         self.set_button_color_if_expression(self.button_right, show_next, definitions.WHITE)
 
     def update_display(self, ctx, w, h):
-        if not self.app.is_mode_active(self.app.settings_mode):
+        if not self.app.is_mode_active(self.app.settings_mode or self.app.scalemenu_mode):
             # If settings mode is active, don't draw the upper parts of the screen because settings page will
             # "cover them"
             start = self.page_n * 8
