@@ -1,0 +1,7 @@
+{
+  "instrument_name": "Default",
+  "instrument_short_name": "MIDI CC",
+  "illuminate_local_notes": false,
+  "midi_channel": 3,
+  "n_banks": 1
+}

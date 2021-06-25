@@ -1,8 +1,0 @@
-{
-    "instrument_name": "Source",
-    "instrument_short_name": "SOURCE",
-    "illuminate_local_notes": false,
-    "midi_channel": 5,
-    "default_layout": "lrhythmic",
-    "n_banks": 1
-}
