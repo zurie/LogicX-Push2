@@ -410,6 +410,7 @@ class MelodicMode(definitions.PyshaMode):
             self.latest_poly_at_value = (time.time(), velocity)
             midi_note = self.pad_ij_to_midi_note(pad_ij)
             if midi_note is not None:
+                midi_note = sorted((0, midi_note, 127))[1]
                 msg = mido.Message('polytouch', note=midi_note, value=velocity)
         else:
             # channel AT mode
