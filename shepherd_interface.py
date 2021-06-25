@@ -134,12 +134,12 @@ class ShepherdInterface(definitions.PyshaMode):
             is_recording = False
 
         if is_playing:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_RGB, animation=definitions.DEFAULT_ANIMATION)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN, animation=definitions.DEFAULT_ANIMATION)
         else:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.YELLOW, animation=push2_python.constants.ANIMATION_STATIC)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.LIME, animation=push2_python.constants.ANIMATION_STATIC)
 
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD,
-                                           definitions.GREEN_RGB if not is_recording else definitions.RED)
+                                           definitions.GREEN if not is_recording else definitions.RED)
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME,
                                            definitions.OFF_BTN_COLOR if not metronome_on else definitions.WHITE)
 
