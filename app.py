@@ -14,7 +14,7 @@ from collections import defaultdict
 
 from melodic_mode import MelodicMode
 from track_selection_mode import TrackSelectionMode
-from pyramid_track_triggering_mode import PyramidTrackTriggeringMode
+# from pyramid_track_triggering_mode import PyramidTrackTriggeringMode
 from rhythmic_mode import RhythmicMode
 from slice_notes_mode import SliceNotesMode
 from settings_mode import SettingsMode
@@ -63,8 +63,8 @@ class PyshaApp(object):
     notification_time = 0
 
     # fixing issue with 2 lumis and alternating channel pressure values
-    last_cp_value_recevied = 0
-    last_cp_value_recevied_time = 0
+    last_cp_value_received = 0
+    last_cp_value_received_time = 0
 
     # interface with shepherd
     shepherd_interface = None
@@ -99,7 +99,7 @@ class PyshaApp(object):
         self.set_melodic_mode()
 
         self.track_selection_mode = TrackSelectionMode(self, settings=settings)
-        self.pyramid_track_triggering_mode = PyramidTrackTriggeringMode(self, settings=settings)
+        # self.pyramid_track_triggering_mode = PyramidTrackTriggeringMode(self, settings=settings)
         self.preset_selection_mode = PresetSelectionMode(self, settings=settings)
         self.midi_cc_mode = MIDICCMode(self,
                                        settings=settings)  # Must be initialized after track selection mode so it gets info about loaded tracks
@@ -228,11 +228,11 @@ class PyshaApp(object):
     def set_slice_notes_mode(self):
         self.set_mode_for_xor_group(self.slice_notes_mode)
 
-    def set_pyramid_track_triggering_mode(self):
-        self.set_mode_for_xor_group(self.pyramid_track_triggering_mode)
-
-    def unset_pyramid_track_triggering_mode(self):
-        self.unset_mode_for_xor_group(self.pyramid_track_triggering_mode)
+    # def set_pyramid_track_triggering_mode(self):
+    #     self.set_mode_for_xor_group(self.pyramid_track_triggering_mode)
+    #
+    # def unset_pyramid_track_triggering_mode(self):
+    #     self.unset_mode_for_xor_group(self.pyramid_track_triggering_mode)
 
     def set_preset_selection_mode(self):
         self.set_mode_for_xor_group(self.preset_selection_mode)
@@ -370,25 +370,25 @@ class PyshaApp(object):
             self.midi_out_channel = 15 if not wrap else -1
 
     def set_midi_in_device_by_index(self, device_idx):
-        if device_idx >= 0 and device_idx < len(self.available_midi_in_device_names):
+        if 0 <= device_idx < len(self.available_midi_in_device_names):
             self.init_midi_in(self.available_midi_in_device_names[device_idx])
         else:
             self.init_midi_in(None)
 
     def set_midi_out_device_by_index(self, device_idx):
-        if device_idx >= 0 and device_idx < len(self.available_midi_out_device_names):
+        if 0 <= device_idx < len(self.available_midi_out_device_names):
             self.init_midi_out(self.available_midi_out_device_names[device_idx])
         else:
             self.init_midi_out(None)
 
     def set_notes_midi_in_device_by_index(self, device_idx):
-        if device_idx >= 0 and device_idx < len(self.available_midi_in_device_names):
+        if 0 <= device_idx < len(self.available_midi_in_device_names):
             self.init_notes_midi_in(self.available_midi_in_device_names[device_idx])
         else:
             self.init_notes_midi_in(None)
 
     def send_midi(self, msg, use_original_msg_channel=False):
-        # Unless we specifically say we want to use the original msg mnidi channel, set it to global midi out channel or to the channel of the current track
+        # Unless we specifically say we want to use the original msg midi channel, set it to global midi out channel or to the channel of the current track
         if not use_original_msg_channel and hasattr(msg, 'channel'):
             midi_out_channel = self.midi_out_channel
             if self.midi_out_channel == -1:
@@ -415,12 +415,12 @@ class PyshaApp(object):
                 skip_message = False
                 if msg.type == 'aftertouch':
                     now = time.time()
-                    if (abs(self.last_cp_value_recevied - msg.value) > 10) and (
-                            now - self.last_cp_value_recevied_time < 0.5):
+                    if (abs(self.last_cp_value_received - msg.value) > 10) and (
+                            now - self.last_cp_value_received_time < 0.5):
                         skip_message = True
                     else:
-                        self.last_cp_value_recevied = msg.value
-                    self.last_cp_value_recevied_time = time.time()
+                        self.last_cp_value_received = msg.value
+                    self.last_cp_value_received_time = time.time()
 
                 if not skip_message:
                     # Forward message to the main MIDI out

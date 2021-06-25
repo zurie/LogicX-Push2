@@ -60,10 +60,10 @@ class MainControlsMode(definitions.PyshaMode):
         self.set_button_color_if_expression(self.scalemode_button, self.app.is_mode_active(self.app.scalemenu_mode),
                                             animation=definitions.DEFAULT_ANIMATION)
 
-        # Track triggering mode
-        self.set_button_color_if_expression(self.pyramid_track_triggering_button,
-                                            self.app.is_mode_active(self.app.pyramid_track_triggering_mode),
-                                            animation=definitions.DEFAULT_ANIMATION)
+        # # Track triggering mode
+        # self.set_button_color_if_expression(self.pyramid_track_triggering_button,
+        #                                     self.app.is_mode_active(self.app.pyramid_track_triggering_mode),
+        #                                     animation=definitions.DEFAULT_ANIMATION)
         # Preset selection mode
         self.set_button_color_if_expression(self.preset_selection_mode_button,
                                             self.app.is_mode_active(self.app.preset_selection_mode),
