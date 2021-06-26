@@ -1,7 +1,190 @@
 {
-  "instrument_name": "Default",
+  "instrument_name": "SUPERNOVA",
   "instrument_short_name": "SUPERNOVA",
-  "illuminate_local_notes": false,
-  "midi_channel": 3,
-  "n_banks": 1
+  "illuminate_local_notes": true,
+  "midi_channel": 1,
+  "n_banks": 1,
+  "midi_cc": [
+    {
+      "section": "Filters",
+      "controls": [
+        ["CUTOFF FREQ", 105],
+        ["OVERDRIVE", 104],
+        ["RESONANCE", 106],
+        ["TRACKING", 34],
+        ["FREQ LFO 1", 60],
+        ["RES LFO 1", 73],
+        ["FREQ LFO 2", 35],
+        ["RES LFO 2", 86],
+        ["FREQ ENV 2", 107],
+        ["RES ENV 2", 72],
+        ["FREQ ENV 3", 59],
+        ["RES ENV 3", 85]
+      ]
+    },
+    {
+      "section": "LFO",
+      "controls": [
+        ["LFO 1 DELAY", 17],
+        ["LFO 1 OFFSET", 82],
+        ["LFO 1 SPEED", 16],
+        ["LFO 1 SPEED ENV 3", 80],
+        ["LFO 2 DELAY", 19],
+        ["LFO 2 OFFSET", 83],
+        ["LFO 2 SPEED", 18],
+        ["LFO 2 SPEED ENV 3", 81]
+      ]
+    },
+    {
+      "section": "Osc 1",
+      "controls": [
+        ["SYNC", 49],
+        ["MIX LEVEL", 28],
+        ["FINE TUNE", 11],
+        ["SOFTEN", 13],
+        ["PULSE WIDTH", 22],
+        ["SYNC LFO 1", 55],
+        ["PITCH LFO 1", 21],
+        ["WIDTH LFO 1", 46],
+        ["WIDTH LFO 2", 69],
+        ["SYNC ENV 2", 52],
+        ["PITCH ENV 2", 20],
+        ["WIDTH ENV 2", 43],
+        ["MIX ENV 2", 36],
+        ["SOFTEN ENV 2", 61],
+        ["PITCH ENV 3", 66]
+      ]
+    },{
+      "section": "Osc 2",
+      "controls": [
+        ["SYNC", 50],
+        ["MIX LEVEL", 29],
+        ["FINE TUNE", 23],
+        ["SOFTEN", 14],
+        ["PULSE WIDTH", 27],
+        ["SYNC LFO 1", 56],
+        ["PITCH LFO 1", 26],
+        ["WIDTH LFO 1", 47],
+        ["WIDTH LFO 2", 70],
+        ["SYNC ENV 2", 53],
+        ["PITCH ENV 2", 25],
+        ["WIDTH ENV 2", 44],
+        ["MIX ENV 2", 37],
+        ["SOFTEN ENV 2", 62],
+        ["PITCH ENV 3", 67]
+      ]
+    },{
+      "section": "Osc 3",
+      "controls": [
+        ["SYNC", 51],
+        ["MIX LEVEL", 33],
+        ["FINE TUNE", 12],
+        ["SOFTEN", 15],
+        ["PULSE WIDTH", 42],
+        ["SYNC LFO 1", 57],
+        ["PITCH LFO 1", 41],
+        ["WIDTH LFO 1", 48],
+        ["WIDTH LFO 2", 71],
+        ["SYNC ENV 2", 54],
+        ["PITCH ENV 2", 40],
+        ["WIDTH ENV 2", 45],
+        ["MIX ENV 2", 38],
+        ["SOFTEN ENV 2", 63],
+        ["PITCH ENV 3", 68]
+      ]
+    },{
+      "section": "Envelopes",
+      "controls": [
+        ["ENV 1 ATTACK", 108],
+        ["ENV 1 DECAY", 109],
+        ["ENV 1 RELEASE", 111],
+        ["ENV 1 SUSTAIN", 110],
+        ["ENV 1 VELOCITY", 112],
+        ["ENV 2 ATTACK", 114],
+        ["ENV 2 DECAY", 115],
+        ["ENV 2 DELAY", 113],
+        ["ENV 2 RELEASE", 117],
+        ["ENV 2 SUSTAIN", 116],
+        ["ENV 2 VELOCITY", 118],
+        ["ENV 3 ATTACK", 75],
+        ["ENV 3 DECAY", 76],
+        ["ENV 3 DELAY", 74],
+        ["ENV 3 RELEASE", 78],
+        ["ENV 3 SUSTAIN", 77],
+        ["ENV 3 VELOCITY", 79]
+      ]
+    },
+    {
+      "section": "Effects",
+      "controls": [
+        ["DEL FEEDBACK", 102],
+        ["DEL HF DAMP", 103],
+        ["DEL MW DEPTH", 119],
+        ["DEL SEND LEVEL", 92],
+        ["DEL TIME", 101],
+        ["CHO FEEDBACK", 89],
+        ["CHO MOD DEPTH", 88],
+        ["CHO MW DEPTH", 94],
+        ["CHO SEND LEVEL", 93],
+        ["CHO SPEED", 87],
+        ["REV DECAY", 95],
+        ["REV HF DAMP", 96],
+        ["REV MW DEPTH", 84],
+        ["REV SEND LEVEL", 91],
+        ["REV TYPE", 100],
+        ["RNG MOD 1 * 3", 31],
+        ["RNG MOD 2 * 3", 4],
+        ["DIST LEVEL", 90],
+        ["DIST MW DEPTH", 58],
+        ["NSE MIX ENV 2", 39],
+        ["NSE MIX LEVEL", 30],
+        ["NSE SOFTEN", 24],
+        ["FX MORPH AMT", 8]
+      ]
+    },
+    {
+      "section": "ARP / UTIL",
+      "controls": [
+        ["ARP LATCH", 65],
+        ["ARP PAT SELECT", 3],
+        ["PORT TIME", 5],
+        ["SUST/ARP LATCH", 64],
+        ["CLOCK RATE", 9],
+        ["PAN", 10],
+        ["PART VOL", 7],
+        ["MASTER VOL", 97],
+        ["BANK LSB", 32],
+        ["BANK MSB", 0],
+        ["BREATH", 2],
+        ["DATA ENTRY", 6],
+        ["LOCAL CONTROL", 122],
+        ["NRPN LSB", 98],
+        ["NRPN MSB", 99]
+      ]
+    }
+  ]
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
