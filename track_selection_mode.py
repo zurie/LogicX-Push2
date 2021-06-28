@@ -164,6 +164,6 @@ class TrackSelectionMode(definitions.PyshaMode):
                     self.select_track(self.track_button_names.index(button_name))
                 else:
                     pass
-        self.app.buttons_need_update = True
-        self.app.pads_need_update = True
-        return True
+            self.app.buttons_need_update = True
+            self.app.pads_need_update = True
+            return True
