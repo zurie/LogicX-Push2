@@ -1,3 +1,5 @@
+from pdb import set_trace
+
 import definitions
 import mido
 import push2_python
@@ -91,7 +93,8 @@ class MIDICCControl(object):
             self.value += increment
 
         # Send cc message, subtract 1 to number because MIDO works from 0 - 127
-        msg = mido.Message('control_change', control=self.cc_number, value=self.value)
+
+        msg = mido.Message('control_change', control=self.cc_number, value=sorted((0, self.value, 127))[1])
         self.send_midi_func(msg)
 
 
@@ -113,7 +116,8 @@ class MIDICCMode(PyshaMode):
     def initialize(self, settings=None):
         for instrument_short_name in self.get_all_distinct_instrument_short_names_helper():
             try:
-                midi_cc = json.load(open(os.path.join(definitions.INSTRUMENT_DEFINITION_FOLDER, '{}.json'.format(instrument_short_name)))).get('midi_cc', None)
+                midi_cc = json.load(open(os.path.join(definitions.INSTRUMENT_DEFINITION_FOLDER,
+                                                      '{}.json'.format(instrument_short_name)))).get('midi_cc', None)
             except FileNotFoundError:
                 midi_cc = None
 
@@ -123,24 +127,28 @@ class MIDICCMode(PyshaMode):
                 for section in midi_cc:
                     section_name = section['section']
                     for name, cc_number in section['controls']:
-                        control = MIDICCControl(cc_number, name, section_name, self.get_current_track_color_helper, self.app.send_midi)
+                        control = MIDICCControl(cc_number, name, section_name, self.get_current_track_color_helper,
+                                                self.app.send_midi)
                         if section.get('control_value_label_maps', {}).get(name, False):
                             control.value_labels_map = section['control_value_label_maps'][name]
                         self.instrument_midi_control_ccs[instrument_short_name].append(control)
-                print('Loaded {0} MIDI cc mappings for instrument {1}'.format(len(self.instrument_midi_control_ccs[instrument_short_name]), instrument_short_name))
+                print('Loaded {0} MIDI cc mappings for instrument {1}'.format(
+                    len(self.instrument_midi_control_ccs[instrument_short_name]), instrument_short_name))
             else:
                 # No definition file for instrument exists, or no midi CC were defined for that instrument
                 self.instrument_midi_control_ccs[instrument_short_name] = []
                 for i in range(0, 128):
                     section_s = (i // 16) * 16
                     section_e = section_s + 15
-                    control = MIDICCControl(i, 'CC {0}'.format(i), '{0} to {1}'.format(section_s, section_e), self.get_current_track_color_helper, self.app.send_midi)
+                    control = MIDICCControl(i, 'CC {0}'.format(i), '{0} to {1}'.format(section_s, section_e),
+                                            self.get_current_track_color_helper, self.app.send_midi)
                     self.instrument_midi_control_ccs[instrument_short_name].append(control)
                 print('Loaded default MIDI cc mappings for instrument {0}'.format(instrument_short_name))
 
         # Fill in current page and section variables
         for instrument_short_name in self.instrument_midi_control_ccs:
-            self.current_selected_section_and_page[instrument_short_name] = (self.instrument_midi_control_ccs[instrument_short_name][0].section, 0)
+            self.current_selected_section_and_page[instrument_short_name] = (
+            self.instrument_midi_control_ccs[instrument_short_name][0].section, 0)
 
     def get_all_distinct_instrument_short_names_helper(self):
         return self.app.track_selection_mode.get_all_distinct_instrument_short_names()
@@ -164,13 +172,15 @@ class MIDICCMode(PyshaMode):
 
     def get_midi_cc_controls_for_current_track_and_section(self):
         section, _ = self.get_currently_selected_midi_cc_section_and_page()
-        return [control for control in self.instrument_midi_control_ccs.get(self.get_current_track_instrument_short_name_helper(), []) if control.section == section]
+        return [control for control in
+                self.instrument_midi_control_ccs.get(self.get_current_track_instrument_short_name_helper(), []) if
+                control.section == section]
 
     def get_midi_cc_controls_for_current_track_section_and_page(self):
         all_section_controls = self.get_midi_cc_controls_for_current_track_and_section()
         _, page = self.get_currently_selected_midi_cc_section_and_page()
         try:
-            return all_section_controls[page * 8:(page+1) * 8]
+            return all_section_controls[page * 8:(page + 1) * 8]
         except IndexError:
             return []
 
@@ -203,7 +213,8 @@ class MIDICCMode(PyshaMode):
         self.update_buttons()
 
     def deactivate(self):
-        for button_name in self.midi_cc_button_names + [push2_python.constants.BUTTON_PAGE_LEFT, push2_python.constants.BUTTON_PAGE_RIGHT]:
+        for button_name in self.midi_cc_button_names + [push2_python.constants.BUTTON_PAGE_LEFT,
+                                                        push2_python.constants.BUTTON_PAGE_RIGHT]:
             self.push.buttons.set_button_color(button_name, definitions.BLACK)
 
     def update_buttons(self):
@@ -251,7 +262,7 @@ class MIDICCMode(PyshaMode):
                         background_color = definitions.BLACK
                         font_color = current_track_color
                     show_text(ctx, i, 0, section_name, height=height,
-                            font_color=font_color, background_color=background_color)
+                              font_color=font_color, background_color=background_color)
 
             # Draw MIDI CC controls
             if self.active_midi_control_ccs:
@@ -281,19 +292,70 @@ class MIDICCMode(PyshaMode):
             return True
 
     def on_encoder_rotated(self, encoder_name, increment):
-        try:
-            encoder_num = [
-                push2_python.constants.ENCODER_TRACK1_ENCODER,
-                push2_python.constants.ENCODER_TRACK2_ENCODER,
-                push2_python.constants.ENCODER_TRACK3_ENCODER,
-                push2_python.constants.ENCODER_TRACK4_ENCODER,
-                push2_python.constants.ENCODER_TRACK5_ENCODER,
-                push2_python.constants.ENCODER_TRACK6_ENCODER,
-                push2_python.constants.ENCODER_TRACK7_ENCODER,
-                push2_python.constants.ENCODER_TRACK8_ENCODER,
-            ].index(encoder_name)
-            if self.active_midi_control_ccs:
-                self.active_midi_control_ccs[encoder_num].update_value(increment)
-        except ValueError:
-            pass  # Encoder not in list 
-        return True  # Always return True because encoder should not be used in any other mode if this is first active
+        if not self.app.is_mode_active(self.app.settings_mode) and not self.app.is_mode_active(self.app.scalemenu_mode):
+            try:
+                if len(self.active_midi_control_ccs) == 8:
+                    encoder_num = [
+                        push2_python.constants.ENCODER_TRACK1_ENCODER,
+                        push2_python.constants.ENCODER_TRACK2_ENCODER,
+                        push2_python.constants.ENCODER_TRACK3_ENCODER,
+                        push2_python.constants.ENCODER_TRACK4_ENCODER,
+                        push2_python.constants.ENCODER_TRACK5_ENCODER,
+                        push2_python.constants.ENCODER_TRACK6_ENCODER,
+                        push2_python.constants.ENCODER_TRACK7_ENCODER,
+                        push2_python.constants.ENCODER_TRACK8_ENCODER,
+                    ].index(encoder_name)
+                elif len(self.active_midi_control_ccs) == 7:
+                    encoder_num = [
+                        push2_python.constants.ENCODER_TRACK1_ENCODER,
+                        push2_python.constants.ENCODER_TRACK2_ENCODER,
+                        push2_python.constants.ENCODER_TRACK3_ENCODER,
+                        push2_python.constants.ENCODER_TRACK4_ENCODER,
+                        push2_python.constants.ENCODER_TRACK5_ENCODER,
+                        push2_python.constants.ENCODER_TRACK6_ENCODER,
+                        push2_python.constants.ENCODER_TRACK7_ENCODER
+                    ].index(encoder_name)
+                elif len(self.active_midi_control_ccs) == 6:
+                    encoder_num = [
+                        push2_python.constants.ENCODER_TRACK1_ENCODER,
+                        push2_python.constants.ENCODER_TRACK2_ENCODER,
+                        push2_python.constants.ENCODER_TRACK3_ENCODER,
+                        push2_python.constants.ENCODER_TRACK4_ENCODER,
+                        push2_python.constants.ENCODER_TRACK5_ENCODER,
+                        push2_python.constants.ENCODER_TRACK6_ENCODER
+                    ].index(encoder_name)
+                elif len(self.active_midi_control_ccs) == 5:
+                    encoder_num = [
+                        push2_python.constants.ENCODER_TRACK1_ENCODER,
+                        push2_python.constants.ENCODER_TRACK2_ENCODER,
+                        push2_python.constants.ENCODER_TRACK3_ENCODER,
+                        push2_python.constants.ENCODER_TRACK4_ENCODER,
+                        push2_python.constants.ENCODER_TRACK5_ENCODER
+                    ].index(encoder_name)
+                elif len(self.active_midi_control_ccs) == 4:
+                    encoder_num = [
+                        push2_python.constants.ENCODER_TRACK1_ENCODER,
+                        push2_python.constants.ENCODER_TRACK2_ENCODER,
+                        push2_python.constants.ENCODER_TRACK3_ENCODER,
+                        push2_python.constants.ENCODER_TRACK4_ENCODER
+                    ].index(encoder_name)
+                elif len(self.active_midi_control_ccs) == 3:
+                    encoder_num = [
+                        push2_python.constants.ENCODER_TRACK1_ENCODER,
+                        push2_python.constants.ENCODER_TRACK2_ENCODER,
+                        push2_python.constants.ENCODER_TRACK3_ENCODER
+                    ].index(encoder_name)
+                elif len(self.active_midi_control_ccs) == 2:
+                    encoder_num = [
+                        push2_python.constants.ENCODER_TRACK1_ENCODER,
+                        push2_python.constants.ENCODER_TRACK2_ENCODER
+                    ].index(encoder_name)
+                elif len(self.active_midi_control_ccs) == 1:
+                    encoder_num = [
+                        push2_python.constants.ENCODER_TRACK1_ENCODER
+                    ].index(encoder_name)
+                if self.active_midi_control_ccs:
+                    self.active_midi_control_ccs[encoder_num].update_value(increment)
+            except ValueError:
+                pass  # Encoder not in list
+            return True  # Always return True because encoder should not be used in any other mode if this is first active

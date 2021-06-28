@@ -2,6 +2,104 @@
   "instrument_name": "Default",
   "instrument_short_name": "MIDI CC",
   "illuminate_local_notes": false,
-  "midi_channel": 3,
-  "n_banks": 1
+  "default_layout": "lrhythmic",
+  "midi_channel": 10,
+  "n_banks": 1,
+  "midi_cc": [
+    {
+      "section": "Bass",
+      "controls": [
+        ["TUNE", 100],
+        ["PITCH", 101],
+        ["DECAY", 102],
+        ["HARMONICS", 103],
+        ["PULSE", 104],
+        ["NOISE", 105],
+        ["ATTACK", 106],
+        ["EQ", 107],
+        ["BD LEVEL", 117]
+      ]
+    },
+    {
+      "section": "Snare",
+      "controls": [
+        ["TUNE" ,108],
+        ["SNAPPY" ,109],
+        ["DECAY" ,110],
+        ["DETUNE" ,111],
+        ["NOISE TUNE" ,112],
+        ["SD LEVEL" ,118]
+      ]
+    },
+    {
+      "section": "Toms",
+      "controls": [
+        ["LT TUNE", 12],
+        ["LT DECAY", 13],
+        ["LT LEVEL", 14],
+        ["HT TUNE", 15],
+        ["HT DECAY", 16],
+        ["HT LEVEL", 17]
+      ]
+    },
+    {
+      "section": "High Hats",
+      "controls": [
+        ["TUNE", 18],
+        ["CH ATTACK", 19],
+        ["CH PEAKTIME", 20],
+        ["CH DECAY", 21],
+        ["OH ATTACK", 22],
+        ["OH PEAKTIME", 23],
+        ["OH DECAY", 24],
+        ["HH LEVEL", 25],
+        ["LF CUTOFF HP", 59],
+        ["LF CUTOFF LP", 60],
+        ["LF RESONANCE", 61]
+      ]
+    },
+    {
+      "section": "Clap",
+      "controls": [
+        ["TUNE", 26],
+        ["ATTACK", 27],
+        ["PEAKTIME", 28],
+        ["DECAY", 29],
+        ["LEVEL", 30]
+      ]
+    },
+    {
+      "section": "Rim Shot",
+      "controls": [
+        ["TUNE", 44],
+        ["ATTACK", 45],
+        ["PEAKTIME", 46],
+        ["DECAY", 47],
+        ["LEVEL", 48]
+      ]
+    },
+    {
+      "section": "Crash",
+      "controls": [
+        ["TUNE", 49],
+        ["ATTACK", 50],
+        ["PEAKTIME", 51],
+        ["DECAY", 52],
+        ["LEVEL", 53]
+      ]
+    },
+    {
+      "section": "Ride",
+      "controls": [
+        ["TUNE", 54],
+        ["ATTACK", 55],
+        ["PEAKTIME", 56],
+        ["DECAY", 57],
+        ["LEVEL", 58]
+      ]
+    }
+  ]
 }
+
+
+

@@ -122,17 +122,6 @@ class MainControlsMode(definitions.PyshaMode):
                 self.push.display.send_to_display(self.push.display.prepare_frame(self.push.display.make_black_frame()))
             self.app.buttons_need_update = True
             return True
-        elif button_name == self.pyramid_track_triggering_button:
-            if self.app.is_mode_active(self.app.pyramid_track_triggering_mode):
-                # If already active, deactivate and set pressing time to None
-                self.app.unset_pyramid_track_triggering_mode()
-                self.pyramid_track_triggering_button_pressing_time = None
-            else:
-                # Activate track triggering mode and store time button pressed
-                self.app.set_pyramid_track_triggering_mode()
-                self.pyramid_track_triggering_button_pressing_time = time.time()
-            self.app.buttons_need_update = True
-            return True
         elif button_name == self.preset_selection_mode_button:
             if self.app.is_mode_active(self.app.preset_selection_mode):
                 # If already active, deactivate and set pressing time to None
