@@ -99,6 +99,14 @@ class TrackSelectionMode(definitions.PyshaMode):
         x = len(self.tracks_info) / 8
         return math.ceil(x)
 
+    def increment_track_pages(self):
+        current_page = self.page
+        if current_page + 1 <= self.get_total_pages():
+            self.page = self.page + 1
+        else:
+            self.page = 1
+        self.update_buttons()
+
     def get_current_page_start(self):
         return (self.get_total_pages() - 1) * 8
 
@@ -126,7 +134,12 @@ class TrackSelectionMode(definitions.PyshaMode):
         # Selects a track and activates its melodic/rhythmic layout
         # Note that if this is called from a mode from the same xor group with melodic/rhythmic modes,
         # that other mode will be deactivated.
-        self.selected_track = track_idx + self.get_current_page_start() if self.page > 1 else track_idx
+        if self.page == 2:
+            self.selected_track = track_idx + 8
+        elif self.page == 3:
+            self.selected_track = track_idx + 16
+        else:
+            self.selected_track = track_idx
         self.load_current_default_layout()
         self.clean_currently_notes_being_played()
         try:
@@ -153,6 +166,12 @@ class TrackSelectionMode(definitions.PyshaMode):
                     color = self.tracks_info[count+8]['color']
                 else:
                     color = 'black'
+            elif self.page == 3:
+                self.app.buttons_need_update = True
+                if count + 16 < len(self.tracks_info):
+                    color = self.tracks_info[count+16]['color']
+                else:
+                    color = 'black'
             else:
                 color = self.tracks_info[count]['color']
             self.push.buttons.set_button_color(name, color)
@@ -175,7 +194,7 @@ class TrackSelectionMode(definitions.PyshaMode):
         if self.page == 1:
             for i in range(0, 8):
                 track_color = self.tracks_info[i]['color']
-                if self.selected_track % (self.get_total_pages() * 8) == i:
+                if self.selected_track % 24 == i:
                     background_color = track_color
                     font_color = definitions.BLACK
                 else:
@@ -184,17 +203,29 @@ class TrackSelectionMode(definitions.PyshaMode):
                 instrument_short_name = self.tracks_info[i]['instrument_short_name']
                 show_text(ctx, i, h - height, instrument_short_name, height=height,
                           font_color=font_color, background_color=background_color)
-        else:
-            for i in range(self.get_current_page_start(), len(self.tracks_info)):
+        elif self.page == 2:
+            for i in range(8, len(self.tracks_info) if not len(self.tracks_info) > 16 else 16):
                 track_color = self.tracks_info[i]['color']
-                if self.selected_track % (self.get_total_pages() * 8) == i:
+                if self.selected_track % 24 == i:
                     background_color = track_color
                     font_color = definitions.BLACK
                 else:
                     background_color = definitions.BLACK
                     font_color = track_color
                 instrument_short_name = self.tracks_info[i]['instrument_short_name']
-                show_text(ctx, i-self.get_current_page_start(), h - height, instrument_short_name, height=height,
+                show_text(ctx, i-8, h - height, instrument_short_name, height=height,
+                          font_color=font_color, background_color=background_color)
+        else:
+            for i in range(16, len(self.tracks_info) if not len(self.tracks_info) > 24 else 24):
+                track_color = self.tracks_info[i]['color']
+                if self.selected_track % 24 == i:
+                    background_color = track_color
+                    font_color = definitions.BLACK
+                else:
+                    background_color = definitions.BLACK
+                    font_color = track_color
+                instrument_short_name = self.tracks_info[i]['instrument_short_name']
+                show_text(ctx, i-16, h - height, instrument_short_name, height=height,
                           font_color=font_color, background_color=background_color)
 
     def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
@@ -207,6 +238,8 @@ class TrackSelectionMode(definitions.PyshaMode):
                     # If button shift not pressed, select the track
                     if track_idx + 8 >= len(self.tracks_info) and self.page == 2:
                         pass
+                    elif track_idx + 16 >= len(self.tracks_info) and self.page == 3:
+                        pass
                     else:
                         self.select_track(self.track_button_names.index(button_name))
                 else:
@@ -215,8 +248,4 @@ class TrackSelectionMode(definitions.PyshaMode):
             self.app.pads_need_update = True
             return True
         elif button_name == self.add_track_button:
-            if self.page == 2:
-                self.page = 1
-            else:
-                self.page = 2
-            self.update_buttons()
+            self.increment_track_pages()
