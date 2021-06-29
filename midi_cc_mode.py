@@ -1,14 +1,11 @@
-from pdb import set_trace
-
 import definitions
 import mido
 import push2_python
-import time
 import math
 import json
 import os
 
-from definitions import PyshaMode, OFF_BTN_COLOR
+from definitions import PyshaMode
 from display_utils import show_text
 
 

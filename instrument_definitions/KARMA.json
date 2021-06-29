@@ -1,7 +1,7 @@
 {
-  "instrument_name": "Default",
-  "instrument_short_name": "MIDI CC",
-  "illuminate_local_notes": false,
-  "midi_channel": 3,
+  "instrument_name": "KARMA",
+  "instrument_short_name": "KARMA",
+  "illuminate_local_notes": true,
+  "midi_channel": 1,
   "n_banks": 1
 }

@@ -1,6 +1,6 @@
 {
-    "instrument_name": "Drums",
-    "instrument_short_name": "DRUMS",
+    "instrument_name": "EM1",
+    "instrument_short_name": "EM1",
     "illuminate_local_notes": false,
     "midi_channel": 10,
     "default_layout": "lrhythmic",

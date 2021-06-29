@@ -1,7 +1,5 @@
 import definitions
-import mido
 import push2_python
-import time
 import os
 import json
 
@@ -10,6 +8,8 @@ from display_utils import show_text
 
 class TrackSelectionMode(definitions.PyshaMode):
     tracks_info = []
+    add_track_button = push2_python.constants.BUTTON_ADD_TRACK
+
     track_button_names = [
         push2_python.constants.BUTTON_LOWER_ROW_1,
         push2_python.constants.BUTTON_LOWER_ROW_2,
@@ -21,6 +21,8 @@ class TrackSelectionMode(definitions.PyshaMode):
         push2_python.constants.BUTTON_LOWER_ROW_8
     ]
     selected_track = 0
+    page = 1
+    buttons_used = [add_track_button]
 
     def initialize(self, settings=None):
         if settings is not None:
@@ -47,7 +49,7 @@ class TrackSelectionMode(definitions.PyshaMode):
                 color = instrument_data.get('color', None)
                 if color is None:
                     if instrument_short_name != '-':
-                        color = definitions.COLORS_NAMES[i % 8]
+                        color = definitions.COLORS_NAMES[i]
                     else:
                         color = definitions.GRAY_DARK
                 self.tracks_info.append({
@@ -62,6 +64,7 @@ class TrackSelectionMode(definitions.PyshaMode):
                     'illuminate_local_notes': instrument_data.get('illuminate_local_notes', True),
                 })
             print('Created {0} tracks!'.format(len(self.tracks_info)))
+            print('Created {0} tracks!'.format(self.tracks_info))
         else:
             # Create 64 empty tracks
             for i in range(0, len(self.tracks_info)):
@@ -114,7 +117,7 @@ class TrackSelectionMode(definitions.PyshaMode):
         # Selects a track and activates its melodic/rhythmic layout
         # Note that if this is called from a mode from the same xor group with melodic/rhythmic modes,
         # that other mode will be deactivated.
-        self.selected_track = track_idx
+        self.selected_track = track_idx + 8 if self.page == 2 else track_idx
         self.load_current_default_layout()
         self.clean_currently_notes_being_played()
         try:
@@ -133,25 +136,57 @@ class TrackSelectionMode(definitions.PyshaMode):
             self.push.buttons.set_button_color(button_name, definitions.BLACK)
 
     def update_buttons(self):
+        self.set_all_lower_row_buttons_off()
         for count, name in enumerate(self.track_button_names):
-            color = self.tracks_info[count]['color']
+            if self.page == 2:
+                self.app.buttons_need_update = True
+                if count + 8 < len(self.tracks_info):
+                    color = self.tracks_info[count+8]['color']
+                else:
+                    color = 'black'
+            else:
+                color = self.tracks_info[count]['color']
             self.push.buttons.set_button_color(name, color)
+        self.set_button_color(self.add_track_button)
+        self.set_button_color_if_pressed(self.add_track_button, animation=definitions.DEFAULT_ANIMATION)
+
+    def set_all_lower_row_buttons_off(self):
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_LOWER_ROW_1, definitions.OFF_BTN_COLOR)
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_LOWER_ROW_2, definitions.OFF_BTN_COLOR)
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_LOWER_ROW_3, definitions.OFF_BTN_COLOR)
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_LOWER_ROW_4, definitions.OFF_BTN_COLOR)
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_LOWER_ROW_5, definitions.OFF_BTN_COLOR)
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_LOWER_ROW_6, definitions.OFF_BTN_COLOR)
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_LOWER_ROW_7, definitions.OFF_BTN_COLOR)
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_LOWER_ROW_8, definitions.OFF_BTN_COLOR)
 
     def update_display(self, ctx, w, h):
-
         # Draw track selector labels
         height = 20
-        for i in range(0, 8):
-            track_color = self.tracks_info[i]['color']
-            if self.selected_track % 8 == i:
-                background_color = track_color
-                font_color = definitions.BLACK
-            else:
-                background_color = definitions.BLACK
-                font_color = track_color
-            instrument_short_name = self.tracks_info[i]['instrument_short_name']
-            show_text(ctx, i, h - height, instrument_short_name, height=height,
-                      font_color=font_color, background_color=background_color)
+        if self.page == 1:
+            for i in range(0, 8):
+                track_color = self.tracks_info[i]['color']
+                if self.selected_track % 16 == i:
+                    background_color = track_color
+                    font_color = definitions.BLACK
+                else:
+                    background_color = definitions.BLACK
+                    font_color = track_color
+                instrument_short_name = self.tracks_info[i]['instrument_short_name']
+                show_text(ctx, i, h - height, instrument_short_name, height=height,
+                          font_color=font_color, background_color=background_color)
+        else:
+            for i in range(8, len(self.tracks_info)):
+                track_color = self.tracks_info[i]['color']
+                if self.selected_track % 16 == i:
+                    background_color = track_color
+                    font_color = definitions.BLACK
+                else:
+                    background_color = definitions.BLACK
+                    font_color = track_color
+                instrument_short_name = self.tracks_info[i]['instrument_short_name']
+                show_text(ctx, i-8, h - height, instrument_short_name, height=height,
+                          font_color=font_color, background_color=background_color)
 
     def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
         if button_name in self.track_button_names:
@@ -161,9 +196,18 @@ class TrackSelectionMode(definitions.PyshaMode):
             else:
                 if not shift:
                     # If button shift not pressed, select the track
-                    self.select_track(self.track_button_names.index(button_name))
+                    if track_idx + 8 >= len(self.tracks_info) and self.page == 2:
+                        pass
+                    else:
+                        self.select_track(self.track_button_names.index(button_name))
                 else:
                     pass
             self.app.buttons_need_update = True
             self.app.pads_need_update = True
             return True
+        elif button_name == self.add_track_button:
+            if self.page == 2:
+                self.page = 1
+            else:
+                self.page = 2
+            self.update_buttons()
