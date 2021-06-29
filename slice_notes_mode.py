@@ -6,17 +6,17 @@ from melodic_mode import MelodicMode
 
 class SliceNotesMode(MelodicMode):
 
-    start_note = 0
     color_groups = [
-        definitions.GREEN,
-        definitions.YELLOW,
-        definitions.ORANGE,
         definitions.RED,
+        definitions.ORANGE,
+        definitions.TANGERINE,
+        definitions.YELLOW,
+        definitions.GREEN,
+        definitions.BLUE,
         definitions.PINK,
-        definitions.PURPLE,
-        definitions.CYAN,
-        definitions.BLUE
+        definitions.PURPLE
     ]
+    start_note = 0
 
     def get_settings_to_save(self):
         return {}

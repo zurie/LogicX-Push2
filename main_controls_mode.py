@@ -90,6 +90,11 @@ class MainControlsMode(definitions.PyshaMode):
             self.app.buttons_need_update = True
             return True
 
+        # PRESSED BUTTON_ADD_TRACK
+        elif button_name == push2_python.constants.BUTTON_ADD_TRACK:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_ADD_TRACK, definitions.BLACK)
+            return True
+
         # PRESSED metronome
         elif button_name == push2_python.constants.BUTTON_METRONOME:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.BLACK)

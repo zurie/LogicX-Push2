@@ -176,6 +176,8 @@ class TrackSelectionMode(definitions.PyshaMode):
                 color = self.tracks_info[count]['color']
             self.push.buttons.set_button_color(name, color)
         self.set_button_color(self.add_track_button)
+        # Settings button, to toggle settings mode
+
         self.set_button_color_if_pressed(self.add_track_button, animation=definitions.DEFAULT_ANIMATION)
 
     def set_all_lower_row_buttons_off(self):

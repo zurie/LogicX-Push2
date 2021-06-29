@@ -23,41 +23,56 @@ BLACK_RGB = [5, 5, 5]
 GRAY_DARK_RGB = [30, 30, 30]
 GRAY_LIGHT_RGB = [180, 180, 180]
 WHITE_RGB = [255, 255, 255]
-YELLOW_RGB = [255, 241, 0]
-ORANGE_RGB = [255, 140, 0]
-RED_RGB = [255, 0, 0]
-PINK_RGB = [236, 0, 140]
-PURPLE_RGB = [104, 33, 122]
-BLUE_RGB = [0, 24, 183]
-BLUE1_RGB = [0, 0, 255]
-BLUE2_RGB = [0, 128, 255]
 
-CYAN_RGB = [0, 188, 242]
-TURQUOISE_RGB = [0, 178, 148]
+YELLOW_RGB = [255, 255, 0]
+TANGERINE_RGB = [255, 204, 0]
+ORANGE_RGB = [255, 153, 0]
+PINK_RGB = [255, 0, 255]
+
+RED_RGB = [255, 0, 0]
+PURPLE_RGB = [153, 0, 255]
+BROWN_RGB = [153, 102, 0]
+
+LIME_RGB = [153, 255, 0]
 GREEN_RGB = [0, 255, 0]
-LIME_RGB = [186, 216, 10]
-BURGENDY_RGB = [128, 0, 82]
+
+SKYBLUE_RGB = [0, 255, 255]
+BLUE_RGB = [0, 0, 255]
+ROYALBLUE_RGB = [0, 153, 255]
 
 BLACK = 'black'
 GRAY_DARK = 'gray_dark'
 GRAY_LIGHT = 'gray_light'
 WHITE = 'white'
 YELLOW = 'yellow'
+TANGERINE = 'tangerine'
 ORANGE = 'orange'
 RED = 'red'
-PINK = 'pink'
+PINK = 'PINK'
 PURPLE = 'purple'
-BLUE = 'blue'
-BLUE1 = 'blue1'
-BLUE2 = 'blue2'
-CYAN = 'cyan'
-TURQUOISE = 'turquoise'
-GREEN = 'green'
+BROWN = 'brown'
 LIME = 'lime'
-BURGENDY = 'burgendy'
+GREEN = 'green'
+SKYBLUE = 'skyblue'
+BLUE = 'blue'
+ROYALBLUE = 'royalblue'
 
-
-COLORS_NAMES = [TURQUOISE, GREEN, BLUE, BURGENDY, PURPLE, ORANGE, RED, LIME, PINK, CYAN, GRAY_DARK, GRAY_LIGHT, WHITE, YELLOW, BLUE2, BLUE1, BLACK, TURQUOISE, GREEN, BLUE, BURGENDY, PURPLE, ORANGE, RED, LIME, PINK, CYAN, GRAY_DARK, GRAY_LIGHT, WHITE, YELLOW, BLUE2, BLUE1, BLACK]
+COLORS_NAMES = [BLUE,
+                SKYBLUE,
+                GREEN,
+                LIME,
+                BROWN,
+                PURPLE,
+                RED,
+                PINK,
+                ORANGE,
+                TANGERINE,
+                YELLOW,
+                ROYALBLUE,
+                WHITE,
+                GRAY_LIGHT,
+                GRAY_DARK,
+                BLACK]
 
 SCALE_NAME = 'Major'
 

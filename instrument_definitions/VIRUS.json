@@ -1,7 +1,8 @@
 {
-  "instrument_name": "Default",
-  "instrument_short_name": "MIDI CC",
-  "illuminate_local_notes": false,
-  "midi_channel": 3,
+  "instrument_name": "VIRUS",
+  "color": "red",
+  "instrument_short_name": "VIRUS C",
+  "illuminate_local_notes": true,
+  "midi_channel": 1,
   "n_banks": 1
 }
