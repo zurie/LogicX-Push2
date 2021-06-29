@@ -1,7 +1,7 @@
 {
-    "instrument_name": "EM1",
-    "instrument_short_name": "EM1",
-    "color": "em1",
+    "instrument_name": "ER1",
+    "instrument_short_name": "ER1",
+    "color": "red",
     "illuminate_local_notes": false,
     "midi_channel": 10,
     "default_layout": "lrhythmic",

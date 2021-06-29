@@ -23,6 +23,7 @@ class TrackSelectionMode(definitions.PyshaMode):
         push2_python.constants.BUTTON_LOWER_ROW_8
     ]
     selected_track = 0
+    total_pages = 0
     page = 1
     buttons_used = [add_track_button]
 
@@ -97,6 +98,7 @@ class TrackSelectionMode(definitions.PyshaMode):
 
     def get_total_pages(self):
         x = len(self.tracks_info) / 8
+        self.total_pages = x
         return math.ceil(x)
 
     def increment_track_pages(self):
@@ -160,7 +162,13 @@ class TrackSelectionMode(definitions.PyshaMode):
     def update_buttons(self):
         self.set_all_lower_row_buttons_off()
         for count, name in enumerate(self.track_button_names):
-            if self.page == 2:
+            if self.page == 1:
+                self.app.buttons_need_update = True
+                if count < len(self.tracks_info):
+                    color = self.tracks_info[count]['color']
+                else:
+                    color = 'black'
+            elif self.page == 2:
                 self.app.buttons_need_update = True
                 if count + 8 < len(self.tracks_info):
                     color = self.tracks_info[count+8]['color']
@@ -172,8 +180,7 @@ class TrackSelectionMode(definitions.PyshaMode):
                     color = self.tracks_info[count+16]['color']
                 else:
                     color = 'black'
-            else:
-                color = self.tracks_info[count]['color']
+
             self.push.buttons.set_button_color(name, color)
         self.set_button_color(self.add_track_button)
         # Settings button, to toggle settings mode
@@ -194,7 +201,7 @@ class TrackSelectionMode(definitions.PyshaMode):
         # Draw track selector labels
         height = 20
         if self.page == 1:
-            for i in range(0, 8):
+            for i in range(0, len(self.tracks_info) if not len(self.tracks_info) > 8 else 8):
                 track_color = self.tracks_info[i]['color']
                 if self.selected_track % 24 == i:
                     background_color = track_color
@@ -217,7 +224,7 @@ class TrackSelectionMode(definitions.PyshaMode):
                 instrument_short_name = self.tracks_info[i]['instrument_short_name']
                 show_text(ctx, i-8, h - height, instrument_short_name, height=height,
                           font_color=font_color, background_color=background_color)
-        else:
+        elif self.page == 3:
             for i in range(16, len(self.tracks_info) if not len(self.tracks_info) > 24 else 24):
                 track_color = self.tracks_info[i]['color']
                 if self.selected_track % 24 == i:

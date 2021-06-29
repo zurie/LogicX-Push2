@@ -1,0 +1,8 @@
+{
+  "instrument_name": "PROTEUS",
+  "instrument_short_name": "PROTEUS",
+  "illuminate_local_notes": true,
+  "midi_channel": 1,
+  "n_banks": 1,
+  "color": "proteus"
+}

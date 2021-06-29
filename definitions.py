@@ -40,6 +40,11 @@ SKYBLUE_RGB = [0, 255, 255]
 BLUE_RGB = [0, 0, 255]
 ROYALBLUE_RGB = [0, 153, 255]
 
+PROTEUS_RGB = [102, 51, 204]
+KARMA_RGB = [127, 29, 78]
+XV_RGB = [118, 101, 50]
+EM1_RGB = [61, 57, 46]
+
 BLACK = 'black'
 GRAY_DARK = 'gray_dark'
 GRAY_LIGHT = 'gray_light'
@@ -57,7 +62,13 @@ SKYBLUE = 'skyblue'
 BLUE = 'blue'
 ROYALBLUE = 'royalblue'
 
-COLORS_NAMES = [BLUE,
+# Custom Music instruments color
+PROTEUS = 'proteus'
+KARMA = 'karma'
+XV = 'xv'
+EM1 = 'em1'
+
+COLORS_NAMES = [ROYALBLUE,
                 SKYBLUE,
                 GREEN,
                 LIME,
@@ -68,7 +79,11 @@ COLORS_NAMES = [BLUE,
                 ORANGE,
                 TANGERINE,
                 YELLOW,
-                ROYALBLUE,
+                BLUE,
+                PROTEUS,
+                KARMA,
+                XV,
+                EM1,
                 WHITE,
                 GRAY_LIGHT,
                 GRAY_DARK,

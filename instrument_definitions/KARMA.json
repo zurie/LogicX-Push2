@@ -4,5 +4,20 @@
   "illuminate_local_notes": true,
   "midi_channel": 1,
   "n_banks": 1,
-  "color": "purple"
+  "color": "karma",
+  "midi_cc": [
+    {
+      "section": "Realtime",
+      "controls": [
+        ["RT1", 22],
+        ["RT2", 23],
+        ["RT3", 24],
+        ["RT4", 25],
+        ["RT5", 26],
+        ["RT6", 27],
+        ["RT7", 28],
+        ["RT8", 29]
+      ]
+    }
+  ]
 }

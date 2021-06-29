@@ -3,7 +3,7 @@
   "instrument_short_name": "MIDI CC",
   "illuminate_local_notes": false,
   "default_layout": "lrhythmic",
-  "color": "tangerine",
+  "color": "orange",
   "midi_channel": 10,
   "n_banks": 1,
   "midi_cc": [
