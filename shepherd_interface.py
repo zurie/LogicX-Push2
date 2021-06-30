@@ -33,7 +33,6 @@ class ShepherdInterface(definitions.PyshaMode):
 
         self.osc_server = OSCThreadServer()
         sock = self.osc_server.listen(address='0.0.0.0', port=osc_receive_port, default=True)
-        self.osc_server.bind(b'/stateFromLogic', self.receive_state_from_shepherd)
         self.osc_server.bind(b'/stateFromLogic/play', self.update_play_button)
         self.osc_server.bind(b'/stateFromLogic/click', self.update_metronome_button)
         self.osc_server.bind(b'/stateFromLogic/record', self.update_record_button)
