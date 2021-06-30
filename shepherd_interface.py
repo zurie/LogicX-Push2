@@ -80,23 +80,6 @@ class ShepherdInterface(definitions.PyshaMode):
             definitions.isRecording = False
         self.app.shepherd_interface.get_buttons_state()
 
-    def receive_state_from_shepherd(self, play, click, record):
-        if self.toUTF8(play) == '1.00':
-            definitions.isPlaying = True
-        else:
-            definitions.isPlaying = False
-
-        if self.toUTF8(click) == '1.00':
-            definitions.isMetronome = True
-        else:
-            definitions.isMetronome = False
-
-        if self.toUTF8(record) == '1.00':
-            definitions.isRecording = True
-        else:
-            definitions.isRecording = False
-        self.app.shepherd_interface.get_buttons_state()
-
     def track_select(self, track_number):
         self.osc_sender.send_message('/track/select', [track_number])
 
@@ -162,7 +145,7 @@ class ShepherdInterface(definitions.PyshaMode):
 
     def metronome_on_off(self):
         self.osc_sender.send_message('/logic/transport/click', [1.00])
-        self.app.add_display_notification("Metronome: {0}".format('On' if not definitions.isMetronome else 'Off'))
+        # self.app.add_display_notification("Metronome: {0}".format('On' if not definitions.isMetronome else 'Off'))
 
     def get_buttons_state(self):
         if definitions.isPlaying:
