@@ -18,7 +18,7 @@ class MelodicMode(definitions.PyshaMode):
     latest_poly_at_value = (0, 0)
     latest_velocity_value = (0, 0)
     last_time_at_params_edited = None
-    modulation_wheel_mode = False
+    modulation_wheel_mode = True
     scale = definitions.Major
     # scale_name
 
