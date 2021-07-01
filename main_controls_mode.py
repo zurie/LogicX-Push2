@@ -91,6 +91,9 @@ class MainControlsMode(definitions.LogicMode):
         self.set_buttons_to_color([self.play_button], definitions.LIME)
         self.set_buttons_to_color([self.record_button], definitions.GREEN)
 
+    def deactivate(self):
+        super().deactivate()
+
     def update_buttons(self):
         # Shift and select button
         self.set_button_color_if_pressed(self.shift_button, animation=definitions.DEFAULT_ANIMATION)

@@ -12,7 +12,16 @@ osc_receive_port = 9004
 
 tracks_state_fps = 4.0
 transport_state_fps = 10.0
-
+bpm_button_names = [
+    push2_python.constants.BUTTON_UPPER_ROW_1,
+    push2_python.constants.BUTTON_UPPER_ROW_2,
+    push2_python.constants.BUTTON_UPPER_ROW_3,
+    push2_python.constants.BUTTON_UPPER_ROW_4,
+    push2_python.constants.BUTTON_UPPER_ROW_5,
+    push2_python.constants.BUTTON_UPPER_ROW_6,
+    push2_python.constants.BUTTON_UPPER_ROW_7,
+    push2_python.constants.BUTTON_UPPER_ROW_8
+]
 
 class LogicInterface(definitions.LogicMode):
     app = None
@@ -184,7 +193,14 @@ class LogicInterface(definitions.LogicMode):
         beat = self.toUTF8(value)
         beats = beat.split()
         if int(float(beats[2])) == 1:
+            for button_name in bpm_button_names:
+                self.set_button_color_if_expression(button_name, definitions.isRecording, definitions.RED, definitions.GREEN)
+        else:
+            for button_name in bpm_button_names:
+                self.push.buttons.set_button_color(button_name, definitions.BLACK)
+        if int(float(beats[2])) == 1:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
+
         else:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_DARK)
         if definitions.isRecording:
