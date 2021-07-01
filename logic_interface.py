@@ -35,6 +35,7 @@ class LogicInterface(definitions.LogicMode):
         sock = self.osc_server.listen(address='0.0.0.0', port=osc_receive_port, default=True)
         self.osc_server.bind(b'/stateFromLogic/play', self.update_play_button)
         self.osc_server.bind(b'/stateFromLogic/click', self.update_metronome_button)
+        self.osc_server.bind(b'/stateFromLogic/beats', self.bpm_lights)
         self.osc_server.bind(b'/stateFromLogic/record', self.update_record_button)
 
         # self.run_get_state_transport_thread()
@@ -150,8 +151,10 @@ class LogicInterface(definitions.LogicMode):
 
         if definitions.isMetronome:
             metronome_on = True
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.WHITE)
         else:
             metronome_on = False
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.OFF_BTN_COLOR)
 
         if definitions.isRecording:
             is_recording = True
@@ -159,9 +162,9 @@ class LogicInterface(definitions.LogicMode):
             is_recording = False
 
         if is_playing:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN, animation=definitions.DEFAULT_ANIMATION)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
         else:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.LIME, animation=push2_python.constants.ANIMATION_STATIC)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.LIME)
 
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD,
                                            definitions.GREEN if not is_recording else definitions.RED)
@@ -181,3 +184,18 @@ class LogicInterface(definitions.LogicMode):
 
     def toUTF8(self, utf8):
         return utf8.decode("utf-8")
+
+    def bpm_lights(self, value):
+        beat = self.toUTF8(value)
+        beats = beat.split()
+        if int(float(beats[2])) == 1:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
+        else:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_DARK)
+        if definitions.isRecording:
+            if int(float(beats[1])) % 4:
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
+            else:
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED_DARK)
+
+

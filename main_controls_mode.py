@@ -39,10 +39,10 @@ class MainControlsMode(definitions.LogicMode):
     record_button = push2_python.constants.BUTTON_RECORD
     play_button = push2_python.constants.BUTTON_PLAY
 
-    toggle_display_button = push2_python.constants.BUTTON_USER
+    user_button = push2_python.constants.BUTTON_USER
     settings_button = push2_python.constants.BUTTON_SETUP
     scalemode_button = push2_python.constants.BUTTON_SCALE
-    melodic_rhythmic_toggle_button = push2_python.constants.BUTTON_NOTE
+    note_button = push2_python.constants.BUTTON_NOTE
     track_triggering_button = push2_python.constants.BUTTON_SESSION
     preset_selection_mode_button = push2_python.constants.BUTTON_ADD_DEVICE
     shift_button = push2_python.constants.BUTTON_SHIFT
@@ -63,8 +63,8 @@ class MainControlsMode(definitions.LogicMode):
         duplicate_button,
         fixed_length_button,
         left_button,
-        melodic_rhythmic_toggle_button,
-        mute_button,
+        # note_button,
+        # mute_button,
         new_button,
         preset_selection_mode_button,
         quantize_button,
@@ -74,10 +74,10 @@ class MainControlsMode(definitions.LogicMode):
         select_button,
         settings_button,
         shift_button,
-        solo_button,
+        # solo_button,
         stop_button,
         tap_tempo_button,
-        toggle_display_button,
+        # user_button,
         track_triggering_button,
         undo_button,
         up_button,
@@ -96,7 +96,7 @@ class MainControlsMode(definitions.LogicMode):
         self.set_button_color_if_pressed(self.select_button, animation=definitions.DEFAULT_ANIMATION)
 
         # Note button, to toggle melodic/rhythmic mode
-        self.set_button_color(self.melodic_rhythmic_toggle_button)
+        self.set_button_color(self.note_button)
 
         # self.set_button_color(self.up_button)
         # self.set_button_color(self.down_button)
@@ -106,7 +106,7 @@ class MainControlsMode(definitions.LogicMode):
         self.set_button_color(self.solo_button)
 
         # Button to toggle display on/off
-        self.set_button_color_if_expression(self.toggle_display_button, self.app.use_push2_display)
+        self.set_button_color_if_expression(self.user_button, self.app.use_push2_display)
 
         # Settings button, to toggle settings mode
         self.set_button_color_if_expression(self.settings_button, self.app.is_mode_active(self.app.settings_mode),
@@ -123,16 +123,16 @@ class MainControlsMode(definitions.LogicMode):
 
         # Mute button, to toggle display on/off
         if self.app.use_push2_display:
-            self.push.buttons.set_button_color(self.toggle_display_button, definitions.WHITE)
+            self.push.buttons.set_button_color(self.user_button, definitions.WHITE)
         else:
-            self.push.buttons.set_button_color(self.toggle_display_button, definitions.OFF_BTN_COLOR)
+            self.push.buttons.set_button_color(self.user_button, definitions.OFF_BTN_COLOR)
 
     def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
         if button_name == self.automate_button:
             self.app.logic_interface.automate()
             return True
 
-        elif button_name == self.melodic_rhythmic_toggle_button:
+        elif button_name == self.note_button:
             self.app.toggle_melodic_rhythmic_slice_modes()
             self.app.pads_need_update = True
             self.app.buttons_need_update = True
@@ -195,7 +195,7 @@ class MainControlsMode(definitions.LogicMode):
             return True
 
         # USER BUTTON
-        elif button_name == self.toggle_display_button:
+        elif button_name == self.user_button:
             if long_press:
                 if not shift:
                     pass

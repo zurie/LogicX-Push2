@@ -30,11 +30,13 @@ ORANGE_RGB = [255, 153, 0]
 PINK_RGB = [255, 0, 255]
 
 RED_RGB = [255, 0, 0]
+RED_DARK_RGB = [50, 0, 0]
 PURPLE_RGB = [153, 0, 255]
 BROWN_RGB = [153, 102, 0]
 
 LIME_RGB = [153, 255, 0]
 GREEN_RGB = [0, 255, 0]
+GREEN_DARK_RGB = [0, 50, 0]
 
 SKYBLUE_RGB = [0, 255, 255]
 BLUE_RGB = [0, 0, 255]
@@ -53,11 +55,13 @@ YELLOW = 'yellow'
 TANGERINE = 'tangerine'
 ORANGE = 'orange'
 RED = 'red'
+RED_DARK = 'red_dark'
 PINK = 'PINK'
 PURPLE = 'purple'
 BROWN = 'brown'
 LIME = 'lime'
 GREEN = 'green'
+GREEN_DARK = 'green_dark'
 SKYBLUE = 'skyblue'
 BLUE = 'blue'
 ROYALBLUE = 'royalblue'
@@ -71,10 +75,12 @@ EM1 = 'em1'
 COLORS_NAMES = [ROYALBLUE,
                 SKYBLUE,
                 GREEN,
+                GREEN_DARK,
                 LIME,
                 BROWN,
                 PURPLE,
                 RED,
+                RED_DARK,
                 PINK,
                 ORANGE,
                 TANGERINE,
