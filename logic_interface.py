@@ -151,25 +151,20 @@ class LogicInterface(definitions.LogicMode):
 
         if definitions.isMetronome:
             metronome_on = True
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.WHITE)
         else:
             metronome_on = False
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.OFF_BTN_COLOR)
 
         if definitions.isRecording:
             is_recording = True
         else:
             is_recording = False
 
-        if is_playing:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
-        else:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.LIME)
-
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY,
+                                           definitions.LIME if not is_playing else definitions.GREEN)
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD,
                                            definitions.GREEN if not is_recording else definitions.RED)
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME,
-                                           definitions.BLACK if not metronome_on else definitions.WHITE)
+                                           definitions.OFF_BTN_COLOR if not metronome_on else definitions.WHITE)
 
         return is_playing, metronome_on, is_recording
 

@@ -65,6 +65,7 @@ class MainControlsMode(definitions.LogicMode):
         left_button,
         # note_button,
         # mute_button,
+        metronome_button,
         new_button,
         preset_selection_mode_button,
         quantize_button,
@@ -145,7 +146,6 @@ class MainControlsMode(definitions.LogicMode):
 
         # PRESSED metronome
         elif button_name == push2_python.constants.BUTTON_METRONOME:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.BLACK)
             self.app.logic_interface.metronome_on_off()
             return True
 
