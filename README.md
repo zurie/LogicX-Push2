@@ -38,7 +38,7 @@ LogicX-Push2 allows your ableton PUSH2 to have more functionality in Logic Pro b
 
 ## User manual
 
-Well, this is not a proper user manual, but here are some notes about how to use LogicX-Push2:
+Here are some notes about how to use LogicX-Push2:
 
 * Press `Note` button to toggle between rhythmic/melodic layouts.
 * Use `Ocateve up` and `Octave down` buttons to change octaves.

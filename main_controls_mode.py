@@ -14,6 +14,31 @@ class MainControlsMode(definitions.LogicMode):
 
     last_tap_tempo_times = []
 
+    # BUTTONS (TOP LEFT TO BOTTOM LEFT OF PUSH2)
+
+    tap_tempo_button = push2_python.constants.BUTTON_TAP_TEMPO
+    metronome_button = push2_python.constants.BUTTON_METRONOME
+
+    delete_button = push2_python.constants.BUTTON_DELETE
+    undo_button = push2_python.constants.BUTTON_UNDO
+
+    mute_button = push2_python.constants.BUTTON_MUTE
+    solo_button = push2_python.constants.BUTTON_SOLO
+    stop_button = push2_python.constants.BUTTON_STOP
+
+    convert_button = push2_python.constants.BUTTON_CONVERT
+    double_loop_button = push2_python.constants.BUTTON_DOUBLE_LOOP
+    quantize_button = push2_python.constants.BUTTON_QUANTIZE
+
+    duplicate_button = push2_python.constants.BUTTON_DUPLICATE
+    new_button = push2_python.constants.BUTTON_NEW
+
+    fixed_length_button = push2_python.constants.BUTTON_FIXED_LENGTH
+    automate_button = push2_python.constants.BUTTON_AUTOMATE
+
+    record_button = push2_python.constants.BUTTON_RECORD
+    play_button = push2_python.constants.BUTTON_PLAY
+
     toggle_display_button = push2_python.constants.BUTTON_USER
     settings_button = push2_python.constants.BUTTON_SETUP
     scalemode_button = push2_python.constants.BUTTON_SCALE
@@ -22,11 +47,6 @@ class MainControlsMode(definitions.LogicMode):
     preset_selection_mode_button = push2_python.constants.BUTTON_ADD_DEVICE
     shift_button = push2_python.constants.BUTTON_SHIFT
     select_button = push2_python.constants.BUTTON_SELECT
-    play_button = push2_python.constants.BUTTON_PLAY
-    record_button = push2_python.constants.BUTTON_RECORD
-    metronome_button = push2_python.constants.BUTTON_METRONOME
-    tap_tempo_button = push2_python.constants.BUTTON_TAP_TEMPO
-    fixed_length_button = push2_python.constants.BUTTON_FIXED_LENGTH
     record_automation_button = push2_python.constants.BUTTON_AUTOMATE
 
     up_button = push2_python.constants.BUTTON_UP
@@ -34,18 +54,41 @@ class MainControlsMode(definitions.LogicMode):
     left_button = push2_python.constants.BUTTON_LEFT
     right_button = push2_python.constants.BUTTON_RIGHT
 
-    mute_button = push2_python.constants.BUTTON_MUTE
-    solo_button = push2_python.constants.BUTTON_SOLO
-
-    buttons_used = [toggle_display_button, settings_button, scalemode_button, melodic_rhythmic_toggle_button, track_triggering_button,
-                    preset_selection_mode_button,
-                    shift_button, select_button, play_button, record_button,
-                    metronome_button, fixed_length_button,
-                    record_automation_button, up_button, down_button, left_button, right_button, mute_button, solo_button]
+    buttons_used = [
+        automate_button,
+        convert_button,
+        delete_button,
+        double_loop_button,
+        down_button,
+        duplicate_button,
+        fixed_length_button,
+        left_button,
+        melodic_rhythmic_toggle_button,
+        mute_button,
+        new_button,
+        preset_selection_mode_button,
+        quantize_button,
+        record_automation_button,
+        right_button,
+        scalemode_button,
+        select_button,
+        settings_button,
+        shift_button,
+        solo_button,
+        stop_button,
+        tap_tempo_button,
+        toggle_display_button,
+        track_triggering_button,
+        undo_button,
+        up_button,
+    ]
 
     def activate(self):
         self.app.logic_interface.get_buttons_state()
         self.update_buttons()
+        self.set_buttons_to_color(self.buttons_used, definitions.OFF_BTN_COLOR)
+        self.set_buttons_to_color([self.play_button], definitions.LIME)
+        self.set_buttons_to_color([self.record_button], definitions.GREEN)
 
     def update_buttons(self):
         # Shift and select button
@@ -55,10 +98,10 @@ class MainControlsMode(definitions.LogicMode):
         # Note button, to toggle melodic/rhythmic mode
         self.set_button_color(self.melodic_rhythmic_toggle_button)
 
-        self.set_button_color(self.up_button)
-        self.set_button_color(self.down_button)
-        self.set_button_color(self.left_button)
-        self.set_button_color(self.right_button)
+        # self.set_button_color(self.up_button)
+        # self.set_button_color(self.down_button)
+        # self.set_button_color(self.left_button)
+        # self.set_button_color(self.right_button)
         self.set_button_color(self.mute_button)
         self.set_button_color(self.solo_button)
 
@@ -85,7 +128,11 @@ class MainControlsMode(definitions.LogicMode):
             self.push.buttons.set_button_color(self.toggle_display_button, definitions.OFF_BTN_COLOR)
 
     def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
-        if button_name == self.melodic_rhythmic_toggle_button:
+        if button_name == self.automate_button:
+            self.app.logic_interface.automate()
+            return True
+
+        elif button_name == self.melodic_rhythmic_toggle_button:
             self.app.toggle_melodic_rhythmic_slice_modes()
             self.app.pads_need_update = True
             self.app.buttons_need_update = True
@@ -232,11 +279,28 @@ class MainControlsMode(definitions.LogicMode):
             return True
 
     def on_button_pressed_raw(self, button_name):
-        if button_name == self.left_button:
+
+        if button_name == self.automate_button:
+            self.push.buttons.set_button_color(self.automate_button, definitions.WHITE)
+            return True
+
+        elif button_name == self.left_button:
+            self.push.buttons.set_button_color(self.left_button, definitions.WHITE)
             self.app.logic_interface.global_left()
+            return True
         elif button_name == self.right_button:
+            self.push.buttons.set_button_color(self.right_button, definitions.WHITE)
             self.app.logic_interface.global_right()
+            return True
         elif button_name == self.up_button:
+            self.push.buttons.set_button_color(self.up_button, definitions.WHITE)
             self.app.logic_interface.global_up()
+            return True
         elif button_name == self.down_button:
+            self.push.buttons.set_button_color(self.down_button, definitions.WHITE)
             self.app.logic_interface.global_down()
+            return True
+
+    def on_button_released_raw(self, button_name):
+        self.set_buttons_to_color(self.buttons_used, definitions.OFF_BTN_COLOR)
+        return True

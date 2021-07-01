@@ -93,6 +93,9 @@ class LogicInterface(definitions.LogicMode):
         else:
             return 'snE'
 
+    def automate(self):
+        self.osc_sender.send_message('/push2/automate', [])
+
     def scene_play(self, scene_number):
         self.osc_sender.send_message('/scene/play', [scene_number])
 
@@ -129,8 +132,8 @@ class LogicInterface(definitions.LogicMode):
     def global_mute_off(self):
         self.osc_sender.send_message('/push2/mute_off', [])
 
-    # def global_solo(self)
-        self.osc_sender.send_messaged_message('/push2/solo', [])
+    def global_solo(self):
+        self.osc_sender.send_message('/push2/solo', [])
 
     def global_solo_lock(self):
         self.osc_sender.send_message('/push2/solo_lock', [])

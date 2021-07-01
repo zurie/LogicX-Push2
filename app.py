@@ -474,7 +474,7 @@ class LogicApp(object):
             self.buttons_need_update = False
 
     def run_loop(self):
-        print('Logic is runnnig...')
+        print('Time to give Logic PRO a little PUSH...(>^_^)>')
         try:
             while True:
                 before_draw_time = time.time()
