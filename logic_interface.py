@@ -23,6 +23,7 @@ bpm_button_names = [
     push2_python.constants.BUTTON_UPPER_ROW_8
 ]
 
+
 class LogicInterface(definitions.LogicMode):
     app = None
     count = 0
@@ -174,7 +175,7 @@ class LogicInterface(definitions.LogicMode):
                                            definitions.GREEN if not is_recording else definitions.RED)
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME,
                                            definitions.OFF_BTN_COLOR if not metronome_on else definitions.WHITE)
-
+        self.app.midi_cc_mode.update_buttons()
         return is_playing, metronome_on, is_recording
 
     def get_selected_scene(self):
@@ -193,20 +194,17 @@ class LogicInterface(definitions.LogicMode):
         beat = self.toUTF8(value)
         beats = beat.split()
         if int(float(beats[2])) == 1:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
             for button_name in bpm_button_names:
-                self.set_button_color_if_expression(button_name, definitions.isRecording, definitions.RED, definitions.GREEN)
+                self.set_button_color_if_expression(button_name, definitions.isRecording, definitions.RED,
+                                                    definitions.GREEN)
         else:
             for button_name in bpm_button_names:
                 self.push.buttons.set_button_color(button_name, definitions.BLACK)
-        if int(float(beats[2])) == 1:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
 
-        else:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_DARK)
         if definitions.isRecording:
             if int(float(beats[1])) % 4:
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
             else:
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED_DARK)
-
-

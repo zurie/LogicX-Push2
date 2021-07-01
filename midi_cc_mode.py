@@ -219,7 +219,7 @@ class MIDICCMode(LogicMode):
         n_midi_cc_sections = len(self.get_current_track_midi_cc_sections())
         for count, name in enumerate(self.midi_cc_button_names):
             if count < n_midi_cc_sections:
-                self.push.buttons.set_button_color(name, definitions.WHITE)
+                self.push.buttons.set_button_color(name, self.app.track_selection_mode.get_current_track_color())
             else:
                 self.push.buttons.set_button_color(name, definitions.BLACK)
 
