@@ -8,7 +8,7 @@ import json
 from display_utils import show_text
 
 
-class TrackSelectionMode(definitions.PyshaMode):
+class TrackSelectionMode(definitions.LogicMode):
     tracks_info = []
     add_track_button = push2_python.constants.BUTTON_ADD_TRACK
 

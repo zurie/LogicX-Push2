@@ -8,7 +8,7 @@ import psutil
 from display_utils import show_title, show_value, show_bigvalue, draw_text_at
 
 
-class SettingsMode(definitions.PyshaMode):
+class SettingsMode(definitions.LogicMode):
     # Pad settings
     # - Root note
     # - Aftertouch mode

@@ -5,8 +5,7 @@ import mido
 import time
 
 
-class MainControlsMode(definitions.PyshaMode):
-    pyramid_track_triggering_button_pressing_time = None
+class MainControlsMode(definitions.LogicMode):
     track_triggering_button_pressing_time = None
     record_button_pressing_time = None
     play_button_pressing_time = None
@@ -19,10 +18,8 @@ class MainControlsMode(definitions.PyshaMode):
     settings_button = push2_python.constants.BUTTON_SETUP
     scalemode_button = push2_python.constants.BUTTON_SCALE
     melodic_rhythmic_toggle_button = push2_python.constants.BUTTON_NOTE
-    pyramid_track_triggering_button = push2_python.constants.BUTTON_ADD_TRACK
     track_triggering_button = push2_python.constants.BUTTON_SESSION
     preset_selection_mode_button = push2_python.constants.BUTTON_ADD_DEVICE
-    ddrm_tone_selection_mode_button = push2_python.constants.BUTTON_DEVICE
     shift_button = push2_python.constants.BUTTON_SHIFT
     select_button = push2_python.constants.BUTTON_SELECT
     play_button = push2_python.constants.BUTTON_PLAY
@@ -42,12 +39,12 @@ class MainControlsMode(definitions.PyshaMode):
 
     buttons_used = [toggle_display_button, settings_button, scalemode_button, melodic_rhythmic_toggle_button, track_triggering_button,
                     preset_selection_mode_button,
-                    ddrm_tone_selection_mode_button, shift_button, select_button, play_button, record_button,
+                    shift_button, select_button, play_button, record_button,
                     metronome_button, fixed_length_button,
                     record_automation_button, up_button, down_button, left_button, right_button, mute_button, solo_button]
 
     def activate(self):
-        self.app.shepherd_interface.get_buttons_state()
+        self.app.logic_interface.get_buttons_state()
         self.update_buttons()
 
     def update_buttons(self):
@@ -87,14 +84,6 @@ class MainControlsMode(definitions.PyshaMode):
         else:
             self.push.buttons.set_button_color(self.toggle_display_button, definitions.OFF_BTN_COLOR)
 
-        # DDRM tone selector mode
-        if self.app.ddrm_tone_selector_mode.should_be_enabled():
-            self.set_button_color_if_expression(self.ddrm_tone_selection_mode_button,
-                                                self.app.is_mode_active(self.app.ddrm_tone_selector_mode),
-                                                animation=definitions.DEFAULT_ANIMATION)
-        else:
-            self.set_button_color(self.ddrm_tone_selection_mode_button, definitions.BLACK)
-
     def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
         if button_name == self.melodic_rhythmic_toggle_button:
             self.app.toggle_melodic_rhythmic_slice_modes()
@@ -110,7 +99,7 @@ class MainControlsMode(definitions.PyshaMode):
         # PRESSED metronome
         elif button_name == push2_python.constants.BUTTON_METRONOME:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.BLACK)
-            self.app.shepherd_interface.metronome_on_off()
+            self.app.logic_interface.metronome_on_off()
             return True
 
         # PLAY
@@ -118,12 +107,12 @@ class MainControlsMode(definitions.PyshaMode):
         elif button_name == self.play_button:
             if long_press:
                 if not shift:
-                    self.app.shepherd_interface.global_pause()
+                    self.app.logic_interface.global_pause()
                 else:
                     pass
             else:
                 if not shift:
-                    self.app.shepherd_interface.global_play_stop()
+                    self.app.logic_interface.global_play_stop()
                 else:
                     pass
             self.app.buttons_need_update = True
@@ -141,7 +130,7 @@ class MainControlsMode(definitions.PyshaMode):
                     pass
             else:
                 if not shift:
-                    self.app.shepherd_interface.global_record()
+                    self.app.logic_interface.global_record()
                 else:
                     pass
             self.app.buttons_need_update = True
@@ -190,11 +179,6 @@ class MainControlsMode(definitions.PyshaMode):
                 self.preset_selection_button_pressing_time = time.time()
             self.app.buttons_need_update = True
             return True
-        elif button_name == self.ddrm_tone_selection_mode_button:
-            if self.app.ddrm_tone_selector_mode.should_be_enabled():
-                self.app.toggle_ddrm_tone_selector_mode()
-                self.app.buttons_need_update = True
-            return True
 
         # PRESET SELECTION BUTTON
         elif button_name == self.preset_selection_mode_button:
@@ -216,10 +200,10 @@ class MainControlsMode(definitions.PyshaMode):
         # SOLO
         elif button_name == self.solo_button:
             if long_press:
-                self.app.shepherd_interface.global_solo_lock()
+                self.app.logic_interface.global_solo_lock()
                 return True
             else:
-                self.app.shepherd_interface.global_solo()
+                self.app.logic_interface.global_solo()
                 return True
             self.app.buttons_need_update = True
             return True
@@ -227,10 +211,10 @@ class MainControlsMode(definitions.PyshaMode):
         # SOLO
         elif button_name == self.mute_button:
             if long_press:
-                self.app.shepherd_interface.global_mute_off()
+                self.app.logic_interface.global_mute_off()
                 return True
             else:
-                self.app.shepherd_interface.global_mute()
+                self.app.logic_interface.global_mute()
                 return True
             self.app.buttons_need_update = True
             return True
@@ -246,18 +230,13 @@ class MainControlsMode(definitions.PyshaMode):
                 self.preset_selection_button_pressing_time = time.time()
             self.app.buttons_need_update = True
             return True
-        elif button_name == self.ddrm_tone_selection_mode_button:
-            if self.app.ddrm_tone_selector_mode.should_be_enabled():
-                self.app.toggle_ddrm_tone_selector_mode()
-                self.app.buttons_need_update = True
-            return True
 
     def on_button_pressed_raw(self, button_name):
         if button_name == self.left_button:
-            self.app.shepherd_interface.global_left()
+            self.app.logic_interface.global_left()
         elif button_name == self.right_button:
-            self.app.shepherd_interface.global_right()
+            self.app.logic_interface.global_right()
         elif button_name == self.up_button:
-            self.app.shepherd_interface.global_up()
+            self.app.logic_interface.global_up()
         elif button_name == self.down_button:
-            self.app.shepherd_interface.global_down()
+            self.app.logic_interface.global_down()

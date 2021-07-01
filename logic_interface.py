@@ -14,7 +14,7 @@ tracks_state_fps = 4.0
 transport_state_fps = 10.0
 
 
-class ShepherdInterface(definitions.PyshaMode):
+class LogicInterface(definitions.LogicMode):
     app = None
     count = 0
     osc_sender = None
@@ -59,25 +59,18 @@ class ShepherdInterface(definitions.PyshaMode):
             self.osc_sender.send_message('/state/tracks', [])
 
     def update_play_button(self, value):
-        if value == 1.0:
-            definitions.isPlaying = True
-        else:
-            definitions.isPlaying = False
-        self.app.shepherd_interface.get_buttons_state()
+        definitions.isPlaying = True if value == 1.0 else False
+
+        self.app.logic_interface.get_buttons_state()
 
     def update_metronome_button(self, value):
-        if value == 1.0:
-            definitions.isMetronome = True
-        else:
-            definitions.isMetronome = False
-        self.app.shepherd_interface.get_buttons_state()
+        definitions.isMetronome = True if value == 1.0 else False
+        self.app.logic_interface.get_buttons_state()
 
     def update_record_button(self, value):
-        if value == 1.0:
-            definitions.isRecording = True
-        else:
-            definitions.isRecording = False
-        self.app.shepherd_interface.get_buttons_state()
+        definitions.isRecording = True if value == 1.0 else False
+
+        self.app.logic_interface.get_buttons_state()
 
     def track_select(self, track_number):
         self.osc_sender.send_message('/track/select', [track_number])

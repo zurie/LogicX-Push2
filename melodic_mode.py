@@ -4,7 +4,7 @@ import push2_python.constants
 import time
 
 
-class MelodicMode(definitions.PyshaMode):
+class MelodicMode(definitions.LogicMode):
     xor_group = 'pads'
     notes_being_played = []
     root_midi_note = 0  # default redefined in initialize

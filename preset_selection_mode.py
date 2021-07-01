@@ -4,7 +4,7 @@ import push2_python
 import os
 import json
 
-class PresetSelectionMode(definitions.PyshaMode):
+class PresetSelectionMode(definitions.LogicMode):
     xor_group = 'pads'
 
     favourtie_presets = {}

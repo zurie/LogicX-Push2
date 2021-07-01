@@ -5,7 +5,7 @@ import math
 import json
 import os
 
-from definitions import PyshaMode
+from definitions import LogicMode
 from display_utils import show_text
 
 
@@ -95,7 +95,7 @@ class MIDICCControl(object):
         self.send_midi_func(msg)
 
 
-class MIDICCMode(PyshaMode):
+class MIDICCMode(LogicMode):
     midi_cc_button_names = [
         push2_python.constants.BUTTON_UPPER_ROW_1,
         push2_python.constants.BUTTON_UPPER_ROW_2,

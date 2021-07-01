@@ -17,7 +17,7 @@ class TrackState(object):
         self.track_num = track_num
 
 
-class TrackTriggeringMode(definitions.PyshaMode):
+class TrackTriggeringMode(definitions.LogicMode):
 
     xor_group = 'pads'
 
@@ -66,7 +66,7 @@ class TrackTriggeringMode(definitions.PyshaMode):
 
     def update_buttons(self):
         for i, button_name in enumerate(self.scene_trigger_buttons):
-            if self.app.shepherd_interface.get_selected_scene() == i:
+            if self.app.logic_interface.get_selected_scene() == i:
                 self.push.buttons.set_button_color(button_name, definitions.GREEN)
             else:
                 self.push.buttons.set_button_color(button_name, definitions.WHITE)
@@ -77,7 +77,7 @@ class TrackTriggeringMode(definitions.PyshaMode):
             self.push.buttons.set_button_color(self.clear_clip_button, definitions.BLACK)
             self.push.buttons.set_button_color(self.clear_clip_button, definitions.WHITE, animation=definitions.DEFAULT_ANIMATION)
 
-        is_playing, metronome_on, is_recording = self.app.shepherd_interface.get_buttons_state()
+        is_playing, metronome_on, is_recording = self.app.logic_interface.get_buttons_state()
         # self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.WHITE if not is_playing else definitions.GREEN)
         # self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.WHITE if not is_recording else definitions.RED)
         # self.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME, definitions.BLACK if not metronome_on else definitions.WHITE)
@@ -92,7 +92,7 @@ class TrackTriggeringMode(definitions.PyshaMode):
         for i in range(0, 8):
             row_colors = []
             for j in range(0, 8):
-                state = self.app.shepherd_interface.get_clip_state(j, i)
+                state = self.app.logic_interface.get_clip_state(j, i)
 
                 if 'E' in state:
                     cell_color = definitions.BLACK
@@ -118,7 +118,7 @@ class TrackTriggeringMode(definitions.PyshaMode):
     def on_button_pressed_raw(self, button_name):
         if button_name in self.scene_trigger_buttons:
             triggered_scene_row = self.scene_trigger_buttons.index(button_name)
-            self.app.shepherd_interface.scene_play(triggered_scene_row)
+            self.app.logic_interface.scene_play(triggered_scene_row)
             self.app.pads_need_update = True
             return True  # Prevent other modes to get this event
 
@@ -131,19 +131,19 @@ class TrackTriggeringMode(definitions.PyshaMode):
             return True  # Prevent other modes to get this event
         
         elif button_name == push2_python.constants.BUTTON_PLAY:
-            self.app.shepherd_interface.global_play_stop()
+            self.app.logic_interface.global_play_stop()
             return True # Prevent other modes to get this event
             
         elif button_name == push2_python.constants.BUTTON_RECORD:
-            self.app.shepherd_interface.global_record()
+            self.app.logic_interface.global_record()
             return True  # Prevent other modes to get this event
 
         elif button_name == push2_python.constants.BUTTON_METRONOME:
-            self.app.shepherd_interface.metronome_on_off()
+            self.app.logic_interface.metronome_on_off()
             return True  # Prevent other modes to get this event
 
         elif button_name == push2_python.constants.BUTTON_DUPLICATE:
-            self.app.shepherd_interface.scene_duplicate(self.app.shepherd_interface.get_selected_scene())
+            self.app.logic_interface.scene_duplicate(self.app.logic_interface.get_selected_scene())
             return True  # Prevent other modes to get this event
 
     def on_button_released_raw(self, button_name):
@@ -156,19 +156,19 @@ class TrackTriggeringMode(definitions.PyshaMode):
 
     def on_encoder_rotated(self, encoder_name, increment):
         if encoder_name == push2_python.constants.ENCODER_TEMPO_ENCODER:
-            new_bpm = int(self.app.shepherd_interface.get_bpm()) + increment * 2
-            self.app.shepherd_interface.set_bpm(new_bpm)
+            new_bpm = int(self.app.logic_interface.get_bpm()) + increment * 2
+            self.app.logic_interface.set_bpm(new_bpm)
             return True  # Prevent other modes to get this event
 
     def on_pad_pressed_raw(self, pad_n, pad_ij, velocity):
 
         if not self.clear_clip_button_being_pressed and not self.double_clip_button_being_pressed:
-            # Send clip play/stop in shepherd
-            self.app.shepherd_interface.clip_play_stop(pad_ij[1], pad_ij[0])
+            # Send clip play/stop in logic
+            self.app.logic_interface.clip_play_stop(pad_ij[1], pad_ij[0])
         else:
             if self.clear_clip_button_being_pressed:
-                # Send clip clear in shepherd
-                self.app.shepherd_interface.clip_clear(pad_ij[1], pad_ij[0])
+                # Send clip clear in logic
+                self.app.logic_interface.clip_clear(pad_ij[1], pad_ij[0])
             elif self.double_clip_button_being_pressed:
-                # Send clip double in shepherd
-                self.app.shepherd_interface.clip_double(pad_ij[1], pad_ij[0])
+                # Send clip double in logic
+                self.app.logic_interface.clip_double(pad_ij[1], pad_ij[0])

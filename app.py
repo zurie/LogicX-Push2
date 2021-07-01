@@ -14,7 +14,6 @@ from collections import defaultdict
 
 from melodic_mode import MelodicMode
 from track_selection_mode import TrackSelectionMode
-# from pyramid_track_triggering_mode import PyramidTrackTriggeringMode
 from rhythmic_mode import RhythmicMode
 from slice_notes_mode import SliceNotesMode
 from settings_mode import SettingsMode
@@ -22,12 +21,11 @@ from scalemenu_mode import ScaleMenuMode
 from main_controls_mode import MainControlsMode
 from midi_cc_mode import MIDICCMode
 from preset_selection_mode import PresetSelectionMode
-from ddrm_tone_selector_mode import DDRMToneSelectorMode
-from shepherd_interface import ShepherdInterface
+from logic_interface import LogicInterface
 from display_utils import show_notification
 
 
-class PyshaApp(object):
+class LogicApp(object):
     # midi
     midi_out = None
     available_midi_out_device_names = []
@@ -66,8 +64,8 @@ class PyshaApp(object):
     last_cp_value_received = 0
     last_cp_value_received_time = 0
 
-    # interface with shepherd
-    shepherd_interface = None
+    # interface with logic
+    logic_interface = None
 
     def __init__(self):
         if os.path.exists('settings.json'):
@@ -75,7 +73,7 @@ class PyshaApp(object):
         else:
             settings = {}
 
-        self.shepherd_interface = ShepherdInterface(self)
+        self.logic_interface = LogicInterface(self)
 
         self.set_midi_in_channel(settings.get('midi_in_default_channel', 0))
         self.set_midi_out_channel(settings.get('midi_out_default_channel', 0))
@@ -99,20 +97,18 @@ class PyshaApp(object):
         self.set_melodic_mode()
 
         self.track_selection_mode = TrackSelectionMode(self, settings=settings)
-        # self.pyramid_track_triggering_mode = PyramidTrackTriggeringMode(self, settings=settings)
         self.preset_selection_mode = PresetSelectionMode(self, settings=settings)
         self.midi_cc_mode = MIDICCMode(self,
                                        settings=settings)  # Must be initialized after track selection mode so it gets info about loaded tracks
         self.active_modes += [self.track_selection_mode, self.midi_cc_mode]
         self.track_selection_mode.select_track(self.track_selection_mode.selected_track)
-        self.ddrm_tone_selector_mode = DDRMToneSelectorMode(self, settings=settings)
 
         self.settings_mode = SettingsMode(self, settings=settings)
         self.scalemenu_mode = ScaleMenuMode(self, settings=settings)
 
     def get_all_modes(self):
         return [getattr(self, element) for element in vars(self) if
-                isinstance(getattr(self, element), definitions.PyshaMode)]
+                isinstance(getattr(self, element), definitions.LogicMode)]
 
     def is_mode_active(self, mode):
         return mode in self.active_modes
@@ -136,33 +132,6 @@ class PyshaApp(object):
         else:
             self.active_modes.append(self.scalemenu_mode)
             self.scalemenu_mode.activate()
-
-    def toggle_ddrm_tone_selector_mode(self):
-        if self.is_mode_active(self.ddrm_tone_selector_mode):
-            # Deactivate (replace ddrm tone selector mode by midi cc and track selection mode)
-            new_active_modes = []
-            for mode in self.active_modes:
-                if mode != self.ddrm_tone_selector_mode:
-                    new_active_modes.append(mode)
-                else:
-                    new_active_modes.append(self.track_selection_mode)
-                    new_active_modes.append(self.midi_cc_mode)
-            self.active_modes = new_active_modes
-            self.ddrm_tone_selector_mode.deactivate()
-            self.midi_cc_mode.activate()
-            self.track_selection_mode.activate()
-        else:
-            # Activate (replace midi cc and track selection mode by ddrm tone selector mode)
-            new_active_modes = []
-            for mode in self.active_modes:
-                if mode != self.track_selection_mode and mode != self.midi_cc_mode:
-                    new_active_modes.append(mode)
-                elif mode == self.midi_cc_mode:
-                    new_active_modes.append(self.ddrm_tone_selector_mode)
-            self.active_modes = new_active_modes
-            self.midi_cc_mode.deactivate()
-            self.track_selection_mode.deactivate()
-            self.ddrm_tone_selector_mode.activate()
 
     def set_mode_for_xor_group(self, mode_to_set):
         '''This activates the mode_to_set, but makes sure that if any other modes are currently activated
@@ -227,12 +196,6 @@ class PyshaApp(object):
 
     def set_slice_notes_mode(self):
         self.set_mode_for_xor_group(self.slice_notes_mode)
-
-    # def set_pyramid_track_triggering_mode(self):
-    #     self.set_mode_for_xor_group(self.pyramid_track_triggering_mode)
-    #
-    # def unset_pyramid_track_triggering_mode(self):
-    #     self.unset_mode_for_xor_group(self.pyramid_track_triggering_mode)
 
     def set_preset_selection_mode(self):
         self.set_mode_for_xor_group(self.preset_selection_mode)
@@ -403,10 +366,6 @@ class PyshaApp(object):
         if self.midi_out is not None:
             self.midi_out.send(msg)
 
-    def send_midi_to_pyramid(self, msg):
-        # When sending to Pyramid, don't replace the MIDI channel because msg is already prepared with pyramidi chanel
-        self.send_midi(msg, use_original_msg_channel=True)
-
     def midi_in_handler(self, msg):
         if hasattr(msg,
                    'channel'):  # This will rule out sysex and other "strange" messages that don't have channel info
@@ -515,7 +474,7 @@ class PyshaApp(object):
             self.buttons_need_update = False
 
     def run_loop(self):
-        print('Pysha is runnnig...')
+        print('Logic is runnnig...')
         try:
             while True:
                 before_draw_time = time.time()
@@ -543,7 +502,7 @@ class PyshaApp(object):
                     time.sleep(sleep_time)
 
         except KeyboardInterrupt:
-            print('Exiting Pysha...')
+            print('Exiting Logic...')
             self.push.f_stop.set()
 
     def on_midi_push_connection_established(self):
@@ -915,7 +874,7 @@ def on_midi_connected(_):
 
 # Run app main loop
 if __name__ == "__main__":
-    app = PyshaApp()
+    app = LogicApp()
     if midi_connected_received_before_app:
         # App received the "on_midi_connected" call before it was initialized. Do it now!
         print('Missed MIDI initialization call, doing it now...')
