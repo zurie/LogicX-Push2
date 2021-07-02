@@ -107,11 +107,65 @@ class LogicInterface(definitions.LogicMode):
     def automate(self):
         self.osc_sender.send_message('/push2/automate', [])
 
-    def scene_play(self, scene_number):
-        self.osc_sender.send_message('/scene/play', [scene_number])
+    def fixed_length(self):
+        self.osc_sender.send_message('/push2/fixed_length', [])
 
-    def scene_duplicate(self, scene_number):
-        self.osc_sender.send_message('/scene/duplicate', [scene_number])
+    def new(self):
+        self.osc_sender.send_message('/push2/new', [])
+
+    def new_next(self):
+        self.osc_sender.send_message('/push2/new_next', [])
+
+    def duplicate(self):
+        self.osc_sender.send_message('/push2/duplicate', [])
+
+    def quantize(self, value):
+        if value == 0:
+            self.osc_sender.send_message('/push2/quantize/1_32T', [])
+        elif value == 1:
+            self.osc_sender.send_message('/push2/quantize/1_32', [])
+        elif value == 2:
+            self.osc_sender.send_message('/push2/quantize/1_16T', [])
+        elif value == 3:
+            self.osc_sender.send_message('/push2/quantize/1_16', [])
+        elif value == 4:
+            self.osc_sender.send_message('/push2/quantize/1_8T', [])
+        elif value == 5:
+            self.osc_sender.send_message('/push2/quantize/1_8', [])
+        elif value == 6:
+            self.osc_sender.send_message('/push2/quantize/1_4T', [])
+        elif value == 7:
+            self.osc_sender.send_message('/push2/quantize/1_4', [])
+
+    def double(self):
+        self.osc_sender.send_message('/push2/double', [])
+
+    def convert(self):
+        self.osc_sender.send_message('/push2/convert', [])
+
+    def double_loop(self):
+        self.osc_sender.send_message('/push2/double_loop', [])
+
+    def convert(self):
+        self.osc_sender.send_message('/push2/convert', [])
+
+    def global_mute(self):
+        self.osc_sender.send_message('/push2/mute', [])
+
+    def global_mute_off(self):
+        self.osc_sender.send_message('/push2/mute_off', [])
+
+    def global_solo(self):
+        self.osc_sender.send_message('/push2/solo', [])
+
+    def global_solo_lock(self):
+        self.osc_sender.send_message('/push2/solo_lock', [])
+
+    def undo(self):
+        self.osc_sender.send_message('/push2/undo', [])
+
+    def delete(self):
+        self.osc_sender.send_message('/push2/delete', [])
 
     def global_pause(self):
         self.osc_sender.send_message('/logic/transport/pause', [1.00])
@@ -136,18 +190,6 @@ class LogicInterface(definitions.LogicMode):
 
     def global_right(self):
         self.osc_sender.send_message('/push2/right', [])
-
-    def global_mute(self):
-        self.osc_sender.send_message('/push2/mute', [])
-
-    def global_mute_off(self):
-        self.osc_sender.send_message('/push2/mute_off', [])
-
-    def global_solo(self):
-        self.osc_sender.send_message('/push2/solo', [])
-
-    def global_solo_lock(self):
-        self.osc_sender.send_message('/push2/solo_lock', [])
 
     def metronome_on_off(self):
         self.osc_sender.send_message('/logic/transport/click', [1.00])
@@ -193,7 +235,7 @@ class LogicInterface(definitions.LogicMode):
     def bpm_lights(self, value):
         beat = self.toUTF8(value)
         beats = beat.split()
-        if int(float(beats[2])) == 1:
+        if int(float(beats[1])) % 2:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
             for button_name in bpm_button_names:
                 self.set_button_color_if_expression(button_name, definitions.isRecording, definitions.RED,

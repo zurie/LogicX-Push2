@@ -43,7 +43,7 @@ class SliceNotesMode(MelodicMode):
 
         self.push.pads.set_pads_color(color_matrix)
 
-    def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
+    def on_button_pressed(self, button_name, quantize=False, shift=False, select=False, long_press=False, double_press=False):
         if button_name == push2_python.constants.BUTTON_OCTAVE_UP:
             self.start_note += 16
             if self.start_note > 128 - 16 * 4:

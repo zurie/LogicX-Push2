@@ -432,7 +432,7 @@ class MelodicMode(definitions.LogicMode):
         self.app.send_midi(msg)
         return True
 
-    def on_button_pressed(self, button_name, shift=False, select=False, long_press=False, double_press=False):
+    def on_button_pressed(self, button_name, quantize=False, shift=False, select=False, long_press=False, double_press=False):
         if button_name == self.octave_up_button:
             self.set_root_midi_note(self.root_midi_note + 12)
             self.app.pads_need_update = True
