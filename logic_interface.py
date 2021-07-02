@@ -24,6 +24,10 @@ bpm_button_names = [
 ]
 
 
+def to_utf8(utf8):
+    return utf8.decode("utf-8")
+
+
 class LogicInterface(definitions.LogicMode):
     app = None
     count = 0
@@ -71,7 +75,6 @@ class LogicInterface(definitions.LogicMode):
 
     def update_play_button(self, value):
         definitions.isPlaying = True if value == 1.0 else False
-
         self.app.logic_interface.get_buttons_state()
 
     def update_metronome_button(self, value):
@@ -80,32 +83,22 @@ class LogicInterface(definitions.LogicMode):
 
     def update_record_button(self, value):
         definitions.isRecording = True if value == 1.0 else False
-
         self.app.logic_interface.get_buttons_state()
-
-    def track_select(self, track_number):
-        self.osc_sender.send_message('/track/select', [track_number])
-
-    def clip_play_stop(self, track_number, clip_number):
-        self.osc_sender.send_message('/clip/playStop', [track_number, clip_number])
-
-    def clip_clear(self, track_number, clip_number):
-        self.osc_sender.send_message('/clip/clear', [track_number, clip_number])
-
-    def clip_double(self, track_number, clip_number):
-        self.osc_sender.send_message('/clip/double', [track_number, clip_number])
-
-    def get_clip_state(self, track_num, clip_num):
-        if 'clips' in self.parsed_state:
-            try:
-                return self.parsed_state['clips'][track_num][clip_num]
-            except IndexError:
-                return "snE"
-        else:
-            return 'snE'
 
     def automate(self):
         self.osc_sender.send_message('/push2/automate', [])
+
+    def device(self):
+        self.osc_sender.send_message('/push2/device', [])
+
+    def mix(self):
+        self.osc_sender.send_message('/push2/mix', [])
+
+    def browse(self):
+        self.osc_sender.send_message('/push2/browse', [])
+
+    def clip(self):
+        self.osc_sender.send_message('/push2/clip', [])
 
     def fixed_length(self):
         self.osc_sender.send_message('/push2/fixed_length', [])
@@ -137,28 +130,28 @@ class LogicInterface(definitions.LogicMode):
         elif value == 7:
             self.osc_sender.send_message('/push2/quantize/1_4', [])
 
+    def double_loop(self):
+        self.osc_sender.send_message('/push2/double_loop', [])
+
     def double(self):
         self.osc_sender.send_message('/push2/double', [])
 
     def convert(self):
         self.osc_sender.send_message('/push2/convert', [])
 
-    def double_loop(self):
-        self.osc_sender.send_message('/push2/double_loop', [])
+    def stop_clip(self):
+        self.osc_sender.send_message('/push2/stop_clip', [])
 
-    def convert(self):
-        self.osc_sender.send_message('/push2/convert', [])
-
-    def global_mute(self):
+    def mute(self):
         self.osc_sender.send_message('/push2/mute', [])
 
-    def global_mute_off(self):
+    def mute_off(self):
         self.osc_sender.send_message('/push2/mute_off', [])
 
-    def global_solo(self):
+    def solo(self):
         self.osc_sender.send_message('/push2/solo', [])
 
-    def global_solo_lock(self):
+    def solo_lock(self):
         self.osc_sender.send_message('/push2/solo_lock', [])
 
     def undo(self):
@@ -167,16 +160,16 @@ class LogicInterface(definitions.LogicMode):
     def delete(self):
         self.osc_sender.send_message('/push2/delete', [])
 
-    def global_pause(self):
+    def pause(self):
         self.osc_sender.send_message('/logic/transport/pause', [1.00])
 
-    def global_play_stop(self):
+    def play(self):
         if definitions.isPlaying:
             self.osc_sender.send_message('/logic/transport/stop', [1.00])
         else:
             self.osc_sender.send_message('/logic/transport/play', [1.00])
 
-    def global_record(self):
+    def record(self):
         self.osc_sender.send_message('/logic/transport/record', [1.00])
 
     def global_up(self):
@@ -193,7 +186,6 @@ class LogicInterface(definitions.LogicMode):
 
     def metronome_on_off(self):
         self.osc_sender.send_message('/logic/transport/click', [1.00])
-        # self.app.add_display_notification("Metronome: {0}".format('On' if not definitions.isMetronome else 'Off'))
 
     def get_buttons_state(self):
         if definitions.isPlaying:
@@ -220,20 +212,14 @@ class LogicInterface(definitions.LogicMode):
         self.app.midi_cc_mode.update_buttons()
         return is_playing, metronome_on, is_recording
 
-    def get_selected_scene(self):
-        return self.parsed_state.get('selectedScene', 0)
-
     def get_bpm(self):
         return self.parsed_state.get('bpm', 120)
 
     def set_bpm(self, bpm):
         self.osc_sender.send_message('/transport/setBpm', [float(bpm)])
 
-    def toUTF8(self, utf8):
-        return utf8.decode("utf-8")
-
     def bpm_lights(self, value):
-        beat = self.toUTF8(value)
+        beat = to_utf8(value)
         beats = beat.split()
         if int(float(beats[1])) % 2:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
@@ -250,3 +236,4 @@ class LogicInterface(definitions.LogicMode):
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
             else:
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED_DARK)
+        return True

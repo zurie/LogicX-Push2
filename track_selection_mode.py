@@ -10,7 +10,7 @@ from display_utils import show_text
 
 class TrackSelectionMode(definitions.LogicMode):
     tracks_info = []
-    add_track_button = push2_python.constants.BUTTON_ADD_TRACK
+    master_button = push2_python.constants.BUTTON_MASTER
 
     track_button_names = [
         push2_python.constants.BUTTON_LOWER_ROW_1,
@@ -25,7 +25,7 @@ class TrackSelectionMode(definitions.LogicMode):
     selected_track = 0
     total_pages = 0
     page = 1
-    buttons_used = [add_track_button]
+    buttons_used = [master_button]
 
     def initialize(self, settings=None):
         if settings is not None:
@@ -182,10 +182,10 @@ class TrackSelectionMode(definitions.LogicMode):
                     color = 'black'
 
             self.push.buttons.set_button_color(name, color)
-        self.set_button_color(self.add_track_button)
+        self.set_button_color(self.master_button)
         # Settings button, to toggle settings mode
 
-        self.set_button_color_if_pressed(self.add_track_button, animation=definitions.DEFAULT_ANIMATION)
+        self.set_button_color_if_pressed(self.master_button, animation=definitions.DEFAULT_ANIMATION)
 
     def set_all_lower_row_buttons_off(self):
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_LOWER_ROW_1, definitions.OFF_BTN_COLOR)
@@ -256,5 +256,5 @@ class TrackSelectionMode(definitions.LogicMode):
             self.app.buttons_need_update = True
             self.app.pads_need_update = True
             return True
-        elif button_name == self.add_track_button:
+        elif button_name == self.master_button:
             self.increment_track_pages()

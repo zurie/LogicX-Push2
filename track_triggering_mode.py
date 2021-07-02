@@ -131,11 +131,11 @@ class TrackTriggeringMode(definitions.LogicMode):
             return True  # Prevent other modes to get this event
         
         elif button_name == push2_python.constants.BUTTON_PLAY:
-            self.app.logic_interface.global_play_stop()
+            self.app.logic_interface.play()
             return True # Prevent other modes to get this event
             
         elif button_name == push2_python.constants.BUTTON_RECORD:
-            self.app.logic_interface.global_record()
+            self.app.logic_interface.record()
             return True  # Prevent other modes to get this event
 
         elif button_name == push2_python.constants.BUTTON_METRONOME:
