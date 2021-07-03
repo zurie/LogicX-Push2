@@ -17,6 +17,7 @@ from track_selection_mode import TrackSelectionMode
 from rhythmic_mode import RhythmicMode
 from slice_notes_mode import SliceNotesMode
 from settings_mode import SettingsMode
+from repeat_mode import RepeatMode
 from scalemenu_mode import ScaleMenuMode
 from main_controls_mode import MainControlsMode
 from midi_cc_mode import MIDICCMode
@@ -104,6 +105,7 @@ class LogicApp(object):
         self.track_selection_mode.select_track(self.track_selection_mode.selected_track)
 
         self.settings_mode = SettingsMode(self, settings=settings)
+        self.repeat_mode = RepeatMode(self, settings=settings)
         self.scalemenu_mode = ScaleMenuMode(self, settings=settings)
 
     def get_all_modes(self):
@@ -122,6 +124,16 @@ class LogicApp(object):
         else:
             self.active_modes.append(self.settings_mode)
             self.settings_mode.activate()
+
+    def toggle_and_rotate_repeat_mode(self):
+        if self.is_mode_active(self.repeat_mode):
+            rotation_finished = self.repeat_mode.move_to_next_page()
+            if rotation_finished:
+                self.active_modes = [mode for mode in self.active_modes if mode != self.repeat_mode]
+                self.repeat_mode.deactivate()
+        else:
+            self.active_modes.append(self.repeat_mode)
+            self.repeat_mode.activate()
 
     def toggle_and_rotate_scalemenu_mode(self):
         if self.is_mode_active(self.scalemenu_mode):

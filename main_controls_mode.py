@@ -258,6 +258,11 @@ class MainControlsMode(definitions.LogicMode):
             self.app.buttons_need_update = True
             return True
 
+        elif button_name == self.repeat_button:
+            self.app.toggle_and_rotate_repeat_mode()
+            self.app.buttons_need_update = True
+            return True
+
         elif button_name == self.scalemode_button:
             self.app.toggle_and_rotate_scalemenu_mode()
             self.app.buttons_need_update = True
@@ -390,31 +395,31 @@ class MainControlsMode(definitions.LogicMode):
                 self.preset_selection_button_pressing_time = time.time()
             self.app.buttons_need_update = True
             return True
-        #
-        # elif button_name == self.quantize_buttons[0]:
-        #     self.app.logic_interface.quantize(0, True if quantize else False, True if shift else False, True if loop else False)
-        #     return True
-        # elif button_name == self.quantize_buttons[1]:
-        #     self.app.logic_interface.quantize(1, True if quantize else False, True if shift else False, True if loop else False)
-        #     return True
-        # elif button_name == self.quantize_buttons[2]:
-        #     self.app.logic_interface.quantize(2, True if quantize else False, True if shift else False, True if loop else False)
-        #     return True
-        # elif button_name == self.quantize_buttons[3]:
-        #     self.app.logic_interface.quantize(3, True if quantize else False, True if shift else False, True if loop else False)
-        #     return True
-        # elif button_name == self.quantize_buttons[4]:
-        #     self.app.logic_interface.quantize(4, True if quantize else False, True if shift else False, True if loop else False)
-        #     return True
-        # elif button_name == self.quantize_buttons[5]:
-        #     self.app.logic_interface.quantize(5, True if quantize else False, True if shift else False, True if loop else False)
-        #     return True
-        # elif button_name == self.quantize_buttons[6]:
-        #     self.app.logic_interface.quantize(6, True if quantize else False, True if shift else False, True if loop else False)
-        #     return True
-        # elif button_name == self.quantize_buttons[7]:
-        #     self.app.logic_interface.quantize(7, True if quantize else False, True if shift else False, True if loop else False)
-        #     return True
+
+        elif button_name == self.quantize_buttons[0]:
+            self.app.logic_interface.quantize(0, True if quantize else False, True if shift else False, True if loop else False, False)
+            return True
+        elif button_name == self.quantize_buttons[1]:
+            self.app.logic_interface.quantize(1, True if quantize else False, True if shift else False, True if loop else False, False)
+            return True
+        elif button_name == self.quantize_buttons[2]:
+            self.app.logic_interface.quantize(2, True if quantize else False, True if shift else False, True if loop else False, False)
+            return True
+        elif button_name == self.quantize_buttons[3]:
+            self.app.logic_interface.quantize(3, True if quantize else False, True if shift else False, True if loop else False, False)
+            return True
+        elif button_name == self.quantize_buttons[4]:
+            self.app.logic_interface.quantize(4, True if quantize else False, True if shift else False, True if loop else False, False)
+            return True
+        elif button_name == self.quantize_buttons[5]:
+            self.app.logic_interface.quantize(5, True if quantize else False, True if shift else False, True if loop else False, False)
+            return True
+        elif button_name == self.quantize_buttons[6]:
+            self.app.logic_interface.quantize(6, True if quantize else False, True if shift else False, True if loop else False, False)
+            return True
+        elif button_name == self.quantize_buttons[7]:
+            self.app.logic_interface.quantize(7, True if quantize else False, True if shift else False, True if loop else False, False)
+            return True
 
     def on_button_pressed_raw(self, button_name):
 
@@ -495,58 +500,8 @@ class MainControlsMode(definitions.LogicMode):
             return True
         elif button_name == self.down_button:
             self.push.buttons.set_button_color(self.down_button, definitions.WHITE)
-            print(definitions.SCALES)
-            return True
-
-        elif button_name == self.quantize_buttons[0]:
-            self.app.logic_interface.quantize(0, False, False, False)
-            return True
-        elif button_name == self.quantize_buttons[1]:
-            self.app.logic_interface.quantize(1, False, False, False)
-            return True
-        elif button_name == self.quantize_buttons[2]:
-            self.app.logic_interface.quantize(2, False, False, False)
-            return True
-        elif button_name == self.quantize_buttons[3]:
-            self.app.logic_interface.quantize(3, False, False, False)
-            return True
-        elif button_name == self.quantize_buttons[4]:
-            self.app.logic_interface.quantize(4, False, False, False)
-            return True
-        elif button_name == self.quantize_buttons[5]:
-            self.app.logic_interface.quantize(5, False, False, False)
-            return True
-        elif button_name == self.quantize_buttons[6]:
-            self.app.logic_interface.quantize(6, False, False, False)
-            return True
-        elif button_name == self.quantize_buttons[7]:
-            self.app.logic_interface.quantize(7, False, False, False)
             return True
 
     def on_button_released_raw(self, button_name):
         self.set_buttons_to_color(self.buttons_used, definitions.OFF_BTN_COLOR)
-        if button_name == self.quantize_buttons[0]:
-            self.app.logic_interface.quantize_off(0)
-            return True
-        elif button_name == self.quantize_buttons[1]:
-            self.app.logic_interface.quantize_off(1)
-            return True
-        elif button_name == self.quantize_buttons[2]:
-            self.app.logic_interface.quantize_off(2)
-            return True
-        elif button_name == self.quantize_buttons[3]:
-            self.app.logic_interface.quantize_off(3)
-            return True
-        elif button_name == self.quantize_buttons[4]:
-            self.app.logic_interface.quantize_off(4)
-            return True
-        elif button_name == self.quantize_buttons[5]:
-            self.app.logic_interface.quantize_off(5)
-            return True
-        elif button_name == self.quantize_buttons[6]:
-            self.app.logic_interface.quantize_off(6)
-            return True
-        elif button_name == self.quantize_buttons[7]:
-            self.app.logic_interface.quantize_off(7)
-            return True
 
