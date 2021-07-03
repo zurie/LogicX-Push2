@@ -589,6 +589,8 @@ def on_pad_pressed(_, pad_n, pad_ij, velocity):
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_pad_pressed(pad_n, pad_ij, velocity, long_press=True,
+                                                           loop=pads_pressed_state.get(
+                                                               push2_python.constants.BUTTON_DOUBLE_LOOP, False),
                                                            quantize=pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_QUANTIZE, False),
                                                            shift=pads_pressed_state.get(
@@ -651,6 +653,8 @@ def on_pad_released(_, pad_n, pad_ij, velocity):
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_pad_pressed(pad_n, pad_ij, velocity, double_press=True,
+                                                           loop=pads_pressed_state.get(
+                                                               push2_python.constants.BUTTON_DOUBLE_LOOP, False),
                                                            quantize=pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_QUANTIZE, False),
                                                            shift=pads_pressed_state.get(
@@ -666,6 +670,8 @@ def on_pad_released(_, pad_n, pad_ij, velocity):
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_pad_pressed(pad_n, pad_ij, velocity,
+                                                           loop=pads_pressed_state.get(
+                                                               push2_python.constants.BUTTON_DOUBLE_LOOP, False),
                                                            quantize=pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_QUANTIZE, False),
                                                            shift=pads_pressed_state.get(
@@ -741,6 +747,8 @@ def on_button_pressed(_, name):
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_button_pressed(name, long_press=True,
+                                                              loop=buttons_pressed_state.get(
+                                                                  push2_python.constants.BUTTON_DOUBLE_LOOP, False),
                                                               quantize=buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_QUANTIZE, False),
                                                               shift=buttons_pressed_state.get(
@@ -800,6 +808,8 @@ def on_button_released(_, name):
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_button_pressed(name, double_press=True,
+                                                              loop=buttons_pressed_state.get(
+                                                                  push2_python.constants.BUTTON_DOUBLE_LOOP, False),
                                                               quantize=buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_QUANTIZE, False),
                                                               shift=buttons_pressed_state.get(
@@ -817,6 +827,8 @@ def on_button_released(_, name):
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_button_pressed(name,
+                                                              loop=buttons_pressed_state.get(
+                                                                  push2_python.constants.BUTTON_DOUBLE_LOOP, False),
                                                               quantize=buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_QUANTIZE, False),
                                                               shift=buttons_pressed_state.get(

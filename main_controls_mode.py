@@ -15,10 +15,14 @@ class MainControlsMode(definitions.LogicMode):
     last_tap_tempo_times = []
 
     # BUTTONS (TOP RIGHT TO BOTTOM RIGHT OF PUSH2)
+    add_track_button = push2_python.constants.BUTTON_ADD_TRACK
     device_button = push2_python.constants.BUTTON_DEVICE
     mix_button = push2_python.constants.BUTTON_MIX
     browse_button = push2_python.constants.BUTTON_BROWSE
     clip_button = push2_python.constants.BUTTON_CLIP
+    repeat_button = push2_python.constants.BUTTON_REPEAT
+    layout_button = push2_python.constants.BUTTON_LAYOUT
+    session_button = push2_python.constants.BUTTON_SESSION
     # BUTTONS (TOP LEFT TO BOTTOM LEFT OF PUSH2)
 
     tap_tempo_button = push2_python.constants.BUTTON_TAP_TEMPO
@@ -54,6 +58,12 @@ class MainControlsMode(definitions.LogicMode):
     select_button = push2_python.constants.BUTTON_SELECT
     record_automation_button = push2_python.constants.BUTTON_AUTOMATE
 
+    arrow_buttons = [
+        push2_python.constants.BUTTON_UP,
+        push2_python.constants.BUTTON_DOWN,
+        push2_python.constants.BUTTON_LEFT,
+        push2_python.constants.BUTTON_RIGHT
+    ]
     up_button = push2_python.constants.BUTTON_UP
     down_button = push2_python.constants.BUTTON_DOWN
     left_button = push2_python.constants.BUTTON_LEFT
@@ -70,39 +80,43 @@ class MainControlsMode(definitions.LogicMode):
         push2_python.constants.BUTTON_1_4
     ]
     buttons_used = [
-        automate_button,
-        convert_button,
-        delete_button,
-        double_loop_button,
-        down_button,
-        duplicate_button,
-        fixed_length_button,
-        left_button,
-        # note_button,
-        mute_button,
-        metronome_button,
-        new_button,
-        preset_selection_mode_button,
-        quantize_button,
-        record_automation_button,
-        right_button,
-        # scalemode_button,
-        select_button,
-        settings_button,
-        shift_button,
-        solo_button,
-        stop_clip_button,
-        tap_tempo_button,
-        # user_button,
-        track_triggering_button,
-        undo_button,
-        up_button,
-        device_button,
-        mix_button,
-        browse_button,
-        clip_button
+                       automate_button,
+                       convert_button,
+                       delete_button,
+                       double_loop_button,
+                       down_button,
+                       duplicate_button,
+                       fixed_length_button,
+                       left_button,
+                       # note_button,
+                       mute_button,
+                       metronome_button,
+                       new_button,
+                       preset_selection_mode_button,
+                       quantize_button,
+                       record_automation_button,
+                       right_button,
+                       # scalemode_button,
+                       select_button,
+                       settings_button,
+                       shift_button,
+                       solo_button,
+                       stop_clip_button,
+                       tap_tempo_button,
+                       # user_button,
+                       track_triggering_button,
+                       undo_button,
+                       up_button,
+                       add_track_button,
+                       device_button,
+                       mix_button,
+                       browse_button,
+                       clip_button,
+                       repeat_button,
+                       layout_button,
+                       session_button
 
-    ] + quantize_buttons
+                   ] + quantize_buttons
 
     def activate(self):
         self.app.logic_interface.get_buttons_state()
@@ -119,6 +133,7 @@ class MainControlsMode(definitions.LogicMode):
         self.set_button_color_if_pressed(self.shift_button, animation=definitions.DEFAULT_ANIMATION)
         self.set_button_color_if_pressed(self.select_button, animation=definitions.DEFAULT_ANIMATION)
         self.set_button_color_if_pressed(self.quantize_button, animation=definitions.DEFAULT_ANIMATION)
+        self.set_button_color_if_pressed(self.double_loop_button, animation=definitions.DEFAULT_ANIMATION)
 
         # Note button, to toggle melodic/rhythmic mode
         self.set_button_color(self.note_button)
@@ -145,7 +160,7 @@ class MainControlsMode(definitions.LogicMode):
         else:
             self.push.buttons.set_button_color(self.user_button, definitions.WHITE)
 
-    def on_button_pressed(self, button_name, quantize=False, shift=False, select=False, long_press=False,
+    def on_button_pressed(self, button_name, loop=False, quantize=False, shift=False, select=False, long_press=False,
                           double_press=False):
         if button_name == self.automate_button:
             self.app.logic_interface.automate()
@@ -182,7 +197,7 @@ class MainControlsMode(definitions.LogicMode):
 
         elif button_name == self.undo_button:
             if long_press:
-                self.app.logic_interface.undo()
+                self.app.logic_interface.redo()
             else:
                 self.app.logic_interface.undo()
             return True
@@ -310,8 +325,20 @@ class MainControlsMode(definitions.LogicMode):
         elif button_name == self.browse_button:
             self.app.logic_interface.browse()
             return True
+        elif button_name == self.add_track_button:
+            self.app.logic_interface.add_track()
+            return True
         elif button_name == self.clip_button:
             self.app.logic_interface.clip()
+            return True
+        elif button_name == self.repeat_button:
+            self.app.logic_interface.repeat()
+            return True
+        elif button_name == self.layout_button:
+            self.app.logic_interface.layout()
+            return True
+        elif button_name == self.session_button:
+            self.app.logic_interface.session()
             return True
 
         # SOLO
@@ -336,6 +363,19 @@ class MainControlsMode(definitions.LogicMode):
             self.app.buttons_need_update = True
             return True
 
+        elif button_name == self.up_button:
+            self.app.logic_interface.arrow_keys('up', True if shift else False, True if loop else False)
+            return True
+        elif button_name == self.down_button:
+            self.app.logic_interface.arrow_keys('down', True if shift else False, True if loop else False)
+            return True
+        elif button_name == self.left_button:
+            self.app.logic_interface.arrow_keys('left', True if shift else False, True if loop else False)
+            return True
+        elif button_name == self.right_button:
+            self.app.logic_interface.arrow_keys('right', True if shift else False, True if loop else False)
+            return True
+
         elif button_name == self.preset_selection_mode_button:
             if self.app.is_mode_active(self.app.preset_selection_mode):
                 # If already active, deactivate and set pressing time to None
@@ -349,28 +389,28 @@ class MainControlsMode(definitions.LogicMode):
             return True
 
         elif button_name == self.quantize_buttons[0]:
-            self.app.logic_interface.quantize(0)
+            self.app.logic_interface.quantize(0, True if shift else False, True if loop else False)
             return True
         elif button_name == self.quantize_buttons[1]:
-            self.app.logic_interface.quantize(1)
+            self.app.logic_interface.quantize(1, True if shift else False, True if loop else False)
             return True
         elif button_name == self.quantize_buttons[2]:
-            self.app.logic_interface.quantize(2)
+            self.app.logic_interface.quantize(2, True if shift else False, True if loop else False)
             return True
         elif button_name == self.quantize_buttons[3]:
-            self.app.logic_interface.quantize(3)
+            self.app.logic_interface.quantize(3, True if shift else False, True if loop else False)
             return True
         elif button_name == self.quantize_buttons[4]:
-            self.app.logic_interface.quantize(4)
+            self.app.logic_interface.quantize(4, True if shift else False, True if loop else False)
             return True
         elif button_name == self.quantize_buttons[5]:
-            self.app.logic_interface.quantize(5)
+            self.app.logic_interface.quantize(5, True if shift else False, True if loop else False)
             return True
         elif button_name == self.quantize_buttons[6]:
-            self.app.logic_interface.quantize(6)
+            self.app.logic_interface.quantize(6, True if shift else False, True if loop else False)
             return True
         elif button_name == self.quantize_buttons[7]:
-            self.app.logic_interface.quantize(7)
+            self.app.logic_interface.quantize(7, True if shift else False, True if loop else False)
             return True
 
     def on_button_pressed_raw(self, button_name):
@@ -394,12 +434,15 @@ class MainControlsMode(definitions.LogicMode):
             return True
         elif button_name == self.double_loop_button:
             self.push.buttons.set_button_color(self.double_loop_button, definitions.WHITE)
+            for arrow_name in self.arrow_buttons:
+                self.push.buttons.set_button_color(arrow_name, definitions.WHITE,
+                                                   animation=definitions.DEFAULT_ANIMATION)
             return True
         elif button_name == self.convert_button:
             self.push.buttons.set_button_color(self.convert_button, definitions.WHITE)
             return True
         elif button_name == self.mute_button:
-            self.push.buttons.set_button_color(self.mute_button, definitions.WHITE)
+            self.push.buttons.set_button_color(self.mute_button, definitions.RED)
             return True
         elif button_name == self.solo_button:
             self.push.buttons.set_button_color(self.solo_button, definitions.WHITE)
@@ -413,6 +456,9 @@ class MainControlsMode(definitions.LogicMode):
         elif button_name == self.delete_button:
             self.push.buttons.set_button_color(self.delete_button, definitions.WHITE)
             return True
+        elif button_name == self.add_track_button:
+            self.push.buttons.set_button_color(self.device_button, definitions.WHITE)
+            return True
         elif button_name == self.device_button:
             self.push.buttons.set_button_color(self.device_button, definitions.WHITE)
             return True
@@ -425,28 +471,28 @@ class MainControlsMode(definitions.LogicMode):
         elif button_name == self.clip_button:
             self.push.buttons.set_button_color(self.clip_button, definitions.WHITE)
             return True
-
-
-
-
-
-
+        elif button_name == self.repeat_button:
+            self.push.buttons.set_button_color(self.repeat_button, definitions.WHITE)
+            return True
+        elif button_name == self.layout_button:
+            self.push.buttons.set_button_color(self.layout_button, definitions.WHITE)
+            return True
+        elif button_name == self.session_button:
+            self.push.buttons.set_button_color(self.session_button, definitions.WHITE)
+            return True
 
         elif button_name == self.left_button:
             self.push.buttons.set_button_color(self.left_button, definitions.WHITE)
-            self.app.logic_interface.global_left()
             return True
         elif button_name == self.right_button:
             self.push.buttons.set_button_color(self.right_button, definitions.WHITE)
-            self.app.logic_interface.global_right()
             return True
         elif button_name == self.up_button:
             self.push.buttons.set_button_color(self.up_button, definitions.WHITE)
-            self.app.logic_interface.global_up()
             return True
         elif button_name == self.down_button:
             self.push.buttons.set_button_color(self.down_button, definitions.WHITE)
-            self.app.logic_interface.global_down()
+            print(definitions.SCALES)
             return True
 
     def on_button_released_raw(self, button_name):

@@ -158,7 +158,7 @@ class PresetSelectionMode(definitions.LogicMode):
             color_matrix.append(row_colors)
         self.push.pads.set_pads_color(color_matrix)
 
-    def on_pad_pressed(self, pad_n, pad_ij, velocity, quantize=False, shift=False, select=False, long_press=False, double_press=False):
+    def on_pad_pressed(self, pad_n, pad_ij, velocity, loop=False, quantize=False, shift=False, select=False, long_press=False, double_press=False):
         preset_num, bank_num = self.pad_ij_to_bank_and_preset_num(pad_ij)
         if long_press:
             # Add/remove preset to favourites, don't send any MIDI
@@ -182,7 +182,7 @@ class PresetSelectionMode(definitions.LogicMode):
         self.app.pads_need_update = True
         return True  # Prevent other modes to get this event
 
-    def on_button_pressed(self, button_name, quantize=False, shift=False, select=False, long_press=False, double_press=False):
+    def on_button_pressed(self, button_name, loop=False, quantize=False, shift=False, select=False, long_press=False, double_press=False):
         if button_name in [self.page_left_button, self.page_right_button]:
             show_prev, show_next = self.has_prev_next_pages()
             if button_name == self.page_left_button and show_prev:

@@ -1,3 +1,4 @@
+
 import push2_python
 import colorsys
 import threading
@@ -330,8 +331,10 @@ class LogicMode(object):
         pass
 
     # Processed Push2 action callbacks that allow to easily diferentiate between actions like "button single press", "button double press", "button long press", "button single press + shift"...
-    def on_button_pressed(self, button_name, quantize=False, shift=False, select=False, long_press=False, double_press=False):
+    def on_button_pressed(self, button_name, loop=False, quantize=False, shift=False, select=False, long_press=False,
+                          double_press=False):
         pass
 
-    def on_pad_pressed(self, pad_n, pad_ij, velocity, quantize=False, shift=False, select=False, long_press=False, double_press=False):
+    def on_pad_pressed(self, pad_n, pad_ij, velocity, loop=False, quantize=False, shift=False, select=False,
+                       long_press=False, double_press=False):
         pass
