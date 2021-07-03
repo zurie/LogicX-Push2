@@ -124,8 +124,28 @@ class LogicInterface(definitions.LogicMode):
     def duplicate(self):
         self.osc_sender.send_message('/push2/duplicate', [])
 
-    def quantize(self, index, shift, loop):
+    def quantize_off(self, channel):
+        if channel == 0:
+            self.osc_sender.send_message('/push2/quantize/1_32T_off', [])
+        elif channel == 1:
+            self.osc_sender.send_message('/push2/quantize/1_32_off', [])
+        elif channel == 2:
+            self.osc_sender.send_message('/push2/quantize/1_16T_off', [])
+        elif channel == 3:
+            self.osc_sender.send_message('/push2/quantize/1_16_off', [])
+        elif channel == 4:
+            self.osc_sender.send_message('/push2/quantize/1_8T_off', [])
+        elif channel == 5:
+            self.osc_sender.send_message('/push2/quantize/1_8_off', [])
+        elif channel == 6:
+            self.osc_sender.send_message('/push2/quantize/1_4T_off', [])
+        elif channel == 7:
+            self.osc_sender.send_message('/push2/quantize/1_4_off', [])
+
+    def quantize(self, index, quantize, shift, loop):
         if index == 0:
+            if quantize:
+                self.osc_sender.send_message('/push2/quantize/1_32T_quantize', [])
             if shift:
                 self.osc_sender.send_message('/push2/quantize/1_32T_shift', [])
             elif loop:
@@ -133,49 +153,63 @@ class LogicInterface(definitions.LogicMode):
             else:
                 self.osc_sender.send_message('/push2/quantize/1_32T', [])
         elif index == 1:
-            if shift:
+            if quantize:
+                self.osc_sender.send_message('/push2/quantize/1_32_quantize', [])
+            elif shift:
                 self.osc_sender.send_message('/push2/quantize/1_32_shift', [])
             elif loop:
                 self.osc_sender.send_message('/push2/quantize/1_32_loop', [])
             else:
                 self.osc_sender.send_message('/push2/quantize/1_32', [])
         elif index == 2:
-            if shift:
+            if quantize:
+                self.osc_sender.send_message('/push2/quantize/1_16T_quantize', [])
+            elif shift:
                 self.osc_sender.send_message('/push2/quantize/1_16T_shift', [])
             elif loop:
                 self.osc_sender.send_message('/push2/quantize/1_16T_loop', [])
             else:
                 self.osc_sender.send_message('/push2/quantize/1_16T', [])
         elif index == 3:
-            if shift:
+            if quantize:
+                self.osc_sender.send_message('/push2/quantize/1_16_quantize', [])
+            elif shift:
                 self.osc_sender.send_message('/push2/quantize/1_16_shift', [])
             elif loop:
                 self.osc_sender.send_message('/push2/quantize/1_16_loop', [])
             else:
                 self.osc_sender.send_message('/push2/quantize/1_16', [])
         elif index == 4:
-            if shift:
+            if quantize:
+                self.osc_sender.send_message('/push2/quantize/1_8T_quantize', [])
+            elif shift:
                 self.osc_sender.send_message('/push2/quantize/1_8T_shift', [])
             elif loop:
                 self.osc_sender.send_message('/push2/quantize/1_8T_loop', [])
             else:
                 self.osc_sender.send_message('/push2/quantize/1_8T', [])
         elif index == 5:
-            if shift:
+            if quantize:
+                self.osc_sender.send_message('/push2/quantize/1_8_quantize', [])
+            elif shift:
                 self.osc_sender.send_message('/push2/quantize/1_8_shift', [])
             elif loop:
                 self.osc_sender.send_message('/push2/quantize/1_8_loop', [])
             else:
                 self.osc_sender.send_message('/push2/quantize/1_8', [])
         elif index == 6:
-            if shift:
+            if quantize:
+                self.osc_sender.send_message('/push2/quantize/1_4T_quantize', [])
+            elif shift:
                 self.osc_sender.send_message('/push2/quantize/1_4T_shift', [])
             elif loop:
                 self.osc_sender.send_message('/push2/quantize/1_4T_loop', [])
             else:
                 self.osc_sender.send_message('/push2/quantize/1_4T', [])
         elif index == 7:
-            if shift:
+            if quantize:
+                self.osc_sender.send_message('/push2/quantize/1_4_quantize', [])
+            elif shift:
                 self.osc_sender.send_message('/push2/quantize/1_4_shift', [])
             elif loop:
                 self.osc_sender.send_message('/push2/quantize/1_4_loop', [])
@@ -208,6 +242,9 @@ class LogicInterface(definitions.LogicMode):
 
     def undo(self):
         self.osc_sender.send_message('/push2/undo', [])
+
+    def repeat_off(self):
+        self.osc_sender.send_message('/push2/repeat_off', [])
 
     def redo(self):
         self.osc_sender.send_message('/push2/redo', [])
