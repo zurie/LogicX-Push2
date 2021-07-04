@@ -144,7 +144,11 @@ class MainControlsMode(definitions.LogicMode):
         # Settings button, to toggle settings mode
         self.set_button_color_if_expression(self.settings_button, self.app.is_mode_active(self.app.settings_mode),
                                             animation=definitions.DEFAULT_ANIMATION)
+        # # REPEAT Mode button, to toggle repeat
+        self.set_button_color_if_expression(self.repeat_button, self.app.is_mode_active(self.app.repeat_mode),
+                                            animation=definitions.DEFAULT_ANIMATION)
 
+        # Preset selection mode
         # # Scale Mode button, to toggle scale mode
         self.set_button_color_if_expression(self.scalemode_button, self.app.is_mode_active(self.app.scalemenu_mode),
                                             animation=definitions.DEFAULT_ANIMATION)
