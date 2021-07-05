@@ -1,16 +1,10 @@
 import definitions
 import push2_python
-
-import mido
 import time
 
 
 class MainControlsMode(definitions.LogicMode):
-    track_triggering_button_pressing_time = None
-    record_button_pressing_time = None
-    play_button_pressing_time = None
     preset_selection_button_pressing_time = None
-    button_quick_press_time = 0.400
 
     last_tap_tempo_times = []
 
@@ -312,7 +306,6 @@ class MainControlsMode(definitions.LogicMode):
                     pass
                 else:
                     self.app.unset_preset_selection_mode()
-                    return True
             else:
                 if not shift:
                     pass
@@ -357,10 +350,8 @@ class MainControlsMode(definitions.LogicMode):
         elif button_name == self.solo_button:
             if long_press:
                 self.app.logic_interface.solo_lock()
-                return True
             else:
                 self.app.logic_interface.solo()
-                return True
             self.app.buttons_need_update = True
             return True
 
@@ -368,10 +359,8 @@ class MainControlsMode(definitions.LogicMode):
         elif button_name == self.mute_button:
             if long_press:
                 self.app.logic_interface.mute_off()
-                return True
             else:
                 self.app.logic_interface.mute()
-                return True
             self.app.buttons_need_update = True
             return True
 
@@ -400,30 +389,9 @@ class MainControlsMode(definitions.LogicMode):
             self.app.buttons_need_update = True
             return True
 
-        elif button_name == self.quantize_buttons[0]:
-            self.app.logic_interface.quantize(0, True if quantize else False, True if shift else False, True if loop else False, False)
-            return True
-        elif button_name == self.quantize_buttons[1]:
-            self.app.logic_interface.quantize(1, True if quantize else False, True if shift else False, True if loop else False, False)
-            return True
-        elif button_name == self.quantize_buttons[2]:
-            self.app.logic_interface.quantize(2, True if quantize else False, True if shift else False, True if loop else False, False)
-            return True
-        elif button_name == self.quantize_buttons[3]:
-            self.app.logic_interface.quantize(3, True if quantize else False, True if shift else False, True if loop else False, False)
-            return True
-        elif button_name == self.quantize_buttons[4]:
-            self.app.logic_interface.quantize(4, True if quantize else False, True if shift else False, True if loop else False, False)
-            return True
-        elif button_name == self.quantize_buttons[5]:
-            self.app.logic_interface.quantize(5, True if quantize else False, True if shift else False, True if loop else False, False)
-            return True
-        elif button_name == self.quantize_buttons[6]:
-            self.app.logic_interface.quantize(6, True if quantize else False, True if shift else False, True if loop else False, False)
-            return True
-        elif button_name == self.quantize_buttons[7]:
-            self.app.logic_interface.quantize(7, True if quantize else False, True if shift else False, True if loop else False, False)
-            return True
+        for button in self.quantize_buttons:
+            if button_name == button:
+                self.app.logic_interface.quantize(button_name, True if quantize else False, True if shift else False, True if loop else False, False, False)
 
     def on_button_pressed_raw(self, button_name):
 
@@ -447,8 +415,7 @@ class MainControlsMode(definitions.LogicMode):
         elif button_name == self.double_loop_button:
             self.push.buttons.set_button_color(self.double_loop_button, definitions.WHITE)
             for arrow_name in self.arrow_buttons:
-                self.push.buttons.set_button_color(arrow_name, definitions.WHITE,
-                                                   animation=definitions.DEFAULT_ANIMATION)
+                self.push.buttons.set_button_color(arrow_name, definitions.WHITE, animation=definitions.DEFAULT_ANIMATION)
             return True
         elif button_name == self.convert_button:
             self.push.buttons.set_button_color(self.convert_button, definitions.WHITE)
@@ -492,7 +459,6 @@ class MainControlsMode(definitions.LogicMode):
         elif button_name == self.session_button:
             self.push.buttons.set_button_color(self.session_button, definitions.WHITE)
             return True
-
         elif button_name == self.left_button:
             self.push.buttons.set_button_color(self.left_button, definitions.WHITE)
             return True

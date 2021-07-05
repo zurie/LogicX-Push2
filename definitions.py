@@ -300,6 +300,7 @@ class LogicMode(object):
         for button_name in button_names:
             self.push.buttons.set_button_color(button_name, color, animation=animation,
                                                animation_end_color=animation_end_color)
+        return True
 
     def set_buttons_need_update_if_button_used(self, button_name):
         if button_name in self.buttons_used:
