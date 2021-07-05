@@ -19,7 +19,8 @@ class MelodicMode(definitions.LogicMode):
     latest_velocity_value = (0, 0)
     last_time_at_params_edited = None
     modulation_wheel_mode = True
-    scale = definitions.Major
+    scale = definitions.ScaleNotes[0]
+    scale_index = 0
     # scale_name
 
     lumi_midi_out = None
@@ -52,9 +53,13 @@ class MelodicMode(definitions.LogicMode):
     def set_lumi_pressure_mode(self):
         if self.lumi_midi_out is not None:
             if not self.use_poly_at:
-                msg = mido.Message('sysex', data=[0x00, 0x21, 0x10, 0x77, 0x27, 0x10, 0x00, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64])
+                msg = mido.Message('sysex',
+                                   data=[0x00, 0x21, 0x10, 0x77, 0x27, 0x10, 0x00, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                         0x64])
             else:
-                msg = mido.Message('sysex', data=[0x00, 0x21, 0x10, 0x77, 0x27, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04])
+                msg = mido.Message('sysex',
+                                   data=[0x00, 0x21, 0x10, 0x77, 0x27, 0x10, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                         0x04])
             self.lumi_midi_out.send(msg)
 
     def send_all_note_offs_to_lumi(self):
@@ -133,134 +138,21 @@ class MelodicMode(definitions.LogicMode):
     def remove_all_notes_being_played(self):
         self.notes_being_played = []
 
-    def toggle_scale(self):
+    def scaley(self, value):
+        if value == 'inc':
+            if self.scale_index == len(definitions.Scales) - 1:
+                self.scale_index = 0
+            else:
+                self.scale_index = self.scale_index + 1
 
-        if self.scale == definitions.Minor:
-            self.scale = definitions.Dorian
-            definitions.SCALE_NAME = 'Dorian'
-            self.update_pads()
-
-        elif self.scale == definitions.Dorian:
-            self.scale = definitions.Mixolydian
-            definitions.SCALE_NAME = 'Mixolydian'
-            self.update_pads()
-
-        elif self.scale == definitions.Mixolydian:
-            self.scale = definitions.Major
-            definitions.SCALE_NAME = 'Major'
-            self.update_pads()
-
-        elif self.scale == definitions.Major:
-            self.scale = definitions.Lydian
-            definitions.SCALE_NAME = 'Lydian'
-            self.update_pads()
-
-        elif self.scale == definitions.Lydian:
-            self.scale = definitions.Phrygian
-            definitions.SCALE_NAME = 'Phrygian'
-            self.update_pads()
-
-        elif self.scale == definitions.Phrygian:
-            self.scale = definitions.Locrian
-            definitions.SCALE_NAME = 'Locrian'
-            self.update_pads()
-
-        elif self.scale == definitions.Locrian:
-            self.scale = definitions.Diminished
-            definitions.SCALE_NAME = 'Diminished'
-            self.update_pads()
-
-        elif self.scale == definitions.Diminished:
-            self.scale = definitions.Whole_half
-            definitions.SCALE_NAME = 'Whole-half'
-            self.update_pads()
-
-        elif self.scale == definitions.Whole_half:
-            self.scale = definitions.Whole_Tone
-            definitions.SCALE_NAME = 'Whole-Tone'
-            self.update_pads()
-
-        elif self.scale == definitions.Whole_Tone:
-            self.scale = definitions.Minor_Blues
-            definitions.SCALE_NAME = 'Minor Blues'
-            self.update_pads()
-
-        elif self.scale == definitions.Minor_Blues:
-            self.scale = definitions.Minor_Pentatonic
-            definitions.SCALE_NAME = 'Minor Pentatonic'
-            self.update_pads()
-
-        elif self.scale == definitions.Minor_Pentatonic:
-            self.scale = definitions.Major_Pentatonic
-            definitions.SCALE_NAME = 'Major Pentatonic'
-            self.update_pads()
-
-        elif self.scale == definitions.Major_Pentatonic:
-            self.scale = definitions.Harmonic_Minor
-            definitions.SCALE_NAME = 'Harmonic Minor'
-            self.update_pads()
-
-        elif self.scale == definitions.Harmonic_Minor:
-            self.scale = definitions.Melodic_Minor
-            definitions.SCALE_NAME = 'Melodic Minor'
-            self.update_pads()
-
-        elif self.scale == definitions.Melodic_Minor:
-            self.scale = definitions.Super_Locrian
-            definitions.SCALE_NAME = 'Super Locrian'
-            self.update_pads()
-
-        elif self.scale == definitions.Super_Locrian:
-            self.scale = definitions.Bhairav
-            definitions.SCALE_NAME = 'Bhairav'
-            self.update_pads()
-
-        elif self.scale == definitions.Bhairav:
-            self.scale = definitions.Hungarian_Minor
-            definitions.SCALE_NAME = 'Hungarian Minor'
-            self.update_pads()
-
-        elif self.scale == definitions.Hungarian_Minor:
-            self.scale = definitions.Minor_Gypsy
-            definitions.SCALE_NAME = 'Minor Gypsy'
-            self.update_pads()
-
-        elif self.scale == definitions.Minor_Gypsy:
-            self.scale = definitions.Hirojoshi
-            definitions.SCALE_NAME = 'Hirojoshi'
-            self.update_pads()
-
-        elif self.scale == definitions.Hirojoshi:
-            self.scale = definitions.In_Sen
-            definitions.SCALE_NAME = 'In Sen'
-            self.update_pads()
-
-        elif self.scale == definitions.In_Sen:
-            self.scale = definitions.Iwato
-            definitions.SCALE_NAME = 'Iwato'
-            self.update_pads()
-
-        elif self.scale == definitions.Iwato:
-            self.scale = definitions.Kumoi
-            definitions.SCALE_NAME = 'Kumoi'
-            self.update_pads()
-
-        elif self.scale == definitions.Kumoi:
-            self.scale = definitions.Pelog
-            definitions.SCALE_NAME = 'Pelog'
-            self.update_pads()
-
-        elif self.scale == definitions.Pelog:
-            self.scale = definitions.Spanish
-            definitions.SCALE_NAME = 'Spanish'
-            self.update_pads()
-
-        elif self.scale == definitions.Spanish:
-            self.scale = definitions.Minor
-            definitions.SCALE_NAME = 'Minor'
-            self.update_pads()
-
-        # self.app.add_display_notification("{0} {1} Scale".format(self.note_number_to_name(self.root_midi_note), definitions.SCALE_NAME))
+        elif value == 'dec':
+            if self.scale_index == 0:
+                self.scale_index = len(definitions.Scales) - 1
+            else:
+                self.scale_index = self.scale_index - 1
+        definitions.SCALE_NAME = definitions.Scales[self.scale_index]
+        self.scale = definitions.ScaleNotes[self.scale_index]
+        self.update_pads()
         return True
 
     def pad_ij_to_midi_note(self, pad_ij):
@@ -386,7 +278,8 @@ class MelodicMode(definitions.LogicMode):
             # notes info comming from any other source
 
             self.add_note_being_played(sorted((0, midi_note, 127))[1], 'push')
-        msg = mido.Message('note_on', note=sorted((0, midi_note, 127))[1], velocity=velocity if not self.fixed_velocity_mode else 127)
+        msg = mido.Message('note_on', note=sorted((0, midi_note, 127))[1],
+                           velocity=velocity if not self.fixed_velocity_mode else 127)
         self.app.send_midi(msg)
         self.update_pads()  # Directly calling update pads method because we want user to feel feedback as quick as possible
         return True
@@ -432,7 +325,8 @@ class MelodicMode(definitions.LogicMode):
         self.app.send_midi(msg)
         return True
 
-    def on_button_pressed(self, button_name, loop=False, quantize=False, shift=False, select=False, long_press=False, double_press=False):
+    def on_button_pressed(self, button_name, loop=False, quantize=False, shift=False, select=False, long_press=False,
+                          double_press=False):
         if button_name == self.octave_up_button:
             self.set_root_midi_note(self.root_midi_note + 12)
             self.app.pads_need_update = True

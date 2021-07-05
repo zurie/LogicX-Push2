@@ -10,6 +10,14 @@ from display_utils import show_title, show_value, draw_text_at, show_bigvalue
 class ScaleMenuMode(SettingsMode):
     current_page = 0
     n_pages = 1
+    encoders_state = {}
+
+    def initialize(self, settings=None):
+        current_time = time.time()
+        for encoder_name in self.push.encoders.available_names:
+            self.encoders_state[encoder_name] = {
+                'last_message_received': current_time,
+            }
 
     def activate(self):
         self.current_page = 0
@@ -40,15 +48,19 @@ class ScaleMenuMode(SettingsMode):
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, definitions.BLACK)
 
     def on_button_pressed_raw(self, button_name):
-
-        if self.current_page == 0:  # Performance settings
+        if self.current_page == 0:
             if button_name == push2_python.constants.BUTTON_UPPER_ROW_1:
                 self.app.melodic_mode.set_root_midi_note(self.app.melodic_mode.root_midi_note + 1)
                 self.app.pads_need_update = True
                 return True
 
-            elif button_name == push2_python.constants.BUTTON_UPPER_ROW_2:
-                self.app.melodic_mode.toggle_scale()
+    def on_button_pressed(self, button_name, loop=False, quantize=False, shift=False, select=False, long_press=False, double_press=False):
+        if self.current_page == 0:
+            if button_name == push2_python.constants.BUTTON_UPPER_ROW_2:
+                if not shift:
+                    self.app.melodic_mode.scaley('inc')
+                else:
+                    self.app.melodic_mode.scaley('dec')
                 return True
 
     def update_display(self, ctx, w, h):
@@ -99,7 +111,6 @@ class ScaleMenuMode(SettingsMode):
                              font_size=20)
 
     def on_encoder_rotated(self, encoder_name, increment):
-
         self.encoders_state[encoder_name]['last_message_received'] = time.time()
 
         if self.current_page == 0:  # Performance settings
@@ -109,8 +120,9 @@ class ScaleMenuMode(SettingsMode):
 
             elif encoder_name == push2_python.constants.ENCODER_TRACK2_ENCODER:
                 if increment >= 1:  # Only respond to "big" increments
-                    self.app.melodic_mode.toggle_scale()
+                    self.app.melodic_mode.scaley('inc')
+                    return True
                 elif increment <= -1:
-                    self.app.melodic_mode.toggle_scale()
-
-        return True  # Always return True because encoder should not be used in any other mode if this is first active
+                    self.app.melodic_mode.scaley('dec')
+                    return True
+            return True  # Always return True because encoder should not be used in any other mode if this is first active
