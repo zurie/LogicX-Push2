@@ -19,7 +19,7 @@ class MelodicMode(definitions.LogicMode):
     latest_velocity_value = (0, 0)
     last_time_at_params_edited = None
     modulation_wheel_mode = True
-    scale = definitions.ScaleNotes[0]
+    scale = definitions.SCALES[0].notes
     scale_index = 0
     # scale_name
 
@@ -140,18 +140,18 @@ class MelodicMode(definitions.LogicMode):
 
     def scaley(self, value):
         if value == 'inc':
-            if self.scale_index == len(definitions.Scales) - 1:
+            if self.scale_index == len(definitions.SCALES) - 1:
                 self.scale_index = 0
             else:
                 self.scale_index = self.scale_index + 1
 
         elif value == 'dec':
             if self.scale_index == 0:
-                self.scale_index = len(definitions.Scales) - 1
+                self.scale_index = len(definitions.SCALES) - 1
             else:
                 self.scale_index = self.scale_index - 1
-        definitions.SCALE_NAME = definitions.Scales[self.scale_index]
-        self.scale = definitions.ScaleNotes[self.scale_index]
+        definitions.SCALE_NAME = definitions.SCALES[self.scale_index].name
+        self.scale = definitions.SCALES[self.scale_index].notes
         self.update_pads()
         return True
 

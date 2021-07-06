@@ -1,3 +1,4 @@
+from typing import NamedTuple
 
 import push2_python
 import colorsys
@@ -98,61 +99,47 @@ COLORS_NAMES = [ROYALBLUE,
 
 SCALE_NAME = 'Major'
 
-Scales = [
-    "Major",
-    "Minor",
-    "Dorian",
-    "Mixolydian",
-    "Lydian",
-    "Phrygian",
-    "Locrian",
-    "Diminished",
-    "Whole_half",
-    "Whole_Tone",
-    "Minor_Blues",
-    "Minor_Pentatonic",
-    "Major_Pentatonic",
-    "Harmonic_Minor",
-    "Melodic_Minor",
-    "Super_Locrian",
-    "Bhairav",
-    "Hungarian_Minor",
-    "Minor_Gypsy",
-    "Hirojoshi",
-    "In_Sen",
-    "Iwato",
-    "Kumoi",
-    "Pelog",
-    "Spanish"
-]
 
-ScaleNotes = [
-    [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1],
-    [1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0],
-    [1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0],
-    [1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0],
-    [1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1],
-    [1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0],
-    [1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0],
-    [1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0],
-    [1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1],
-    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
-    [1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0],
-    [1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0],
-    [1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0],
-    [1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1],
-    [1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1],
-    [1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0],
-    [1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1],
-    [1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1],
-    [1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0],
-    [1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0],
-    [1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0],
-    [1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0],
-    [1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0],
-    [1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0],
-    [1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 0]
-]
+class Scale:
+    def __init__(self, name, notes):
+        self.name = name
+        self.notes = notes
+
+    def __repr__(self):
+        return "Scale name:% s notes:% s" % (self.name, self.notes)
+
+    def __str__(self):
+        return "From str method of Scale: name is % s, " \
+               "notes are % s" % (self.name, self.notes)
+
+
+SCALES = (
+    Scale(name='Major',            notes=[1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1]),
+    Scale(name='Minor',            notes=[1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0]),
+    Scale(name='Dorian',           notes=[1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0]),
+    Scale(name='Mixolydian',       notes=[1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0]),
+    Scale(name='Lydian',           notes=[1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1]),
+    Scale(name='Phrygian',         notes=[1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0]),
+    Scale(name='Locrian',          notes=[1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0]),
+    Scale(name='Diminished',       notes=[1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0]),
+    Scale(name='Whole half',       notes=[1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1]),
+    Scale(name='Whole Tone',       notes=[1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]),
+    Scale(name='Minor Blues',      notes=[1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0]),
+    Scale(name='Minor Pentatonic', notes=[1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0]),
+    Scale(name='Major Pentatonic', notes=[1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0]),
+    Scale(name='Harmonic Minor',   notes=[1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1]),
+    Scale(name='Melodic Minor',    notes=[1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1]),
+    Scale(name='Super Locrian',    notes=[1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0]),
+    Scale(name='Bhairav',          notes=[1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1]),
+    Scale(name='Hungarian Minor',  notes=[1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1]),
+    Scale(name='Minor Gypsy',      notes=[1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0]),
+    Scale(name='Hirojoshi',        notes=[1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0]),
+    Scale(name='In Sen',           notes=[1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0]),
+    Scale(name='Iwato',            notes=[1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0]),
+    Scale(name='Kumoi',            notes=[1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0]),
+    Scale(name='Pelog',            notes=[1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0]),
+    Scale(name='Spanish',          notes=[1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 0])
+)
 
 
 def get_color_rgb(color_name):
