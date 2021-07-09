@@ -1,4 +1,4 @@
-import cairo
+import cairocffi as cairo
 import definitions
 import push2_python
 
@@ -99,5 +99,80 @@ def show_notification(ctx, text, opacity=1.0):
     margin_left = 8
     ctx.move_to(margin_left, 2.2 * font_size)
     ctx.show_text(text)
+
+    ctx.restore()
+
+
+def show_help(ctx, title, hotkey, path, description, color, opacity=1.0):
+    ctx.save()
+
+    # Background
+    display_w = push2_python.constants.DISPLAY_LINE_PIXELS
+    display_h = push2_python.constants.DISPLAY_N_LINES
+    initial_bg_opacity = 1
+    ctx.set_source_rgba(0.0, 0.0, 0.0, initial_bg_opacity * opacity)
+    ctx.rectangle(0, 0, display_w, display_h)
+    ctx.fill()
+
+    ctx.set_source_rgba(0.10, 0.10, 0.10, initial_bg_opacity * opacity)
+    ctx.rectangle(0, 0, 200, display_h)
+    ctx.fill()
+
+    ctx.set_source_rgba(0.2, 0.2, 0.2, initial_bg_opacity * opacity)
+    ctx.rectangle(0, display_h/3, 200, (display_h/3))
+    ctx.fill()
+
+    ctx.set_source_rgba(*definitions.get_color_rgb_float(color), initial_bg_opacity * opacity)
+    ctx.set_line_width(2)
+    ctx.line_to(0, display_h/3)
+    ctx.line_to(201, display_h/3)
+    ctx.stroke()
+
+    ctx.set_source_rgba(*definitions.get_color_rgb_float(color), initial_bg_opacity * opacity)
+    ctx.set_line_width(2)
+    ctx.line_to(0, (display_h/3)*2)
+    ctx.line_to(201, (display_h/3)*2)
+    ctx.stroke()
+
+    ctx.set_source_rgba(*definitions.get_color_rgb_float(color), initial_bg_opacity * opacity)
+    ctx.set_line_width(2)
+    ctx.line_to(201, 0)
+    ctx.line_to(201, display_h)
+    ctx.stroke()
+
+
+    # Text
+    initial_text_opacity = 1.0
+    ctx.set_source_rgba(1.0, 1.0, 1.0, initial_text_opacity * opacity)
+    font_size = display_h // 8
+    ctx.set_font_size(font_size)
+    margin_left = 8
+    ctx.move_to(margin_left, 1.0 * font_size)
+    ctx.set_font_size(font_size/1.5)
+    ctx.show_text("BUTTON NAME:")
+    ctx.set_font_size(font_size)
+    ctx.move_to(margin_left * 2, 2.0 * font_size)
+    ctx.show_text(title)
+
+    ctx.move_to(margin_left, 3.6 * font_size)
+    ctx.set_font_size(font_size/1.5)
+    ctx.show_text("LOGIC HOTKEY:")
+    ctx.set_font_size(font_size)
+    ctx.move_to(margin_left * 2, 4.6 * font_size)
+    ctx.show_text(hotkey)
+
+    ctx.move_to(margin_left, 6.4 * font_size)
+    ctx.set_font_size(font_size/1.5)
+    ctx.show_text("OSC PATH:")
+    ctx.set_font_size(font_size)
+    ctx.move_to(margin_left * 2, 7.4 * font_size)
+    ctx.show_text(path)
+
+    ctx.move_to(margin_left + 201, 1.0 * font_size)
+    ctx.set_font_size(font_size/1.5)
+    ctx.show_text("Description:")
+    ctx.set_font_size(font_size)
+    ctx.move_to((margin_left * 2) + 201, 3.6 * font_size)
+    ctx.show_text(description)
 
     ctx.restore()

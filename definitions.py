@@ -8,7 +8,7 @@ from functools import wraps
 
 from push2_python.constants import ANIMATION_STATIC
 
-VERSION = '0.4'
+VERSION = '0.5'
 
 DELAYED_ACTIONS_APPLY_TIME = 1.0  # Encoder changes won't be applied until this time has passed since last moved
 isPlaying = False
@@ -20,6 +20,7 @@ LAYOUT_RHYTHMIC = 'lrhythmic'
 LAYOUT_SLICES = 'lslices'
 
 NOTIFICATION_TIME = 3
+HELP_TIME = 30
 
 BLACK_RGB = [5, 5, 5]
 GRAY_DARK_RGB = [30, 30, 30]
@@ -189,6 +190,7 @@ DEFAULT_ANIMATION = push2_python.constants.ANIMATION_PULSING_QUARTER
 INSTRUMENT_DEFINITION_FOLDER = 'instrument_definitions'
 DEVICE_DEFINITION_FOLDER = 'device_definitions'
 TRACK_LISTING_PATH = 'track_listing.json'
+HELP_DOCS_PATH = 'button_docs.json'
 
 BUTTON_LONG_PRESS_TIME = 0.25
 BUTTON_DOUBLE_PRESS_TIME = 0.2

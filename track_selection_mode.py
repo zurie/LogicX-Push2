@@ -1,7 +1,7 @@
 import math
 
 import definitions
-import push2_python
+import push2_python.constants
 import os
 import json
 

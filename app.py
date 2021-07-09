@@ -3,7 +3,7 @@ import os
 import time
 import traceback
 
-import cairo
+import cairocffi as cairo
 import platform
 import definitions
 import mido
@@ -17,13 +17,14 @@ from track_selection_mode import TrackSelectionMode
 from rhythmic_mode import RhythmicMode
 from slice_notes_mode import SliceNotesMode
 from settings_mode import SettingsMode
+from help_mode import HelpMode
 from repeat_mode import RepeatMode
 from scalemenu_mode import ScaleMenuMode
 from main_controls_mode import MainControlsMode
 from midi_cc_mode import MIDICCMode
 from preset_selection_mode import PresetSelectionMode
 from logic_interface import LogicInterface
-from display_utils import show_notification
+from display_utils import show_notification, show_help
 
 
 class LogicApp(object):
@@ -60,6 +61,10 @@ class LogicApp(object):
     # notifications
     notification_text = None
     notification_time = 0
+
+    # help
+    help_title = help_hotkey = help_description = help_color = help_path = None
+    help_time = 0
 
     # fixing issue with 2 lumis and alternating channel pressure values
     last_cp_value_received = 0
@@ -99,12 +104,12 @@ class LogicApp(object):
 
         self.track_selection_mode = TrackSelectionMode(self, settings=settings)
         self.preset_selection_mode = PresetSelectionMode(self, settings=settings)
-        self.midi_cc_mode = MIDICCMode(self,
-                                       settings=settings)  # Must be initialized after track selection mode so it gets info about loaded tracks
+        self.midi_cc_mode = MIDICCMode(self, settings=settings)  # Must be initialized after track selection mode so it gets info about loaded tracks
         self.active_modes += [self.track_selection_mode, self.midi_cc_mode]
         self.track_selection_mode.select_track(self.track_selection_mode.selected_track)
 
         self.settings_mode = SettingsMode(self, settings=settings)
+        self.help_mode = HelpMode(self, settings=settings)
         self.repeat_mode = RepeatMode(self, settings=settings)
         self.scalemenu_mode = ScaleMenuMode(self, settings=settings)
 
@@ -114,6 +119,16 @@ class LogicApp(object):
 
     def is_mode_active(self, mode):
         return mode in self.active_modes
+
+    def toggle_and_rotate_help_mode(self):
+        if self.is_mode_active(self.help_mode):
+            rotation_finished = self.help_mode.move_to_next_page()
+            if rotation_finished:
+                self.active_modes = [mode for mode in self.active_modes if mode != self.help_mode]
+                self.help_mode.deactivate()
+        else:
+            self.active_modes.append(self.help_mode)
+            self.help_mode.activate()
 
     def toggle_and_rotate_settings_mode(self):
         if self.is_mode_active(self.settings_mode):
@@ -425,6 +440,18 @@ class LogicApp(object):
         self.notification_text = None
         self.notification_time = time.time()
 
+    def add_display_help(self, title, hotkey, path, description, color):
+        self.help_title = title
+        self.help_hotkey = hotkey
+        self.help_path = path
+        self.help_description = description
+        self.help_color = color
+        self.help_time = time.time()
+
+    def clear_display_help(self):
+        self.help_title = self.help_hotkey = self.help_path = self.help_description = self.help_color = None
+        self.help_time = time.time()
+
     def init_push(self):
         print('Configuring Push...')
         self.push = push2_python.Push2(run_simulator=platform.system() != "Linux")
@@ -462,6 +489,14 @@ class LogicApp(object):
                                       opacity=1 - time_since_notification_started / definitions.NOTIFICATION_TIME)
                 else:
                     self.notification_text = None
+
+            # Show any notifications that should be shown
+            if self.help_title is not None:
+                time_since_help_started = time.time() - self.help_time
+                if time_since_help_started < definitions.HELP_TIME:
+                    show_help(ctx, self.help_title, self.help_hotkey, self.help_path, self.help_description, self.help_color, opacity=1)
+                else:
+                    self.help_title = self.help_hotkey = self.help_path = self.help_description = self.help_color = None
 
             # Convert cairo data to numpy array and send to push
             buf = surface.get_data()
