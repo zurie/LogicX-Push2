@@ -1,0 +1,450 @@
+{
+  "help_docs": [
+    {
+      "button": "Up",
+      "title": "Up Arrow",
+      "hotkey": "N/A",
+      "path": "N/A",
+      "description": "Direct mapping of the Up arrow key."
+    },
+    {
+      "button": "Down",
+      "title": "Down Arrow",
+      "hotkey": "N/A",
+      "path": "N/A",
+      "description": "Direct mapping of the Down arrow key."
+    },
+    {
+      "button": "Left",
+      "title": "Left Arrow",
+      "hotkey": "N/A",
+      "path": "N/A",
+      "description": "Direct mapping of the Left arrow key."
+    },
+    {
+      "button": "Right",
+      "title": "Right Arrow",
+      "hotkey": "N/A",
+      "path": "N/A",
+      "description": "Direct mapping of the Right arrow key."
+    },
+    {
+      "button": "Play",
+      "title": "Play / Stop",
+      "hotkey": "N/A",
+      "path": "/1/play",
+      "description": "Alternates between play and stop when pressed."
+    },
+    {
+      "button": "Automate",
+      "title": "Show Automation",
+      "hotkey": "A",
+      "path": "N/A",
+      "description": "Shows automation on Logic arrangement window."
+    },
+    {
+      "button": "Fixed Length",
+      "title": "Trim Overlaps",
+      "hotkey": "/",
+      "path": "N/A",
+      "description": "Trims overlapping notes in piano roll"
+    },
+    {
+      "button": "New",
+      "title": "New tracks",
+      "hotkey": "OPT + CMD + N",
+      "path": "/push2/new",
+      "description": "Presents the new track dialog."
+    },
+    {
+      "button": "Duplicate",
+      "title": "Track Duplicate",
+      "hotkey": "CMD + D",
+      "path": "/push2/duplicate",
+      "description": "New track with duplicate settings"
+    },
+    {
+      "button": "Quantize",
+      "title": "Quantize",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Double Loop",
+      "title": "Double Loop",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Convert",
+      "title": "Convert",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Mute",
+      "title": "Mute",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Solo",
+      "title": "Solo",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Stop",
+      "title": "Stop",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Record",
+      "title": "Record",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Undo",
+      "title": "Undo",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Delete",
+      "title": "Delete",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Tap Tempo",
+      "title": "Tap Tempo",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Metronome",
+      "title": "Metronome",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Device",
+      "title": "Device",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Mix",
+      "title": "Mix",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Browse",
+      "title": "Browse",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Clip",
+      "title": "Clip",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Add Device",
+      "title": "Add Device",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Add Track",
+      "title": "Add Track",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Master",
+      "title": "Master",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "1/32t",
+      "title": "1/32t",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "1/32",
+      "title": "1/32",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "1/16t",
+      "title": "1/16t",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "1/16",
+      "title": "1/16",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "1/8t",
+      "title": "1/8t",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "1/8",
+      "title": "1/8",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "1/4t",
+      "title": "1/4t",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "1/4",
+      "title": "1/4",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Repeat",
+      "title": "Repeat",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Accent",
+      "title": "Accent",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Scale",
+      "title": "Scale",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Layout",
+      "title": "Layout",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Note",
+      "title": "Note",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Session",
+      "title": "Session",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Page Left",
+      "title": "Page Left",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Page Right",
+      "title": "Page Right",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Octave Up",
+      "title": "Octave Up",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Octave Down",
+      "title": "Octave Down",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Shift",
+      "title": "Shift",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Select",
+      "title": "Select",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Upper Row 1",
+      "title": "Upper Row 1",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Upper Row 2",
+      "title": "Upper Row 2",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Upper Row 3",
+      "title": "Upper Row 3",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Upper Row 4",
+      "title": "Upper Row 4",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Upper Row 5",
+      "title": "Upper Row 5",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Upper Row 6",
+      "title": "Upper Row 6",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Upper Row 7",
+      "title": "Upper Row 7",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Upper Row 8",
+      "title": "Upper Row 8",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Lower Row 1",
+      "title": "Lower Row 1",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Lower Row 2",
+      "title": "Lower Row 2",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Lower Row 3",
+      "title": "Lower Row 3",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Lower Row 4",
+      "title": "Lower Row 4",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Lower Row 5",
+      "title": "Lower Row 5",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Lower Row 6",
+      "title": "Lower Row 6",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Lower Row 7",
+      "title": "Lower Row 7",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    },
+    {
+      "button": "Lower Row 8",
+      "title": "Lower Row 8",
+      "hotkey": "",
+      "path": "N/A",
+      "description": "N/A"
+    }
+  ]
+}
+
+
+
+
+
