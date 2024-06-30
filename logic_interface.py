@@ -2,7 +2,6 @@ from oscpy.client import OSCClient
 from oscpy.server import OSCThreadServer
 import definitions
 import threading
-import asyncio
 import time
 import push2_python
 
@@ -29,38 +28,27 @@ def to_utf8(utf8):
 
 
 class LogicInterface(definitions.LogicMode):
-    app = None
-    count = 0
-    osc_sender = None
-    osc_server = None
-
-    state_transport_check_thread = None
-    state_tracks_check_thread = None
-
-    last_received_tracks_raw_state = ""
-    parsed_state = {}
-
     def __init__(self, app):
         self.app = app
-
         self.osc_sender = OSCClient(osc_send_host, osc_send_port, encoding='utf8')
-
         self.osc_server = OSCThreadServer()
-        sock = self.osc_server.listen(address='0.0.0.0', port=osc_receive_port, default=True)
+        self.osc_server.listen(address='0.0.0.0', port=osc_receive_port, default=True)
+        self.setup_osc_bindings()
+
+        self.state_transport_check_thread = threading.Thread(target=self.check_transport_state)
+        self.state_tracks_check_thread = threading.Thread(target=self.check_tracks_state)
+
+        self.last_received_tracks_raw_state = ""
+        self.parsed_state = {}
+
+    def setup_osc_bindings(self):
         self.osc_server.bind(b'/stateFromLogic/play', self.update_play_button)
         self.osc_server.bind(b'/stateFromLogic/click', self.update_metronome_button)
         self.osc_server.bind(b'/stateFromLogic/beats', self.bpm_lights)
         self.osc_server.bind(b'/stateFromLogic/record', self.update_record_button)
 
-        # self.run_get_state_transport_thread()
-        # self.run_get_state_tracks_thread()
-
-    def run_get_state_transport_thread(self):
-        self.state_transport_check_thread = threading.Thread(target=self.check_transport_state)
+    def start_threads(self):
         self.state_transport_check_thread.start()
-
-    def run_get_state_tracks_thread(self):
-        self.state_tracks_check_thread = threading.Thread(target=self.check_tracks_state)
         self.state_tracks_check_thread.start()
 
     def check_transport_state(self):
@@ -73,227 +61,129 @@ class LogicInterface(definitions.LogicMode):
             time.sleep(1.0 / tracks_state_fps)
             self.osc_sender.send_message('/state/tracks', [])
 
-    def update_play_button(self, value):
-        definitions.isPlaying = True if value == 1.0 else False
+    def update_button(self, value, attribute, button, on_color, off_color):
+        setattr(definitions, attribute, value == 1.0)
         self.app.logic_interface.get_buttons_state()
+        color = on_color if getattr(definitions, attribute) else off_color
+        self.push.buttons.set_button_color(button, color)
+
+    def update_play_button(self, value):
+        self.update_button(value, 'isPlaying', push2_python.constants.BUTTON_PLAY, definitions.GREEN, definitions.LIME)
 
     def update_metronome_button(self, value):
-        definitions.isMetronome = True if value == 1.0 else False
-        self.app.logic_interface.get_buttons_state()
+        self.update_button(value, 'isMetronome', push2_python.constants.BUTTON_METRONOME, definitions.WHITE,
+                           definitions.OFF_BTN_COLOR)
 
     def update_record_button(self, value):
-        definitions.isRecording = True if value == 1.0 else False
-        self.app.logic_interface.get_buttons_state()
+        self.update_button(value, 'isRecording', push2_python.constants.BUTTON_RECORD, definitions.RED,
+                           definitions.GREEN)
+
+    def send_message(self, address, args=None):
+        if args is None:
+            args = []
+        self.osc_sender.send_message(address, args)
 
     def automate(self):
-        self.osc_sender.send_message('/push2/automate', [])
+        self.send_message('/push2/automate')
 
     def repeat(self):
-        self.osc_sender.send_message('/push2/repeat', [])
+        self.send_message('/push2/repeat')
 
     def layout(self):
-        self.osc_sender.send_message('/push2/layout', [])
+        self.send_message('/push2/layout')
 
     def session(self):
-        self.osc_sender.send_message('/push2/session', [])
+        self.send_message('/push2/session')
 
     def add_track(self):
-        self.osc_sender.send_message('/push2/add_track', [])
+        self.send_message('/push2/add_track')
 
     def device(self):
-        self.osc_sender.send_message('/push2/device', [])
+        self.send_message('/push2/device')
 
     def mix(self):
-        self.osc_sender.send_message('/push2/mix', [])
+        self.send_message('/push2/mix')
 
     def browse(self):
-        self.osc_sender.send_message('/push2/browse', [])
+        self.send_message('/push2/browse')
 
     def clip(self):
-        self.osc_sender.send_message('/push2/clip', [])
+        self.send_message('/push2/clip')
 
     def fixed_length(self):
-        self.osc_sender.send_message('/push2/fixed_length', [])
+        self.send_message('/push2/fixed_length')
 
     def new(self):
-        self.osc_sender.send_message('/push2/new', [])
+        self.send_message('/push2/new')
 
     def new_next(self):
-        self.osc_sender.send_message('/push2/new_next', [])
+        self.send_message('/push2/new_next')
 
     def duplicate(self):
-        self.osc_sender.send_message('/push2/duplicate', [])
-
-    def quantize(self, index, quantize, shift, loop, repeat, off):
-        if index == '1/32t':
-            if quantize:
-                self.osc_sender.send_message('/push2/quantize/1_32T_quantize', [])
-            elif shift:
-                self.osc_sender.send_message('/push2/quantize/1_32T_shift', [])
-            elif repeat:
-                self.osc_sender.send_message('/push2/quantize/1_32T', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/quantize/1_32T_loop', [])
-            elif off:
-                self.osc_sender.send_message('/push2/quantize/1_32T_off', [])
-        elif index == '1/32':
-            if quantize:
-                self.osc_sender.send_message('/push2/quantize/1_32_quantize', [])
-            elif shift:
-                self.osc_sender.send_message('/push2/quantize/1_32_shift', [])
-            elif repeat:
-                self.osc_sender.send_message('/push2/quantize/1_32', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/quantize/1_32_loop', [])
-            elif off:
-                self.osc_sender.send_message('/push2/quantize/1_32_off', [])
-        elif index == '1/16t':
-            if quantize:
-                self.osc_sender.send_message('/push2/quantize/1_16T_quantize', [])
-            elif shift:
-                self.osc_sender.send_message('/push2/quantize/1_16T_shift', [])
-            elif repeat:
-                self.osc_sender.send_message('/push2/quantize/1_16T', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/quantize/1_16T_loop', [])
-            elif off:
-                self.osc_sender.send_message('/push2/quantize/1_16T_off', [])
-        elif index == '1/16':
-            if quantize:
-                self.osc_sender.send_message('/push2/quantize/1_16_quantize', [])
-            elif shift:
-                self.osc_sender.send_message('/push2/quantize/1_16_shift', [])
-            elif repeat:
-                self.osc_sender.send_message('/push2/quantize/1_16', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/quantize/1_16_loop', [])
-            elif off:
-                self.osc_sender.send_message('/push2/quantize/1_16_off', [])
-        elif index == '1/8t':
-            if quantize:
-                self.osc_sender.send_message('/push2/quantize/1_8T_quantize', [])
-            elif shift:
-                self.osc_sender.send_message('/push2/quantize/1_8T_shift', [])
-            elif repeat:
-                self.osc_sender.send_message('/push2/quantize/1_8T', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/quantize/1_8T_loop', [])
-            elif off:
-                self.osc_sender.send_message('/push2/quantize/1_8T_off', [])
-        elif index == '1/8':
-            if quantize:
-                self.osc_sender.send_message('/push2/quantize/1_8_quantize', [])
-            elif shift:
-                self.osc_sender.send_message('/push2/quantize/1_8_shift', [])
-            elif repeat:
-                self.osc_sender.send_message('/push2/quantize/1_8', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/quantize/1_8_loop', [])
-            elif off:
-                self.osc_sender.send_message('/push2/quantize/1_8_off', [])
-        elif index == '1/4t':
-            if quantize:
-                self.osc_sender.send_message('/push2/quantize/1_4T_quantize', [])
-            elif shift:
-                self.osc_sender.send_message('/push2/quantize/1_4T_shift', [])
-            elif repeat:
-                self.osc_sender.send_message('/push2/quantize/1_4T', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/quantize/1_4T_loop', [])
-            elif off:
-                self.osc_sender.send_message('/push2/quantize/1_4T_off', [])
-        elif index == '1/4':
-            if quantize:
-                self.osc_sender.send_message('/push2/quantize/1_4_quantize', [])
-            elif shift:
-                self.osc_sender.send_message('/push2/quantize/1_4_shift', [])
-            elif repeat:
-                self.osc_sender.send_message('/push2/quantize/1_4', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/quantize/1_4_loop', [])
-            elif off:
-                self.osc_sender.send_message('/push2/quantize/1_4_off', [])
+        self.send_message('/push2/duplicate')
 
     def double_loop(self):
-        self.osc_sender.send_message('/push2/double_loop', [])
+        self.send_message('/push2/double_loop')
 
     def double(self):
-        self.osc_sender.send_message('/push2/double', [])
+        self.send_message('/push2/double')
 
     def convert(self):
-        self.osc_sender.send_message('/push2/convert', [])
+        self.send_message('/push2/convert')
 
     def stop_clip(self):
-        self.osc_sender.send_message('/push2/stop_clip', [])
+        self.send_message('/push2/stop_clip')
 
     def mute(self):
-        self.osc_sender.send_message('/push2/mute', [])
+        self.send_message('/push2/mute')
 
     def mute_off(self):
-        self.osc_sender.send_message('/push2/mute_off', [])
+        self.send_message('/push2/mute_off')
 
     def solo(self):
-        self.osc_sender.send_message('/push2/solo', [])
+        self.send_message('/push2/solo')
 
     def solo_lock(self):
-        self.osc_sender.send_message('/push2/solo_lock', [])
+        self.send_message('/push2/solo_lock')
 
     def undo(self):
-        self.osc_sender.send_message('/push2/undo', [])
+        self.send_message('/push2/undo')
 
     def repeat_off(self):
-        self.osc_sender.send_message('/push2/repeat_off', [])
+        self.send_message('/push2/repeat_off')
 
     def redo(self):
-        self.osc_sender.send_message('/push2/redo', [])
+        self.send_message('/push2/redo')
 
     def delete(self):
-        self.osc_sender.send_message('/push2/delete', [])
+        self.send_message('/push2/delete')
 
     def pause(self):
-        self.osc_sender.send_message('/logic/transport/pause', [1.00])
+        self.send_message('/push2/pause', [])
+
+    def stop(self):
+        self.send_message('/push2/stop', [])
 
     def play(self):
         if definitions.isPlaying:
-            self.osc_sender.send_message('/logic/transport/stop', [1.00])
+            print(f'running stop - isPlaying: {definitions.isPlaying}')
+            self.send_message('/push2/stop', [1.0])
+            definitions.isPlaying = False
         else:
-            self.osc_sender.send_message('/logic/transport/play', [1.00])
+            print(f'running play - isPlaying: {definitions.isPlaying}')
+            self.send_message('/push2/play', [1.0])
+            definitions.isPlaying = True
 
     def record(self):
-        self.osc_sender.send_message('/logic/transport/record', [1.00])
+        self.send_message('/push2/record', [])
 
     def arrow_keys(self, direction, shift, loop):
-        if direction == 'up':
-            if shift:
-                self.osc_sender.send_message('/push2/up_shift', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/up_loop', [])
-            else:
-                self.osc_sender.send_message('/push2/up', [])
-        if direction == 'down':
-            if shift:
-                self.osc_sender.send_message('/push2/down_shift', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/down_loop', [])
-            else:
-                self.osc_sender.send_message('/push2/down', [])
-        if direction == 'left':
-            if shift:
-                self.osc_sender.send_message('/push2/left_shift', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/left_loop', [])
-            else:
-                self.osc_sender.send_message('/push2/left', [])
-        if direction == 'right':
-            if shift:
-                self.osc_sender.send_message('/push2/right_shift', [])
-            elif loop:
-                self.osc_sender.send_message('/push2/right_loop', [])
-            else:
-                self.osc_sender.send_message('/push2/right', [])
+        if direction in ['up', 'down', 'left', 'right']:
+            suffix = "_shift" if shift else "_loop" if loop else ""
+            self.send_message(f'/push2/{direction}{suffix}')
 
     def metronome_on_off(self):
-        self.osc_sender.send_message('/logic/transport/click', [1.00])
+        self.send_message('/push2/click', [])
 
     def get_buttons_state(self):
         if definitions.isPlaying:
@@ -324,24 +214,30 @@ class LogicInterface(definitions.LogicMode):
         return self.parsed_state.get('bpm', 120)
 
     def set_bpm(self, bpm):
-        self.osc_sender.send_message('/transport/setBpm', [float(bpm)])
+        self.send_message('/transport/setBpm', [float(bpm)])
 
     def bpm_lights(self, value):
-        beat = to_utf8(value)
-        beats = beat.split()
-        if int(float(beats[1])) % 2:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
-            for button_name in bpm_button_names:
-                self.set_button_color_if_expression(button_name, definitions.isRecording, definitions.RED,
-                                                    definitions.GREEN)
-        else:
-            for button_name in bpm_button_names:
-                self.push.buttons.set_button_color(button_name, definitions.BLACK)
+        beat = to_utf8(value).split()
+        beat_num = int(float(beat[1]))
+        is_even = beat_num % 2 == 0
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY,
+                                           definitions.GREEN if is_even else definitions.GREEN_DARK)
 
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN_DARK)
+        for button_name in bpm_button_names:
+            color = definitions.RED if definitions.isRecording else definitions.GREEN if is_even else definitions.BLACK
+            self.push.buttons.set_button_color(button_name, color)
+
         if definitions.isRecording:
-            if int(float(beats[1])) % 4:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
-            else:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED_DARK)
+            record_color = definitions.RED if beat_num % 4 else definitions.RED_DARK
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, record_color)
+
         return True
+
+    def quantize(self, index, quantize, shift, loop, repeat, off):
+        actions = ["quantize", "shift", "repeat", "loop", "off"]
+        time_values = ["1_32T", "1_32", "1_16T", "1_16", "1_8T", "1_8", "1_4T", "1_4"]
+
+        if index in time_values:
+            action = next((action for action in actions if locals()[action]), None)
+            if action:
+                self.send_message(f'/push2/quantize/{index.replace("/", "_")}_{action}')

@@ -1,9 +1,16 @@
 # LogicX-Push2 - Logic Pro X Adaption (WIP)
 To Install:
 ```
+brew install cairo pango gdk-pixbuf libxml2 libxslt libffi libusb
+
+
 python3 -m pip install -r requirements.txt
 python3 app.py
+
 ```
+updated interface and controls to use new Osc file in Docs.   (WIP)
+Tested on Logic 11 / Mac OS 13.6.6
+
 
 LogicX-Push2 allows your ableton PUSH2 to have more functionality in Logic Pro beyond the default "user" mode.
 **LogicX-Push2** is based on the source code for Psyha, which  is a Python 3 app to use **Push2 as a standalone MIDI controller**. It has manily been designed to work as a controller for [Apple's Logic PRO](https://www.apple.com/logic-pro/), but it can also be used as a generic controller. To run LogicX-Push2, you just need to install Python requirements and run `app.py` on a computer connected to Push2 and with a MIDI interface to output messages.

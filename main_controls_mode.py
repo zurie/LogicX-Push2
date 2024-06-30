@@ -230,9 +230,11 @@ class MainControlsMode(definitions.LogicMode):
             #
             elif button_name == self.play_button:
                 if long_press:
+                    # self.app.logic_interface.stop()
                     if not shift:
                         self.app.logic_interface.pause()
                     else:
+                        self.app.logic_interface.stop()
                         pass
                 else:
                     if not shift:

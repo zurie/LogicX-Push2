@@ -1,0 +1,6 @@
+git+https://github.com/zurie/push2-python
+cairocffi
+psutil
+oscpy
+mido
+numpy
