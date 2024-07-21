@@ -175,7 +175,14 @@ class LogicInterface(definitions.LogicMode):
             definitions.isPlaying = True
 
     def record(self):
-        self.send_message('/push2/record', [])
+        if definitions.isRecording:
+            print(f'running stop - isRecording: {definitions.isRecording}')
+            self.send_message('/push2/record_off', [0.0])
+            definitions.isRecording = False
+        else:
+            print(f'running play - isRecording: {definitions.isRecording}')
+            self.send_message('/push2/record_on', [1.0])
+            definitions.isRecording = True
 
     def arrow_keys(self, direction, shift, loop):
         if direction in ['up', 'down', 'left', 'right']:
