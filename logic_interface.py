@@ -62,12 +62,14 @@ class LogicInterface(definitions.LogicMode):
             self.osc_sender.send_message('/state/tracks', [])
 
     def update_button(self, value, attribute, button, on_color, off_color):
-        setattr(definitions, attribute, value == 1.0)
+        is_active = value == 1.0
+        setattr(definitions, attribute, is_active)
         self.app.logic_interface.get_buttons_state()
-        color = on_color if getattr(definitions, attribute) else off_color
+        color = on_color if is_active else off_color
         self.push.buttons.set_button_color(button, color)
 
-    def update_play_button(self, value):
+    def update_play_button(self, *values):
+        value = values[0] if values else 0.0
         self.update_button(value, 'isPlaying', push2_python.constants.BUTTON_PLAY, definitions.GREEN, definitions.LIME)
 
     def update_metronome_button(self, value):
@@ -166,23 +168,21 @@ class LogicInterface(definitions.LogicMode):
 
     def play(self):
         if definitions.isPlaying:
-            print(f'running stop - isPlaying: {definitions.isPlaying}')
             self.send_message('/push2/stop', [1.0])
-            definitions.isPlaying = False
+            definitions.isPlaying = 0.0
         else:
-            print(f'running play - isPlaying: {definitions.isPlaying}')
             self.send_message('/push2/play', [1.0])
-            definitions.isPlaying = True
+            definitions.isPlaying = 1.0
 
     def record(self):
         if definitions.isRecording:
             print(f'running stop - isRecording: {definitions.isRecording}')
             self.send_message('/push2/record_off', [0.0])
-            definitions.isRecording = False
+            definitions.isRecording = 0.0
         else:
             print(f'running play - isRecording: {definitions.isRecording}')
             self.send_message('/push2/record_on', [1.0])
-            definitions.isRecording = True
+            definitions.isRecording = 1.0
 
     def arrow_keys(self, direction, shift, loop):
         if direction in ['up', 'down', 'left', 'right']:
@@ -193,20 +193,9 @@ class LogicInterface(definitions.LogicMode):
         self.send_message('/push2/click', [])
 
     def get_buttons_state(self):
-        if definitions.isPlaying:
-            is_playing = True
-        else:
-            is_playing = False
-
-        if definitions.isMetronome:
-            metronome_on = True
-        else:
-            metronome_on = False
-
-        if definitions.isRecording:
-            is_recording = True
-        else:
-            is_recording = False
+        is_playing = definitions.isPlaying
+        metronome_on = definitions.isMetronome
+        is_recording = definitions.isRecording
 
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY,
                                            definitions.LIME if not is_playing else definitions.GREEN)
