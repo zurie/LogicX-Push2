@@ -226,21 +226,30 @@ class LogicInterface(definitions.LogicMode):
         self.send_message('/transport/setBpm', [float(bpm)])
 
     def bpm_lights(self, value):
-        beat = to_utf8(value).split()
-        beat_num = int(float(beat[1]))
-        is_even = beat_num % 2 == 0
-        self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY,
-                                               definitions.GREEN if is_even else definitions.GREEN_DARK)
+        try:
+            beat = to_utf8(value).split()
+            # Ensure that beat has at least two elements
+            if len(beat) < 2:
+                print("Error: Beat data does not contain enough elements.")
+                return False
 
-        for button_name in bpm_button_names:
-            color = definitions.RED if definitions.isRecording else definitions.GREEN if is_even else definitions.BLACK
-            self.app.push.buttons.set_button_color(button_name, color)
+            beat_num = int(float(beat[1]))
+            is_even = beat_num % 2 == 0
+            self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY,
+                                                   definitions.GREEN if is_even else definitions.GREEN_DARK)
 
-        if definitions.isRecording:
-            record_color = definitions.RED if beat_num % 4 else definitions.RED_DARK
-            self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, record_color)
+            for button_name in bpm_button_names:
+                color = definitions.RED if definitions.isRecording else definitions.GREEN if is_even else definitions.BLACK
+                self.app.push.buttons.set_button_color(button_name, color)
 
-        return True
+            if definitions.isRecording:
+                record_color = definitions.RED if beat_num % 4 == 0 else definitions.RED_DARK
+                self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, record_color)
+
+            return True
+        except (ValueError, IndexError) as e:
+            print(f"Error in bpm_lights: {e}")
+            return False
 
     def quantize(self, index, quantize, shift, loop, repeat, off):
         actions = ["quantize", "shift", "repeat", "loop", "off"]
