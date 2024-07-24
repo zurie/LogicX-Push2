@@ -4,6 +4,7 @@ import definitions
 import threading
 import time
 import push2_python
+import atexit
 
 osc_send_host = "127.0.0.1"
 osc_send_port = 8000
@@ -31,7 +32,7 @@ class LogicInterface(definitions.LogicMode):
     def __init__(self, app):
         self.app = app
         self.osc_sender = OSCClient(osc_send_host, osc_send_port, encoding='utf8')
-        self.osc_server = OSCThreadServer()
+        self.osc_server = OSCThreadServer(default_handler=self.handle_logic_message)
         self.osc_server.listen(address='0.0.0.0', port=osc_receive_port, default=True)
         self.setup_osc_bindings()
 
@@ -40,6 +41,9 @@ class LogicInterface(definitions.LogicMode):
 
         self.last_received_tracks_raw_state = ""
         self.parsed_state = {}
+
+        # Ensure the OSC server is stopped when the program exits
+        atexit.register(self.cleanup)
 
     def setup_osc_bindings(self):
         self.osc_server.bind(b'/stateFromLogic/play', self.update_play_button)
@@ -246,3 +250,10 @@ class LogicInterface(definitions.LogicMode):
             action = next((action for action in actions if locals()[action]), None)
             if action:
                 self.send_message(f'/push2/quantize/{index.replace("/", "_")}_{action}')
+
+    def handle_logic_message(self, address, *values):
+        print(f"Received message on {address}: {values}")
+        # Handle the message based on the address and values
+
+    def cleanup(self):
+        self.osc_server.stop_all()
