@@ -11,6 +11,7 @@ import numpy
 import push2_python
 
 from collections import defaultdict
+from logic_midi_listener import LogicMidiListener
 
 from melodic_mode import MelodicMode
 from track_selection_mode import TrackSelectionMode
@@ -90,7 +91,12 @@ class LogicApp(object):
         self.init_midi_out(device_name=settings.get('default_midi_out_device_name', None))
         self.init_notes_midi_in(device_name=settings.get('default_notes_midi_in_device_name', None))
         self.init_push()
-
+        self.logic_listener = LogicMidiListener(
+            midi_port_name="IAC Driver Default",
+            play_state_callback=self.update_play_button_color,
+            record_state_callback=self.update_record_button_color
+        )
+        self.logic_listener.start()
         self.init_modes(settings)
 
     def init_modes(self, settings):
@@ -104,7 +110,8 @@ class LogicApp(object):
 
         self.track_selection_mode = TrackSelectionMode(self, settings=settings)
         self.preset_selection_mode = PresetSelectionMode(self, settings=settings)
-        self.midi_cc_mode = MIDICCMode(self, settings=settings)  # Must be initialized after track selection mode so it gets info about loaded tracks
+        self.midi_cc_mode = MIDICCMode(self,
+                                       settings=settings)  # Must be initialized after track selection mode so it gets info about loaded tracks
         self.active_modes += [self.track_selection_mode, self.midi_cc_mode]
         self.track_selection_mode.select_track(self.track_selection_mode.selected_track)
 
@@ -204,6 +211,28 @@ class LogicApp(object):
                 if mode_to_unset.xor_group == 'pads':
                     self.set_mode_for_xor_group(self.melodic_mode)
 
+    def update_play_button_color(self, is_playing):
+        if is_playing:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
+        else:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.LIME)
+
+    def update_record_button_color(self, is_recording):
+        if self.push is None:
+            return
+        if is_recording:
+            print("[Debug] Setting RECORD to RED")
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
+        else:
+            print("[Debug] Setting RECORD to GREEN")
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN)
+
+    def toggle_mode(self, mode):
+        if self.is_mode_active(mode):
+            self.unset_mode_for_xor_group(mode)
+        else:
+            self.set_mode_for_xor_group(mode)
+
     def toggle_melodic_rhythmic_slice_modes(self):
         if self.is_mode_active(self.melodic_mode):
             self.set_rhythmic_mode()
@@ -232,7 +261,7 @@ class LogicApp(object):
 
     def save_current_settings_to_file(self):
         # NOTE: when saving device names, eliminate the last bit with XX:Y numbers as this might vary across runs
-        # if different devices are connected 
+        # if different devices are connected
         settings = {
             'midi_in_default_channel': self.midi_in_channel,
             'midi_out_default_channel': self.midi_out_channel,
@@ -494,7 +523,8 @@ class LogicApp(object):
             if self.help_title is not None:
                 time_since_help_started = time.time() - self.help_time
                 if time_since_help_started < definitions.HELP_TIME:
-                    show_help(ctx, self.help_title, self.help_hotkey, self.help_path, self.help_description, self.help_color, opacity=1)
+                    show_help(ctx, self.help_title, self.help_hotkey, self.help_path, self.help_description,
+                              self.help_color, opacity=1)
                 else:
                     self.help_title = self.help_hotkey = self.help_path = self.help_description = self.help_color = None
 
@@ -558,7 +588,7 @@ class LogicApp(object):
 
         # Force configure MIDI out (in case it wasn't...)
         try:
-            app.push.configure_midi_out()
+            self.push.configure_midi_out()
         except push2_python.exceptions.Push2MIDIeviceNotFound:
             # App can still run with simulator...
             pass
@@ -579,6 +609,8 @@ class LogicApp(object):
             mode.activate()
 
         # Update buttons and pads (just in case something was missing!)
+        self.update_play_button_color(False)
+        self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN)
         app.update_push2_buttons()
         app.update_push2_pads()
 
@@ -934,13 +966,14 @@ midi_connected_received_before_app = False
 
 @push2_python.on_midi_connected()
 def on_midi_connected(_):
+    global midi_connected_received_before_app
+
     try:
         app.on_midi_push_connection_established()
-    except NameError as e:
-        global midi_connected_received_before_app
+    except NameError:
+        # app is not yet created; flag to call later after initialization
         midi_connected_received_before_app = True
-        print('Error:  {}'.format(str(e)))
-        traceback.print_exc()
+        print("[Push2] MIDI connected before app initialized; will initialize later.")
 
 
 # Run app main loop

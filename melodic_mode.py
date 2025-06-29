@@ -23,7 +23,9 @@ class MelodicMode(definitions.LogicMode):
     modulation_wheel_mode = True
     scale = definitions.SCALES[0].notes
     scale_index = 0
+
     # scale_name
+    collapse_scale = False
 
     lumi_midi_out = None
     last_time_tried_initialize_lumi = 0
@@ -31,8 +33,30 @@ class MelodicMode(definitions.LogicMode):
     octave_up_button = push2_python.constants.BUTTON_OCTAVE_UP
     octave_down_button = push2_python.constants.BUTTON_OCTAVE_DOWN
     accent_button = push2_python.constants.BUTTON_ACCENT
+    scale_button = push2_python.constants.BUTTON_SCALE
 
-    buttons_used = [octave_up_button, octave_down_button, accent_button]
+    buttons_used = [octave_up_button, octave_down_button, accent_button, scale_button]
+
+    def toggle_collapse_scale(self):
+        self.collapse_scale = not self.collapse_scale
+        self.app.add_display_notification(f"Collapse Scale: {'ON' if self.collapse_scale else 'OFF'}")
+        self.update_pads()
+
+    def get_scale_note_for_index(self, index):
+        scale_notes = []
+        note = self.root_midi_note
+        while len(scale_notes) < 64:
+            if self.scale[note % 12]:
+                scale_notes.append(note)
+            note += 1
+        return scale_notes[index] if index < len(scale_notes) else self.root_midi_note
+
+    def toggle_scale(self):
+        """
+        Toggles the scale picker GUI mode.
+        """
+        self.app.toggle_mode(self.app.scalemenu_mode)
+
 
     def init_lumi_midi_out(self):
         print('Configuring LUMI notes MIDI out...')
@@ -158,7 +182,17 @@ class MelodicMode(definitions.LogicMode):
         return True
 
     def pad_ij_to_midi_note(self, pad_ij):
-        return self.root_midi_note + ((7 - pad_ij[0]) * 5 + pad_ij[1])
+        if self.collapse_scale:
+            row = 7 - pad_ij[0]       # Flip so 0 = bottom row, 7 = top row
+            col = pad_ij[1]           # 0–7 left to right
+            base_index = row * 3      # 4-note overlap shift per row
+            index = base_index + col  # fill across 8 columns
+            return self.get_scale_note_for_index(index)
+        else:
+            # Standard layout: 5 semitone steps up per row
+            return self.root_midi_note + ((7 - pad_ij[0]) * 5 + pad_ij[1])
+
+
 
     def is_midi_note_root_octave(self, midi_note):
         relative_midi_note = (midi_note - self.root_midi_note) % 12
@@ -187,7 +221,6 @@ class MelodicMode(definitions.LogicMode):
             self.root_midi_note = 127
 
     def activate(self):
-
         # Configure polyAT and AT
         if self.use_poly_at:
             self.push.pads.set_polyphonic_aftertouch()
@@ -250,19 +283,19 @@ class MelodicMode(definitions.LogicMode):
         for i in range(0, 8):
             row_colors = []
             for j in range(0, 8):
-                corresponding_midi_note = self.pad_ij_to_midi_note([i, j])
-                cell_color = definitions.WHITE
-                if self.is_black_key_midi_note(corresponding_midi_note):
-                    cell_color = definitions.BLACK
-                if self.is_midi_note_root_octave(corresponding_midi_note):
+                note = self.pad_ij_to_midi_note([i, j])
+                color = definitions.WHITE
+                if not self.collapse_scale and not self.scale[note % 12]:
+                    color = definitions.BLACK
+                if self.is_midi_note_root_octave(note):
                     try:
-                        cell_color = self.app.track_selection_mode.get_current_track_color()
+                        color = self.app.track_selection_mode.get_current_track_color()
                     except AttributeError:
-                        cell_color = definitions.YELLOW
-                if self.is_midi_note_being_played(corresponding_midi_note):
-                    cell_color = definitions.NOTE_ON_COLOR
+                        color = definitions.YELLOW
+                if self.is_midi_note_being_played(note):
+                    color = definitions.NOTE_ON_COLOR
 
-                row_colors.append(cell_color)
+                row_colors.append(color)
             color_matrix.append(row_colors)
 
         self.push.pads.set_pads_color(color_matrix)
@@ -333,7 +366,7 @@ class MelodicMode(definitions.LogicMode):
 
             if button_name == self.octave_up_button:
                 self.set_root_midi_note(self.root_midi_note + 12)
-                self.app.pads_need_update = True
+                self.update_pads()
                 self.app.add_display_notification("Octave up: from {0} to {1}".format(
                     self.note_number_to_name(self.pad_ij_to_midi_note((7, 0))),
                     self.note_number_to_name(self.pad_ij_to_midi_note((0, 7))),
@@ -342,33 +375,36 @@ class MelodicMode(definitions.LogicMode):
 
             elif button_name == self.octave_down_button:
                 self.set_root_midi_note(self.root_midi_note - 12)
-                self.app.pads_need_update = True
+                self.update_pads()
                 self.app.add_display_notification("Octave down: from {0} to {1}".format(
                     self.note_number_to_name(self.pad_ij_to_midi_note((7, 0))),
                     self.note_number_to_name(self.pad_ij_to_midi_note((0, 7))),
                 ))
                 return True
-
             elif button_name == self.accent_button:
                 if shift:
-                    # Toggle modwheel mode
                     self.modulation_wheel_mode = not self.modulation_wheel_mode
                     if self.modulation_wheel_mode:
                         self.push.touchstrip.set_modulation_wheel_mode()
                     else:
                         self.push.touchstrip.set_pitch_bend_mode()
                     self.app.add_display_notification(
-                        "Touchstrip mode: {0}".format('Modulation wheel' if self.modulation_wheel_mode else 'Pitch bend'))
-                    return True
+                        f"Touchstrip: {'Mod Wheel' if self.modulation_wheel_mode else 'Pitch Bend'}")
                 else:
-                    # Toggle accept mode
                     self.fixed_velocity_mode = not self.fixed_velocity_mode
-                    self.app.buttons_need_update = True
-                    self.app.pads_need_update = True
                     self.app.add_display_notification(
-                        "Fixed velocity: {0}".format('On' if self.fixed_velocity_mode else 'Off'))
-                    return True
+                        f"Fixed Velocity: {'On' if self.fixed_velocity_mode else 'Off'}")
+                self.update_buttons()
+                self.update_pads()
+                return True
+            elif button_name == self.scale_button:
+                if shift:
+                    self.toggle_collapse_scale()
+                else:
+                    self.toggle_scale()  # your GUI picker logic
+                return True
+        return None
 
-            # elif button_name == push2_python.constants.BUTTON_SCALE:
-            #     self.toggle_scale()
-            #     return True
+        # elif button_name == push2_python.constants.BUTTON_SCALE:
+        #     self.toggle_scale()
+        #     return True

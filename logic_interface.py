@@ -1,14 +1,8 @@
-from oscpy.client import OSCClient
-from oscpy.server import OSCThreadServer
-import definitions
-import threading
-import time
-import push2_python
-import atexit
+# logic_interface.py
 
-osc_send_host = "127.0.0.1"
-osc_send_port = 8000
-osc_receive_port = 9004
+import definitions
+import push2_python
+from logic_keystrokes import press_keybinding
 
 tracks_state_fps = 4.0
 transport_state_fps = 10.0
@@ -31,55 +25,23 @@ def to_utf8(utf8):
 class LogicInterface(definitions.LogicMode):
     def __init__(self, app):
         self.app = app
-        self.osc_sender = OSCClient(osc_send_host, osc_send_port, encoding='utf8')
-        self.osc_server = OSCThreadServer(default_handler=self.handle_logic_message)
-        self.osc_server.listen(address='0.0.0.0', port=osc_receive_port, default=True)
-        self.setup_osc_bindings()
-
-        self.state_transport_check_thread = threading.Thread(target=self.check_transport_state)
-        self.state_tracks_check_thread = threading.Thread(target=self.check_tracks_state)
-
         self.last_received_tracks_raw_state = ""
         self.parsed_state = {}
-
-        # Ensure the OSC server is stopped when the program exits
-        atexit.register(self.cleanup)
-
-    def setup_osc_bindings(self):
-        self.osc_server.bind(b'/stateFromLogic/play', self.update_play_button)
-        self.osc_server.bind(b'/stateFromLogic/stop', self.update_stop)
-        self.osc_server.bind(b'/stateFromLogic/click', self.update_metronome_button)
-        self.osc_server.bind(b'/stateFromLogic/beats', self.bpm_lights)
-        self.osc_server.bind(b'/stateFromLogic/record', self.update_record_button)
-
-    def start_threads(self):
-        self.state_transport_check_thread.start()
-        self.state_tracks_check_thread.start()
-
-    def check_transport_state(self):
-        while True:
-            time.sleep(1.0 / transport_state_fps)
-            self.osc_sender.send_message('/state/transport', [])
-
-    def check_tracks_state(self):
-        while True:
-            time.sleep(1.0 / tracks_state_fps)
-            self.osc_sender.send_message('/state/tracks', [])
 
     def update_button(self, value, attribute, button, on_color, off_color):
         is_active = value == 1.0
         setattr(definitions, attribute, is_active)
         self.app.logic_interface.get_buttons_state()
         color = on_color if is_active else off_color
-        self.app.push.buttons.set_button_color(button, color)  # Ensure push is referenced through app
+        self.app.push.buttons.set_button_color(button, color)
 
     def update_stop(self, *values):
-        definitions.isPlaying = 0.0
+        # definitions.isPlaying = 0.0
         definitions.isRecording = 0.0
         self.app.logic_interface.get_buttons_state()
 
     def update_play_button(self, *values):
-        definitions.isPlaying = 1.0
+        print(f"[Debug] update_play_button received values: {values}")
         value = values[0] if values else 0.0
         self.update_button(value, 'isPlaying', push2_python.constants.BUTTON_PLAY, definitions.GREEN, definitions.LIME)
 
@@ -93,176 +55,136 @@ class LogicInterface(definitions.LogicMode):
         self.update_button(value, 'isRecording', push2_python.constants.BUTTON_RECORD, definitions.RED,
                            definitions.GREEN)
 
-    def send_message(self, address, args=None):
-        if args is None:
-            args = []
-        self.osc_sender.send_message(address, args)
-
     def automate(self):
-        self.send_message('/push2/automate')
+        press_keybinding('A')
 
     def repeat(self):
-        self.send_message('/push2/repeat')
+        press_keybinding('^~return')
 
     def layout(self):
-        self.send_message('/push2/layout')
+        press_keybinding('L')
 
     def session(self):
-        self.send_message('/push2/session')
+        press_keybinding('E')
 
     def add_track(self):
-        self.send_message('/push2/add_track')
+        press_keybinding('T')
 
     def device(self):
-        self.send_message('/push2/device')
+        press_keybinding('B')
 
     def mix(self):
-        self.send_message('/push2/mix')
+        press_keybinding('X')  # Adjust if wrong
 
     def browse(self):
-        self.send_message('/push2/browse')
+        press_keybinding('Y')
 
     def clip(self):
-        self.send_message('/push2/clip')
+        press_keybinding('C')
 
     def fixed_length(self):
-        self.send_message('/push2/fixed_length')
+        press_keybinding('\\')
 
     def new(self):
-        self.send_message('/push2/new')
+        press_keybinding('~!N')
 
     def new_next(self):
-        self.send_message('/push2/new_next')
+        press_keybinding('^return')
 
     def duplicate(self):
-        self.send_message('/push2/duplicate')
+        press_keybinding('!D')
 
     def double_loop(self):
-        self.send_message('/push2/double_loop')
+        press_keybinding('2')  # Placeholder
 
     def double(self):
-        self.send_message('/push2/double')
-
-    def convert(self):
-        self.send_message('/push2/convert')
+        press_keybinding('C')  # Placeholder
 
     def stop_clip(self):
-        self.send_message('/push2/stop_clip')
+        press_keybinding('V')  # Placeholder
 
     def mute(self):
-        self.send_message('/push2/mute')
+        press_keybinding('M')
 
     def mute_off(self):
-        self.send_message('/push2/mute_off')
+        press_keybinding('^#M')
 
     def solo(self):
-        self.send_message('/push2/solo')
+        press_keybinding('S')
 
     def solo_lock(self):
-        self.send_message('/push2/solo_lock')
+        press_keybinding('^S')
 
     def undo(self):
-        self.send_message('/push2/undo')
-
-    def repeat_off(self):
-        self.send_message('/push2/repeat_off')
+        press_keybinding('!Z')
 
     def redo(self):
-        self.send_message('/push2/redo')
+        press_keybinding('#!Z')
 
     def delete(self):
-        self.send_message('/push2/delete')
+        press_keybinding('delete')
 
     def pause(self):
-        self.send_message('/push2/pause', [])
-
-    def stop(self):
-        self.send_message('/push2/stop', [])
+        press_keybinding('space')
 
     def play(self):
-        if definitions.isPlaying:
-            self.send_message('/push2/stop', [1.0])
-            definitions.isPlaying = 0.0
-        else:
-            self.send_message('/push2/play', [1.0])
-            definitions.isPlaying = 1.0
-        self.get_buttons_state()  # Update button states
+        press_keybinding('space')
 
     def record(self):
+        press_keybinding('R')
+        # Toggle internal recording state
+        definitions.isRecording = not definitions.isRecording
+
         if definitions.isRecording:
-            self.send_message('/push2/record_off', [1.0])
-            definitions.isRecording = 0.0
+            self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
         else:
-            self.send_message('/push2/record_on', [1.0])
-            definitions.isRecording = 1.0
-        self.get_buttons_state()  # Update button states
+            self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN)
+
+    def stop(self):
+        press_keybinding('space')
 
     def arrow_keys(self, direction, shift, loop):
         if direction in ['up', 'down', 'left', 'right']:
-            suffix = "_shift" if shift else "_loop" if loop else ""
-            self.send_message(f'/push2/{direction}{suffix}')
+            if shift and loop:
+                if direction == 'right':
+                    press_keybinding('#!.')
+                elif direction == 'left':
+                    press_keybinding('#!,')
+            elif shift:
+                press_keybinding(f'#{direction}')
+            elif loop:
+                if direction == 'down':
+                    press_keybinding("~'")
+                elif direction == 'up':
+                    press_keybinding('U')
+                else:
+                    press_keybinding(direction)
+            else:
+                press_keybinding(direction)
+
+    def quantize(self, index, quantize, shift, loop, repeat, off):
+        quant_map = {
+            "1_32T": '7', "1_32": '3', "1_16T": '6', "1_16": '2',
+            "1_8T": '5', "1_8": '1', "1_4T": '4', "1_4": '0'
+        }
+        if index in quant_map:
+            press_keybinding(f'~!#^{quant_map[index]}')
+        else:
+            press_keybinding('Q')
 
     def metronome_on_off(self):
-        self.send_message('/push2/click', [])
+        press_keybinding('K')  # placeholder if needed
 
     def get_buttons_state(self):
-        is_playing = definitions.isPlaying
         metronome_on = definitions.isMetronome
         is_recording = definitions.isRecording
 
-        self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY,
-                                               definitions.LIME if not is_playing else definitions.GREEN)
+        # Do not overwrite PLAY here; use update_play_button_color instead
+        # self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.LIME if not is_playing else definitions.GREEN)
+
         self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD,
                                                definitions.GREEN if not is_recording else definitions.RED)
         self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME,
                                                definitions.OFF_BTN_COLOR if not metronome_on else definitions.WHITE)
         self.app.midi_cc_mode.update_buttons()
-        return is_playing, metronome_on, is_recording
-
-    def get_bpm(self):
-        return self.parsed_state.get('bpm', 120)
-
-    def set_bpm(self, bpm):
-        self.send_message('/transport/setBpm', [float(bpm)])
-
-    def bpm_lights(self, value):
-        try:
-            beat = to_utf8(value).split()
-            # Ensure that beat has at least two elements
-            if len(beat) < 2:
-                print("Error: Beat data does not contain enough elements.")
-                return False
-
-            beat_num = int(float(beat[1]))
-            is_even = beat_num % 2 == 0
-            self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY,
-                                                   definitions.GREEN if is_even else definitions.GREEN_DARK)
-
-            for button_name in bpm_button_names:
-                color = definitions.RED if definitions.isRecording else definitions.GREEN if is_even else definitions.BLACK
-                self.app.push.buttons.set_button_color(button_name, color)
-
-            if definitions.isRecording:
-                record_color = definitions.RED if beat_num % 4 == 0 else definitions.RED_DARK
-                self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, record_color)
-
-            return True
-        except (ValueError, IndexError) as e:
-            print(f"Error in bpm_lights: {e}")
-            return False
-
-    def quantize(self, index, quantize, shift, loop, repeat, off):
-        actions = ["quantize", "shift", "repeat", "loop", "off"]
-        time_values = ["1_32T", "1_32", "1_16T", "1_16", "1_8T", "1_8", "1_4T", "1_4"]
-
-        if index in time_values:
-            action = next((action for action in actions if locals()[action]), None)
-            if action:
-                self.send_message(f'/push2/quantize/{index.replace("/", "_")}_{action}')
-
-    def handle_logic_message(self, address, *values):
-        print(f"Received message on {address}: {values}")
-        # Handle the message based on the address and values
-
-    def cleanup(self):
-        self.osc_server.stop_all()
+        return definitions.isPlaying, metronome_on, is_recording

@@ -116,7 +116,6 @@ class MainControlsMode(definitions.LogicMode):
         self.app.logic_interface.get_buttons_state()
         self.update_buttons()
         self.set_buttons_to_color(self.buttons_used, definitions.OFF_BTN_COLOR)
-        self.set_buttons_to_color([self.play_button], definitions.LIME)
         self.set_buttons_to_color([self.record_button], definitions.GREEN)
 
     def deactivate(self):
@@ -410,9 +409,11 @@ class MainControlsMode(definitions.LogicMode):
         if button_name == self.user_button:
             self.push.buttons.set_button_color(self.user_button, definitions.WHITE)
             return True
-        # if not self.app.is_mode_active(self.app.help_mode):
-        if True:
+        # Avoid forcing PLAY/RECORD/METRONOME to white
+        if button_name not in [self.play_button, self.record_button, self.metronome_button]:
             self.push.buttons.set_button_color(button_name, definitions.WHITE)
+            return True
+        return None
 
     def on_button_released_raw(self, button_name):
         self.set_buttons_to_color(self.buttons_used, definitions.OFF_BTN_COLOR)

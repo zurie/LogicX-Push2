@@ -11,9 +11,9 @@ from push2_python.constants import ANIMATION_STATIC
 VERSION = '0.5'
 
 DELAYED_ACTIONS_APPLY_TIME = 1.0  # Encoder changes won't be applied until this time has passed since last moved
-isPlaying = False
-isMetronome = False
-isRecording = False
+isPlaying = 0.0  # instead of False
+isMetronome = 0.0
+isRecording = 0.0
 
 LAYOUT_MELODIC = 'lmelodic'
 LAYOUT_RHYTHMIC = 'lrhythmic'
