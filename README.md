@@ -22,7 +22,7 @@ LogicX-Push2 allows your ableton PUSH2 to have more functionality in Logic Pro b
 * External Hardware / Software Instrument Midi CC configuration and mapping with up to various instrument*
 * Access to PUSH2 Scale Type
 * Multi Function Pads and Buttons ( shift state / alternate state / single press / double press / long press )
-* Full keybind support for Logic Pro (bind any key in Logic to anything on the PUSH2) ** requires [OSCulator](https://osculator.net/) 
+* Full keybind support for Logic Pro (bind any key in Logic to anything on the PUSH2)
 
 #### Other Features
 * Play melodies and chords in a chromatic scale mode
