@@ -67,7 +67,6 @@ class LogicMidiListener:
                 if self.play_state_callback:
                     self.play_state_callback(True)
             if now - self._last_clock_log >= 1.0:
-                print("[LogicMidiListener] Receiving MIDI Clock...")
                 self._last_clock_log = now
 
         # MCP Transport: Play

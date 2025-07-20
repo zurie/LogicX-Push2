@@ -192,11 +192,8 @@ class MelodicMode(definitions.LogicMode):
             # Standard layout: 5 semitone steps up per row
             return self.root_midi_note + ((7 - pad_ij[0]) * 5 + pad_ij[1])
 
-
-
     def is_midi_note_root_octave(self, midi_note):
-        relative_midi_note = (midi_note - self.root_midi_note) % 12
-        return relative_midi_note == 0
+        return midi_note % 12 == self.root_midi_note % 12
 
     def is_black_key_midi_note(self, midi_note):
         relative_midi_note = (midi_note - self.root_midi_note) % 12

@@ -34,8 +34,8 @@ class ScaleMenuMode(SettingsMode):
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_4, definitions.BLACK)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_5, definitions.BLACK)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_6, definitions.BLACK)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_7, definitions.BLACK)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, definitions.BLACK)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_7, self.app.track_selection_mode.get_current_track_color())
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, self.app.track_selection_mode.get_current_track_color())
 
     def set_all_upper_row_buttons_off(self):
         self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_1, definitions.BLACK)
@@ -53,76 +53,92 @@ class ScaleMenuMode(SettingsMode):
                 self.app.melodic_mode.set_root_midi_note(self.app.melodic_mode.root_midi_note + 1)
                 self.app.pads_need_update = True
                 return True
+        return None
 
     def on_button_pressed(self, button_name, loop=False, quantize=False, shift=False, select=False, long_press=False, double_press=False):
         if self.current_page == 0:
             if button_name == push2_python.constants.BUTTON_UPPER_ROW_2:
-                if not shift:
-                    self.app.melodic_mode.scaley('inc')
-                else:
-                    self.app.melodic_mode.scaley('dec')
+                self.app.melodic_mode.collapse_scale = not self.app.melodic_mode.collapse_scale
+                self.app.pads_need_update = True
                 return True
 
-    def update_display(self, ctx, w, h):
+            elif button_name == push2_python.constants.BUTTON_UPPER_ROW_7:
+                self.app.melodic_mode.scaley('dec')
+                return True
 
-        # Divide display in 8 parts to show different settings
-        part_w = w // 2
+            elif button_name == push2_python.constants.BUTTON_UPPER_ROW_8:
+                self.app.melodic_mode.scaley('inc')
+                return True
+        return None
+
+    def update_display(self, ctx, w, h):
         part_h = h
 
-        # Draw labels and values
-        for i in range(0, 2):
+        for i in range(2, 6):
             part_x = i * w // 8
-            part_y = 0
+            ctx.set_source_rgb(0, 0, 0)  # Black background
+            ctx.rectangle(part_x - 3, 0, w // 8 + 6, h)
+            ctx.fill()
 
-            ctx.set_source_rgb(0, 0, 0)  # Draw black background
-            ctx.rectangle(part_x - 3, part_y, w, h)  # do x -3 to add some margin between parts
+        for i in range(2):
+            part_x = i * w // 8
+            ctx.set_source_rgb(0, 0, 0)
+            ctx.rectangle(part_x - 3, 0, w // 8 + 6, h)
             ctx.fill()
 
             color = [1.0, 1.0, 1.0]
-
-            if self.current_page == 0:  # Performance settings
-                if i == 0:  # Root note
+            if self.current_page == 0:
+                if i == 0:
                     if not self.app.is_mode_active(self.app.melodic_mode):
                         color = definitions.get_color_rgb_float(definitions.FONT_COLOR_DISABLED)
                     show_title(ctx, part_x, h, 'ROOT NOTE')
-                    show_value(ctx, part_x, h, "{0} ({1})".format(self.app.melodic_mode.note_number_to_name(
-                        self.app.melodic_mode.root_midi_note), self.app.melodic_mode.root_midi_note), color)
+                    show_value(ctx, part_x, h, "{0} ({1})".format(
+                        self.app.melodic_mode.note_number_to_name(self.app.melodic_mode.root_midi_note),
+                        self.app.melodic_mode.root_midi_note), color)
 
-                elif i == 1:  # SCALE
-                    show_title(ctx, part_x, h, 'SCALE')
+                elif i == 1:
+                    show_title(ctx, part_x, h, 'COLLAPSE SCALE')
                     show_bigvalue(ctx, part_x, h, definitions.SCALE_NAME, color)
 
-        # After drawing all labels and values, draw other stuff if required
-        if self.current_page == 0:  # Performance settings
+        for i, label in zip([6, 7], ["<", ">"]):
+            part_x = i * w // 8
+            ctx.set_source_rgb(0, 0, 0)
+            ctx.rectangle(part_x - 3, 0, w // 8 + 6, h)
+            ctx.fill()
+            draw_text_at(ctx, part_x + 5, h // 2, label, font_size=40)
 
-            current_time = time.time()
-            if current_time - self.app.melodic_mode.latest_channel_at_value[
-                0] < 3 and not self.app.melodic_mode.use_poly_at:
-                # Lastest channel AT value received less than 3 seconds ago
-                draw_text_at(ctx, 3, part_h - 3, f'Latest cAT: {self.app.melodic_mode.latest_channel_at_value[1]}',
-                             font_size=20)
-            if current_time - self.app.melodic_mode.latest_poly_at_value[0] < 3 and self.app.melodic_mode.use_poly_at:
-                # Lastest channel AT value received less than 3 seconds ago
-                draw_text_at(ctx, 3, part_h - 3, f'Latest pAT: {self.app.melodic_mode.latest_poly_at_value[1]}',
-                             font_size=20)
-            if current_time - self.app.melodic_mode.latest_velocity_value[0] < 3:
-                # Lastest note on velocity value received less than 3 seconds ago
-                draw_text_at(ctx, 3, part_h - 26, f'Latest velocity: {self.app.melodic_mode.latest_velocity_value[1]}',
-                             font_size=20)
+        current_time = time.time()
+        if current_time - self.app.melodic_mode.latest_channel_at_value[0] < 3 and not self.app.melodic_mode.use_poly_at:
+            draw_text_at(ctx, 3, part_h - 3, f'Latest cAT: {self.app.melodic_mode.latest_channel_at_value[1]}',
+                         font_size=20)
+        if current_time - self.app.melodic_mode.latest_poly_at_value[0] < 3 and self.app.melodic_mode.use_poly_at:
+            draw_text_at(ctx, 3, part_h - 3, f'Latest pAT: {self.app.melodic_mode.latest_poly_at_value[1]}',
+                         font_size=20)
+        if current_time - self.app.melodic_mode.latest_velocity_value[0] < 3:
+            draw_text_at(ctx, 3, part_h - 26, f'Latest velocity: {self.app.melodic_mode.latest_velocity_value[1]}',
+                         font_size=20)
 
     def on_encoder_rotated(self, encoder_name, increment):
-        self.encoders_state[encoder_name]['last_message_received'] = time.time()
+        now = time.time()
 
-        if self.current_page == 0:  # Performance settings
+        if self.current_page == 0:
             if encoder_name == push2_python.constants.ENCODER_TRACK1_ENCODER:
                 self.app.melodic_mode.set_root_midi_note(self.app.melodic_mode.root_midi_note + increment)
-                self.app.pads_need_update = True  # Using async update method because we don't really need immediate response here
+                self.app.pads_need_update = True
 
             elif encoder_name == push2_python.constants.ENCODER_TRACK2_ENCODER:
-                if increment >= 1:  # Only respond to "big" increments
+                last_time = self.encoders_state[encoder_name].get('last_scale_turn_time', 0)
+                throttle_delay = 0.05
+
+                if now - last_time < throttle_delay:
+                    return True
+
+                self.encoders_state[encoder_name]['last_scale_turn_time'] = now
+
+                if increment > 0:
                     self.app.melodic_mode.scaley('inc')
-                    return True
-                elif increment <= -1:
+                elif increment < 0:
                     self.app.melodic_mode.scaley('dec')
-                    return True
-            return True  # Always return True because encoder should not be used in any other mode if this is first active
+                return True
+
+        return True
