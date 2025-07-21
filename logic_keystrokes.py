@@ -1,9 +1,10 @@
-
 import json
 from pathlib import Path
 from pynput.keyboard import Key, Controller
 
 keyboard = Controller()
+
+DEBUG_LOGS = True
 
 KEY_LOOKUP = {
     'ctrl': Key.ctrl,
@@ -26,6 +27,7 @@ MODIFIER_KEYS = {}
 SPECIAL_KEYS = {}
 COMMANDS = {}
 CONFIG_MTIME = None
+
 
 def load_config():
     global MODIFIER_KEYS, SPECIAL_KEYS, COMMANDS, CONFIG_MTIME
@@ -53,6 +55,7 @@ def load_config():
 
     COMMANDS.update(config.get("commands", {}))
 
+
 def press_keybinding(binding):
     load_config()
 
@@ -65,6 +68,8 @@ def press_keybinding(binding):
         key = SPECIAL_KEYS[lower]
         keyboard.press(key)
         keyboard.release(key)
+        if DEBUG_LOGS:
+            print(f"[DEBUG] Pressing special key: {key}")
         return
 
     modifiers = []
@@ -81,20 +86,36 @@ def press_keybinding(binding):
         return
 
     main_key = SPECIAL_KEYS.get(key, key)
+
+    if DEBUG_LOGS:
+        print(f"[DEBUG] Pressing modifiers: {[str(m) for m in modifiers]}")
+        print(f"[DEBUG] Pressing main key: {main_key}")
+
     for mod in modifiers:
         keyboard.press(mod)
     keyboard.press(main_key)
-    print(f"[DEBUG] Pressing modifiers: {[str(m) for m in modifiers]}")
-    print(f"[DEBUG] Pressing main key: {main_key}")
     keyboard.release(main_key)
     for mod in reversed(modifiers):
         keyboard.release(mod)
-        print(f"[DEBUG] Pressing modifiers: {[str(m) for m in modifiers]}")
-    print(f"[DEBUG] Pressing main key: {main_key}")
-def press_command(osc_path):
+
+
+def press_command(osc_path, shift=False, loop=False, quantize=False, select=False):
     load_config()
-    binding = COMMANDS.get(osc_path)
+    key = osc_path
+    suffixes = []
+    if shift:
+        suffixes.append("shift")
+    if loop:
+        suffixes.append("loop")
+    if quantize:
+        suffixes.append("quantize")
+    if select:
+        suffixes.append("select")
+    if suffixes:
+        key += "_" + "_".join(suffixes)
+    binding = COMMANDS.get(key)
     if binding:
         press_keybinding(binding)
     else:
-        print(f"[WARN] No keybinding found for: {osc_path}")
+        print(f"[WARN] No keybinding found for: {key}")
+

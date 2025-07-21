@@ -1,11 +1,10 @@
-# logic_interface.py
-
 import definitions
 import push2_python
-from logic_keystrokes import press_keybinding
+from logic_keystrokes import press_command, COMMANDS
 
 tracks_state_fps = 4.0
 transport_state_fps = 10.0
+
 bpm_button_names = [
     push2_python.constants.BUTTON_UPPER_ROW_1,
     push2_python.constants.BUTTON_UPPER_ROW_2,
@@ -17,10 +16,8 @@ bpm_button_names = [
     push2_python.constants.BUTTON_UPPER_ROW_8
 ]
 
-
 def to_utf8(utf8):
     return utf8.decode("utf-8")
-
 
 class LogicInterface(definitions.LogicMode):
     def __init__(self, app):
@@ -28,163 +25,181 @@ class LogicInterface(definitions.LogicMode):
         self.last_received_tracks_raw_state = ""
         self.parsed_state = {}
 
+    @staticmethod
+    def handle_button_press(button_name, shift=False, loop=False, long=False):
+        path = f"/push2/{button_name}"
+        if shift and loop:
+            path += "_shift_loop"
+        elif shift:
+            path += "_shift"
+        elif loop:
+            path += "_loop"
+        if long:
+            path += "_long"
+        press_command(path)
+
     def update_button(self, value, attribute, button, on_color, off_color):
         is_active = value == 1.0
         setattr(definitions, attribute, is_active)
-        self.app.logic_interface.get_buttons_state()
+        self.get_buttons_state()
         color = on_color if is_active else off_color
         self.app.push.buttons.set_button_color(button, color)
 
     def update_stop(self, *values):
-        # definitions.isPlaying = 0.0
         definitions.isRecording = 0.0
-        self.app.logic_interface.get_buttons_state()
+        self.get_buttons_state()
 
     def update_play_button(self, *values):
-        print(f"[Debug] update_play_button received values: {values}")
         value = values[0] if values else 0.0
         self.update_button(value, 'isPlaying', push2_python.constants.BUTTON_PLAY, definitions.GREEN, definitions.LIME)
 
     def update_metronome_button(self, value):
-        self.update_button(value, 'isMetronome', push2_python.constants.BUTTON_METRONOME, definitions.WHITE,
-                           definitions.OFF_BTN_COLOR)
+        self.update_button(value, 'isMetronome', push2_python.constants.BUTTON_METRONOME, definitions.WHITE, definitions.OFF_BTN_COLOR)
 
     def update_record_button(self, *values):
         definitions.isRecording = 1.0
         value = values[0] if values else 0.0
-        self.update_button(value, 'isRecording', push2_python.constants.BUTTON_RECORD, definitions.RED,
-                           definitions.GREEN)
+        self.update_button(value, 'isRecording', push2_python.constants.BUTTON_RECORD, definitions.RED, definitions.GREEN)
 
-    def automate(self):
-        press_keybinding('A')
+    # === Modifier-aware static command methods ===
 
-    def repeat(self):
-        press_keybinding('^~return')
+    @staticmethod
+    def automate(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/automate', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def layout(self):
-        press_keybinding('L')
+    @staticmethod
+    def repeat(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/repeat', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def session(self):
-        press_keybinding('E')
+    @staticmethod
+    def layout(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/layout', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def add_track(self):
-        press_keybinding('T')
+    @staticmethod
+    def session(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/session', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def device(self):
-        press_keybinding('B')
+    @staticmethod
+    def add_track(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/add_track', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def mix(self):
-        press_keybinding('X')  # Adjust if wrong
+    @staticmethod
+    def device(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/device', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def browse(self):
-        press_keybinding('Y')
+    @staticmethod
+    def mix(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/mix', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def clip(self):
-        press_keybinding('C')
+    @staticmethod
+    def browse(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/browse', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def fixed_length(self):
-        press_keybinding('\\')
+    @staticmethod
+    def clip(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/clip', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def new(self):
-        press_keybinding('~!N')
+    @staticmethod
+    def fixed_length(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/fixed_length', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def new_next(self):
-        press_keybinding('^return')
+    @staticmethod
+    def new(shift=False, loop=False, quantize=False, select=False):
+        press_command("/push2/new", shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def duplicate(self):
-        press_keybinding('!D')
+    @staticmethod
+    def new_next(shift=False, loop=False, quantize=False, select=False):
+        press_command("/push2/new_next", shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def double_loop(self):
-        press_keybinding('2')  # Placeholder
+    @staticmethod
+    def duplicate(shift=False, loop=False, quantize=False, select=False):
+        press_command("/push2/duplicate", shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def double(self):
-        press_keybinding('C')  # Placeholder
+    @staticmethod
+    def double_loop(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/double_loop', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def stop_clip(self):
-        press_keybinding('V')  # Placeholder
+    @staticmethod
+    def double(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/double', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def mute(self):
-        press_keybinding('M')
+    @staticmethod
+    def stop_clip(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/stop_clip', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def mute_off(self):
-        press_keybinding('^#M')
+    @staticmethod
+    def mute(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/mute', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def solo(self):
-        press_keybinding('S')
+    @staticmethod
+    def mute_off(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/mute_off', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def solo_lock(self):
-        press_keybinding('^S')
+    @staticmethod
+    def solo(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/solo', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def undo(self):
-        press_keybinding('!Z')
+    @staticmethod
+    def solo_lock(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/solo_lock', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def redo(self):
-        press_keybinding('#!Z')
+    @staticmethod
+    def undo(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/undo', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def delete(self):
-        press_keybinding('delete')
+    @staticmethod
+    def redo(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/redo', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def pause(self):
-        press_keybinding('space')
+    @staticmethod
+    def delete(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/delete', shift=shift, loop=loop, quantize=quantize, select=select)
 
-    def play(self):
-        press_keybinding('space')
+    @staticmethod
+    def pause(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/stop', shift=shift, loop=loop, quantize=quantize, select=select)
+
+    @staticmethod
+    def play(shift=False, loop=False, quantize=False, select=False):
+        press_command('/push2/play', shift=shift, loop=loop, quantize=quantize, select=select)
 
     def record(self):
-        press_keybinding('R')
-        # Toggle internal recording state
+        press_command('/push2/record')
         definitions.isRecording = not definitions.isRecording
-
-        if definitions.isRecording:
-            self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
-        else:
-            self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN)
+        color = definitions.RED if definitions.isRecording else definitions.GREEN
+        self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, color)
 
     def stop(self):
-        press_keybinding('space')
+        press_command('/push2/stop')
 
-    def arrow_keys(self, direction, shift, loop):
-        if direction in ['up', 'down', 'left', 'right']:
-            if shift and loop:
-                if direction == 'right':
-                    press_keybinding('#!.')
-                elif direction == 'left':
-                    press_keybinding('#!,')
-            elif shift:
-                press_keybinding(f'#{direction}')
-            elif loop:
-                if direction == 'down':
-                    press_keybinding("~'")
-                elif direction == 'up':
-                    press_keybinding('U')
-                else:
-                    press_keybinding(direction)
-            else:
-                press_keybinding(direction)
+    @staticmethod
+    def arrow_keys(direction, shift=False, loop=False):
+        key = f"/push2/{direction}"
+        if shift and loop:
+            key += "_shift_loop"
+        elif shift:
+            key += "_shift"
+        elif loop:
+            key += "_loop"
+        press_command(key)
 
-    def quantize(self, index, quantize, shift, loop, repeat, off):
-        quant_map = {
-            "1_32T": '7', "1_32": '3', "1_16T": '6', "1_16": '2',
-            "1_8T": '5', "1_8": '1', "1_4T": '4', "1_4": '0'
-        }
-        if index in quant_map:
-            press_keybinding(f'~!#^{quant_map[index]}')
-        else:
-            press_keybinding('Q')
+    @staticmethod
+    def quantize(index, quantize=False, shift=False, loop=False, repeat=False, off=False):
+        key = f"/push2/quantize/{index}_quantize"
+        press_command(COMMANDS.get(key, "/push2/quantize"))
 
-    def metronome_on_off(self):
-        press_keybinding('K')  # placeholder if needed
+    @staticmethod
+    def metronome_on_off():
+        press_command('/push2/metronome')
 
     def get_buttons_state(self):
-        metronome_on = definitions.isMetronome
-        is_recording = definitions.isRecording
-
-        # Do not overwrite PLAY here; use update_play_button_color instead
-        # self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.LIME if not is_playing else definitions.GREEN)
-
-        self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD,
-                                               definitions.GREEN if not is_recording else definitions.RED)
-        self.app.push.buttons.set_button_color(push2_python.constants.BUTTON_METRONOME,
-                                               definitions.OFF_BTN_COLOR if not metronome_on else definitions.WHITE)
+        self.app.push.buttons.set_button_color(
+            push2_python.constants.BUTTON_RECORD,
+            definitions.GREEN if not definitions.isRecording else definitions.RED
+        )
+        self.app.push.buttons.set_button_color(
+            push2_python.constants.BUTTON_METRONOME,
+            definitions.OFF_BTN_COLOR if not definitions.isMetronome else definitions.WHITE
+        )
         self.app.midi_cc_mode.update_buttons()
-        return definitions.isPlaying, metronome_on, is_recording
+        return definitions.isPlaying, definitions.isMetronome, definitions.isRecording

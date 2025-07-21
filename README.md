@@ -1,21 +1,22 @@
-# LogicX-Push2 - Logic Pro X Adaption (WIP)
+# LogicX-Push2 - Logic Pro 11
 To Install:
 ```
 brew install cairo pango gdk-pixbuf libxml2 libxslt libffi libusb
-
 
 python3 -m pip install -r requirements.txt
 python3 app.py
 
 ```
 updated interface and controls to use new Osc file in Docs.   (WIP)
-Tested on Logic 11 / Mac OS 13.6.6
+Tested on Logic 11.1.2 / Mac OS 15.5
 
 
 LogicX-Push2 allows your ableton PUSH2 to have more functionality in Logic Pro beyond the default "user" mode.
-**LogicX-Push2** is based on the source code for Psyha, which  is a Python 3 app to use **Push2 as a standalone MIDI controller**. It has manily been designed to work as a controller for [Apple's Logic PRO](https://www.apple.com/logic-pro/), but it can also be used as a generic controller. To run LogicX-Push2, you just need to install Python requirements and run `app.py` on a computer connected to Push2 and with a MIDI interface to output messages.
+**LogicX-Push2** is based on the source code for Psyha, which  is a Python 3 app to use **Push2 as a standalone MIDI controller**. It has mainly been designed to work as a controller for [Apple's Logic PRO](https://www.apple.com/logic-pro/), but it can also be used as a generic controller. To run LogicX-Push2, you just need to install Python requirements and run `app.py` on a computer connected to Push2 and with a MIDI interface to output messages.
 
 ### New Features include:
+* NO LONGER NEED OSCulator (keybinds are now from a json file)
+* Collapsable SCALES.  Now you can remove the black keys from your pad and only show notes found in your desired scales.
 * Updated Frontend UI
 * Updated Transport Controls (Stop / Play / Record / Metronome / Mute / Solo )
 * Better Navigation Controls
@@ -25,7 +26,6 @@ LogicX-Push2 allows your ableton PUSH2 to have more functionality in Logic Pro b
 * Full keybind support for Logic Pro (bind any key in Logic to anything on the PUSH2)
 
 #### Other Features
-* Play melodies and chords in a chromatic scale mode
 * Use classic 4x4 (and up to 8x8!) pad grid in the rhythm layout mode
 * Choose between channel aftertouch and polyphonic aftertouch
 * Use *accent* mode for fixed 127 velocity playing
@@ -33,9 +33,6 @@ LogicX-Push2 allows your ableton PUSH2 to have more functionality in Logic Pro b
 * Interactively adjust velocity/aftertouch sensitivity curves
 * Merge MIDI in from a MIDI input and also send it to the main MIDI out
 * Interactively configure MIDI in/out settings
-* Select tracks and show track number information on screen
-* Show track instrument information and sync colors (with preloaded information about what each track is routed to)
-* Mute/unmute 64 tracks displayed in Push2's 64 pads
 * Send MIDI control CC data using the encoders, use synth definition files (much like's) to show show controls and control names in a meaningful way
 * Select track instrument presets by sending program change messages
 * Temporarily disable screen rendering
@@ -47,10 +44,12 @@ LogicX-Push2 allows your ableton PUSH2 to have more functionality in Logic Pro b
 
 Here are some notes about how to use LogicX-Push2:
 
+* Arrow Keys are mapped to physical arrow keys on keyboard.
+* Press `Scale` button to change scales, collapse scales.  Use < > buttons or rotary encoder knob to cycle through scales.
+* Outside of `Scale` mode, you can still press `Shift` + `Scale` to collapse or uncollapse a scale outside the menu.
 * Press `Note` button to toggle between rhythmic/melodic layouts.
 * Use `Ocateve up` and `Octave down` buttons to change octaves.
 * Press `Shift + Accent` button to toggle between pitch bend/modulation wheel modes for the touchstrip.
-* Press `Add Track` button to cycle through instruments 1-8 / 9-16 / 17-24.
 * Press `Accent` button to activate fixed velocity mode (all notes will be triggered with full 127 velocity).
 * Press `Setup` button several times to cycle through configuration pages where you'll find options to:
     * Set MIDI out device and channel
