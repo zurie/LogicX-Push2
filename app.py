@@ -81,7 +81,10 @@ class LogicApp(object):
             settings = {}
 
         self.logic_interface = LogicInterface(self)
-
+        self.shift_held = False
+        self.select_held = False
+        self.quantize_held = False
+        self.quantize_used_as_modifier = False
         self.set_midi_in_channel(settings.get('midi_in_default_channel', 0))
         self.set_midi_out_channel(settings.get('midi_out_default_channel', 0))
         self.target_frame_rate = settings.get('target_frame_rate', 60)
@@ -210,6 +213,18 @@ class LogicApp(object):
                 # TODO: here we hardcoded the default mode for a specific xor_group, I should clean this a little bit in the future...
                 if mode_to_unset.xor_group == 'pads':
                     self.set_mode_for_xor_group(self.melodic_mode)
+
+    def on_button_pressed_raw(self, button_name):
+        if button_name == push2_python.constants.BUTTON_SHIFT:
+            self.shift_held = True
+        elif button_name == push2_python.constants.BUTTON_SELECT:
+            self.select_held = True
+
+    def on_button_released_raw(self, button_name):
+        if button_name == push2_python.constants.BUTTON_SHIFT:
+            self.shift_held = False
+        elif button_name == push2_python.constants.BUTTON_SELECT:
+            self.select_held = False
 
     def update_play_button_color(self, is_playing):
         if is_playing:

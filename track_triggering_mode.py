@@ -145,6 +145,7 @@ class TrackTriggeringMode(definitions.LogicMode):
         elif button_name == push2_python.constants.BUTTON_DUPLICATE:
             self.app.logic_interface.scene_duplicate(self.app.logic_interface.get_selected_scene())
             return True  # Prevent other modes to get this event
+        return None
 
     def on_button_released_raw(self, button_name):
         if button_name == self.clear_clip_button:
@@ -153,12 +154,14 @@ class TrackTriggeringMode(definitions.LogicMode):
         elif button_name == self.double_clip_button:
             self.double_clip_button_being_pressed = False
             return True  # Prevent other modes to get this event
+        return None
 
     def on_encoder_rotated(self, encoder_name, increment):
         if encoder_name == push2_python.constants.ENCODER_TEMPO_ENCODER:
             new_bpm = int(self.app.logic_interface.get_bpm()) + increment * 2
             self.app.logic_interface.set_bpm(new_bpm)
             return True  # Prevent other modes to get this event
+        return None
 
     def on_pad_pressed_raw(self, pad_n, pad_ij, velocity):
 

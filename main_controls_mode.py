@@ -2,6 +2,8 @@ import definitions
 import push2_python
 import time
 
+from logic_keystrokes import press_command
+
 
 class MainControlsMode(definitions.LogicMode):
     preset_selection_button_pressing_time = None
@@ -125,8 +127,6 @@ class MainControlsMode(definitions.LogicMode):
         # Shift and select button
         self.set_button_color_if_pressed(self.shift_button, animation=definitions.DEFAULT_ANIMATION)
         self.set_button_color_if_pressed(self.select_button, animation=definitions.DEFAULT_ANIMATION)
-        self.set_button_color_if_pressed(self.quantize_button, animation=definitions.DEFAULT_ANIMATION)
-        self.set_button_color_if_pressed(self.double_loop_button, animation=definitions.DEFAULT_ANIMATION)
 
         # Note button, to toggle melodic/rhythmic mode
         self.set_button_color(self.note_button)
@@ -402,20 +402,52 @@ class MainControlsMode(definitions.LogicMode):
                 return True
 
             for button in self.quantize_buttons:
-                if button_name == button:
-                    self.app.logic_interface.quantize(button_name, True if quantize else False, True if shift else False, True if loop else False, False, False)
+                if button_name == button and self.app.quantize_held:
+                    self.app.quantize_used_as_modifier = True
+                    self.app.logic_interface.quantize(
+                        index=button_name,
+                        quantize=True,
+                        shift=self.app.shift_held,
+                        loop=False,  # loop is not a modifier anymore
+                        repeat=False,
+                        off=False
+                    )
+                    return True
         return None
 
     def on_button_pressed_raw(self, button_name):
-        if button_name == self.user_button:
-            self.push.buttons.set_button_color(self.user_button, definitions.WHITE)
-            return True
-        # Avoid forcing PLAY/RECORD/METRONOME to white
+        if button_name == self.quantize_button:
+            self.app.quantize_held = True
+            self.push.buttons.set_button_color(button_name, definitions.WHITE)
+            return None
+
+        if button_name == self.shift_button:
+            self.app.shift_held = True
+        elif button_name == self.select_button:
+            self.app.select_held = True
+
         if button_name not in [self.play_button, self.record_button, self.metronome_button]:
             self.push.buttons.set_button_color(button_name, definitions.WHITE)
-            return True
+
         return None
 
     def on_button_released_raw(self, button_name):
+
+        if button_name == self.quantize_button:
+            if not self.app.quantize_used_as_modifier:
+                press_command("/push2/quantize")
+            self.app.quantize_held = False
+            self.app.quantize_used_as_modifier = False
+            self.set_buttons_to_color(self.buttons_used, definitions.OFF_BTN_COLOR)
+            return None
+
+        if button_name == self.shift_button:
+            self.app.shift_held = False
+        elif button_name == self.select_button:
+            self.app.select_held = False
+
         self.set_buttons_to_color(self.buttons_used, definitions.OFF_BTN_COLOR)
+        return None
+
+
 

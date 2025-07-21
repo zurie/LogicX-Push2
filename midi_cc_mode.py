@@ -287,6 +287,7 @@ class MIDICCMode(LogicMode):
             elif button_name == push2_python.constants.BUTTON_PAGE_RIGHT and show_next:
                 self.update_current_section_page(new_page=current_page + 1)
             return True
+        return None
 
     def on_encoder_rotated(self, encoder_name, increment):
         if not self.app.is_mode_active(self.app.settings_mode) and not self.app.is_mode_active(self.app.scalemenu_mode):
