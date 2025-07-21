@@ -15,7 +15,8 @@
     "down": "down",
     "left": "left",
     "right": "right",
-    "escape": "escape"
+    "escape": "escape",
+    "backslash": "backslash"
   },
   "commands": {
     "/push2/up": "up",
@@ -80,8 +81,8 @@
     "/push2/layout_shift": "#L",
     "/push2/session": "E",
     "/push2/session_shift": "#E",
-    "/push2/fixed_length": "\\\\",
-    "/push2/fixed_length_shift": "#\\\\",
+    "/push2/fixed_length": "backslash",
+    "/push2/fixed_length_shift": "#backslash",
     "/push2/double": "C",
     "/push2/double_shift": "#C",
     "/push2/stop_clip": "V",

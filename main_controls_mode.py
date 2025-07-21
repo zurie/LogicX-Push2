@@ -174,39 +174,39 @@ class MainControlsMode(definitions.LogicMode):
                 return True
 
             elif button_name == self.duplicate_button:
-                self.app.logic_interface.duplicate(shift=shift, loop=loop)
+                self.app.logic_interface.duplicate(shift=shift, select=select)
                 return True
 
             elif button_name == self.double_loop_button:
-                self.app.logic_interface.double(shift=shift, loop=loop)
+                self.app.logic_interface.double(shift=shift, select=select)
                 return True
             elif button_name == self.convert_button:
-                self.app.logic_interface.convert(shift=shift, loop=loop)
+                self.app.logic_interface.convert(shift=shift, select=select)
                 return True
 
             elif button_name == self.fixed_length_button:
-                self.app.logic_interface.fixed_length(shift=shift, loop=loop)
+                self.app.logic_interface.fixed_length(shift=shift, select=select)
                 return True
 
             elif button_name == self.new_button:
                 if long_press:
-                    self.app.logic_interface.new_next(shift=shift, loop=loop)
+                    self.app.logic_interface.new_next(shift=shift, select=select)
                 else:
-                    self.app.logic_interface.new(shift=shift, loop=loop)
+                    self.app.logic_interface.new(shift=shift, select=select)
                 return True
 
             elif button_name == self.delete_button:
                 if long_press:
-                    self.app.logic_interface.delete(shift=shift, loop=loop)
+                    self.app.logic_interface.delete(shift=shift, select=select)
                 else:
-                    self.app.logic_interface.delete(shift=shift, loop=loop)
+                    self.app.logic_interface.delete(shift=shift, select=select)
                 return True
 
             elif button_name == self.undo_button:
                 if long_press:
-                    self.app.logic_interface.redo(shift=shift, loop=loop)
+                    self.app.logic_interface.redo(shift=shift, select=select)
                 else:
-                    self.app.logic_interface.undo(shift=shift, loop=loop)
+                    self.app.logic_interface.undo(shift=shift, select=select)
                 return True
 
             elif button_name == self.note_button:
@@ -327,22 +327,22 @@ class MainControlsMode(definitions.LogicMode):
                 return True
 
             elif button_name == self.stop_clip_button:
-                self.app.logic_interface.stop_clip(shift=shift, loop=loop)
+                self.app.logic_interface.stop_clip(shift=shift, select=select)
                 return True
             elif button_name == self.device_button:
-                self.app.logic_interface.device(shift=shift, loop=loop)
+                self.app.logic_interface.device(shift=shift, select=select)
                 return True
             elif button_name == self.mix_button:
-                self.app.logic_interface.mix(shift=shift, loop=loop)
+                self.app.logic_interface.mix(shift=shift, select=select)
                 return True
             elif button_name == self.browse_button:
-                self.app.logic_interface.browse(shift=shift, loop=loop)
+                self.app.logic_interface.browse(shift=shift, select=select)
                 return True
             elif button_name == self.add_track_button:
-                self.app.logic_interface.add_track(shift=shift, loop=loop)
+                self.app.logic_interface.add_track(shift=shift, select=select)
                 return True
             elif button_name == self.clip_button:
-                self.app.logic_interface.clip(shift=shift, loop=loop)
+                self.app.logic_interface.clip(shift=shift, select=select)
                 return True
             elif button_name == self.repeat_button:
                 if long_press:
@@ -351,18 +351,18 @@ class MainControlsMode(definitions.LogicMode):
                     self.app.logic_interface.repeat()
                 return True
             elif button_name == self.layout_button:
-                self.app.logic_interface.layout(shift=shift, loop=loop)
+                self.app.logic_interface.layout(shift=shift, select=select)
                 return True
             elif button_name == self.session_button:
-                self.app.logic_interface.session(shift=shift, loop=loop)
+                self.app.logic_interface.session(shift=shift, select=select)
                 return True
 
             # SOLO
             elif button_name == self.solo_button:
                 if long_press:
-                    self.app.logic_interface.solo_lock(shift=shift, loop=loop)
+                    self.app.logic_interface.solo_lock(shift=shift, select=select)
                 else:
-                    self.app.logic_interface.solo(shift=shift, loop=loop)
+                    self.app.logic_interface.solo(shift=shift, select=select)
                 self.app.buttons_need_update = True
                 return True
 
@@ -408,7 +408,7 @@ class MainControlsMode(definitions.LogicMode):
                         index=button_name,
                         quantize=True,
                         shift=self.app.shift_held,
-                        loop=False,  # loop is not a modifier anymore
+                        select=False,
                         repeat=False,
                         off=False
                     )

@@ -84,8 +84,8 @@ class LogicInterface(definitions.LogicMode):
         press_command('/push2/session', shift=shift, select=select)
 
     @staticmethod
-    def convert(shift=False, loop=False):
-        press_command("/push2/convert", shift=shift, loop=loop)
+    def convert(shift=False, select=False):
+        press_command("/push2/convert", shift=shift, select=select)
 
     @staticmethod
     def add_track(shift=False, select=False):

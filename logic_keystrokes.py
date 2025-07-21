@@ -56,6 +56,14 @@ def load_config():
     COMMANDS.update(config.get("commands", {}))
 
 
+CHARACTER_ALIASES = {
+    "backslash": "\\",
+    "slash": "/",
+    "pipe": "|",
+    "tilde": "~"
+}
+
+
 def press_keybinding(binding):
     load_config()
 
@@ -66,6 +74,7 @@ def press_keybinding(binding):
     lower = binding.lower()
     if lower in SPECIAL_KEYS:
         key = SPECIAL_KEYS[lower]
+        key = CHARACTER_ALIASES.get(key, key)
         keyboard.press(key)
         keyboard.release(key)
         if DEBUG_LOGS:
@@ -86,6 +95,7 @@ def press_keybinding(binding):
         return
 
     main_key = SPECIAL_KEYS.get(key, key)
+    main_key = CHARACTER_ALIASES.get(main_key, main_key)
 
     if DEBUG_LOGS:
         print(f"[DEBUG] Pressing modifiers: {[str(m) for m in modifiers]}")
@@ -118,4 +128,3 @@ def press_command(osc_path, shift=False, loop=False, quantize=False, select=Fals
         press_keybinding(binding)
     else:
         print(f"[WARN] No keybinding found for: {key}")
-
