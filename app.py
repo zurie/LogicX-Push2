@@ -12,6 +12,7 @@ import push2_python
 
 from collections import defaultdict
 from logic_midi_listener import LogicMidiListener
+from splash_screen import draw_splash_screen
 
 from melodic_mode import MelodicMode
 from track_selection_mode import TrackSelectionMode
@@ -505,6 +506,9 @@ class LogicApp(object):
             # "ALSA lib seq_hw.c:466:(snd_seq_hw_open) open /dev/snd/seq failed: Cannot allocate memory" issues.
             # A work around is make the reconnection time bigger, but a better solution should probably be found.
             self.push.set_push2_reconnect_call_interval(2)
+
+        if self.use_push2_display:
+            draw_splash_screen(self.push.display)
 
     def update_push2_pads(self):
         for mode in self.active_modes:
