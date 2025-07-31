@@ -58,8 +58,7 @@ class ScaleMenuMode(SettingsMode):
     def on_button_pressed(self, button_name, loop=False, quantize=False, shift=False, select=False, long_press=False, double_press=False):
         if self.current_page == 0:
             if button_name == push2_python.constants.BUTTON_UPPER_ROW_2:
-                self.app.melodic_mode.collapse_scale = not self.app.melodic_mode.collapse_scale
-                self.app.pads_need_update = True
+                self.app.toggle_collapse_scale()
                 return True
 
             elif button_name == push2_python.constants.BUTTON_UPPER_ROW_7:

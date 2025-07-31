@@ -4,7 +4,7 @@ from pynput.keyboard import Key, Controller
 
 keyboard = Controller()
 
-DEBUG_LOGS = True
+DEBUG_LOGS = False
 
 KEY_LOOKUP = {
     'ctrl': Key.ctrl,

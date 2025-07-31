@@ -4,6 +4,8 @@ import cairocffi as cairo
 import time
 from push2_python.constants import DISPLAY_LINE_PIXELS, DISPLAY_N_LINES
 from push2_python.constants import FRAME_FORMAT_RGB565
+from definitions import VERSION
+from datetime import datetime
 
 def draw_splash_screen(push_display):
     WIDTH, HEIGHT = DISPLAY_LINE_PIXELS, DISPLAY_N_LINES
@@ -30,7 +32,7 @@ def draw_splash_screen(push_display):
     # Version
     ctx.set_font_size(20)
     ctx.move_to(30, 135)
-    ctx.show_text("v1.1  •  July 2025")
+    ctx.show_text(f"v{VERSION}  •  {datetime.now():%B %Y}")  # e.g., "v1.1.1 • July 2025"
 
     # Send to Push2 screen
     buf = surface.get_data()

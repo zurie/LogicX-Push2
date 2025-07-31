@@ -6,6 +6,7 @@ import sys
 import psutil
 
 from display_utils import show_title, show_value, show_bigvalue, draw_text_at
+from melodic_mode import MelodicMode
 
 
 class SettingsMode(definitions.LogicMode):
@@ -99,38 +100,39 @@ class SettingsMode(definitions.LogicMode):
 
     def update_buttons(self):
         if self.current_page == 0:  # Performance settings
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_1, definitions.WHITE)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_1, definitions.GREEN)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_2, definitions.WHITE)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_3, definitions.OFF_BTN_COLOR)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_4, definitions.OFF_BTN_COLOR)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_5, definitions.OFF_BTN_COLOR)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_6, definitions.OFF_BTN_COLOR)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_7, definitions.OFF_BTN_COLOR)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, definitions.OFF_BTN_COLOR)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_3, definitions.YELLOW)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_4, definitions.YELLOW)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_5, definitions.ORANGE)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_6, definitions.ORANGE)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_7, definitions.BLACK)
+            color = self.app.track_selection_mode.get_current_track_color() if self.app.collapse_scale else definitions.OFF_BTN_COLOR
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, color)
 
         elif self.current_page == 1:  # MIDI settings
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_1, definitions.WHITE)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_2, definitions.WHITE)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_3, definitions.WHITE)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_4, definitions.WHITE)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_5, definitions.WHITE)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_6, definitions.WHITE)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_1, definitions.ORANGE)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_2, definitions.ORANGE)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_3, definitions.YELLOW)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_4, definitions.YELLOW)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_5, definitions.BLACK)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_6, definitions.GREEN)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_7, definitions.BLACK)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_7, definitions.GREEN,
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, definitions.RED,
                                                animation=definitions.DEFAULT_ANIMATION)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, definitions.OFF_BTN_COLOR)
 
         elif self.current_page == 2:  # About
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_1, definitions.GREEN)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_2, definitions.OFF_BTN_COLOR)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_2, definitions.BLACK)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_3, definitions.BLACK)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_3, definitions.RED,
                                                animation=definitions.DEFAULT_ANIMATION)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_4, definitions.OFF_BTN_COLOR)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_5, definitions.OFF_BTN_COLOR)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_6, definitions.OFF_BTN_COLOR)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_7, definitions.OFF_BTN_COLOR)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, definitions.OFF_BTN_COLOR)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_4, definitions.BLACK)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_5,
+                                               definitions.GREEN if self.app.debug_logs else definitions.OFF_BTN_COLOR)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_6, definitions.BLACK)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_7, definitions.BLACK)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_UPPER_ROW_8, definitions.BLACK)
 
     def update_display(self, ctx, w, h):
 
@@ -184,6 +186,9 @@ class SettingsMode(definitions.LogicMode):
                         color = definitions.get_color_rgb_float(definitions.FONT_COLOR_DELAYED_ACTIONS)
                     show_title(ctx, part_x, h, 'pAT CURVE')
                     show_value(ctx, part_x, h, self.app.melodic_mode.poly_at_curve_bending, color)
+                elif i == 7:  # Debug logs toggle
+                    show_title(ctx, part_x, h, 'COLLAPSE SCALE')
+                    show_value(ctx, part_x, h, 'On' if self.app.collapse_scale else 'Off', color)
 
             elif self.current_page == 1:  # MIDI settings
                 if i == 0:  # MIDI in device
@@ -260,7 +265,7 @@ class SettingsMode(definitions.LogicMode):
                     show_title(ctx, part_x, h, 'NOTES IN')
                     show_value(ctx, part_x, h, name, color)
 
-                elif i == 6:  # Re-send MIDI connection established (to push, not MIDI in/out device)
+                elif i == 7:  # Re-send MIDI connection established (to push, not MIDI in/out device)
                     show_title(ctx, part_x, h, 'RESET MIDI')
 
             elif self.current_page == 2:  # About
@@ -279,6 +284,10 @@ class SettingsMode(definitions.LogicMode):
                 elif i == 3:  # FPS indicator
                     show_title(ctx, part_x, h, 'FPS')
                     show_value(ctx, part_x, h, self.app.actual_frame_rate, color)
+
+                elif i == 4:  # Debug logs toggle
+                    show_title(ctx, part_x, h, 'DEBUG LOGS')
+                    show_value(ctx, part_x, h, 'On' if self.app.debug_logs else 'Off', color)
 
         # After drawing all labels and values, draw other stuff if required
         if self.current_page == 0:  # Performance settings
@@ -416,6 +425,10 @@ class SettingsMode(definitions.LogicMode):
                 self.app.melodic_mode.set_lumi_pressure_mode()
                 return True
 
+            elif button_name == push2_python.constants.BUTTON_UPPER_ROW_8:
+                self.app.toggle_collapse_scale()
+                return True
+
         elif self.current_page == 1:  # MIDI settings
             if button_name == push2_python.constants.BUTTON_UPPER_ROW_1:
                 if self.app.midi_in_tmp_device_idx is None:
@@ -485,6 +498,19 @@ class SettingsMode(definitions.LogicMode):
                 self.is_running_sw_update = True
                 run_sw_update()
                 return True
+            elif button_name == push2_python.constants.BUTTON_UPPER_ROW_5:
+                self.app.debug_logs = not self.app.debug_logs
+
+                # Update global reference for debug logging (logic_keystrokes.py or others)
+                try:
+                    import logic_keystrokes
+                    logic_keystrokes.DEBUG_LOGS = self.app.debug_logs
+                except ImportError:
+                    pass
+
+                self.app.save_current_settings_to_file()
+                return True
+        return None
 
 
 def restart_program():

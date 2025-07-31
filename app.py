@@ -30,6 +30,12 @@ from display_utils import show_notification, show_help
 
 
 class LogicApp(object):
+    # debug
+    debug_logs = False
+
+    # Collapse Scale
+    collapse_scale = True
+
     # midi
     midi_out = None
     available_midi_out_device_names = []
@@ -80,12 +86,14 @@ class LogicApp(object):
             settings = json.load(open('settings.json'))
         else:
             settings = {}
-
+    # debug
         self.logic_interface = LogicInterface(self)
         self.shift_held = False
         self.select_held = False
         self.quantize_held = False
         self.quantize_used_as_modifier = False
+        self.debug_logs = settings.get("debug_logs", False)
+        self.collapse_scale = settings.get("collapse_scale", False)
         self.set_midi_in_channel(settings.get('midi_in_default_channel', 0))
         self.set_midi_out_channel(settings.get('midi_out_default_channel', 0))
         self.target_frame_rate = settings.get('target_frame_rate', 60)
@@ -130,6 +138,17 @@ class LogicApp(object):
 
     def is_mode_active(self, mode):
         return mode in self.active_modes
+
+    def toggle_collapse_scale(self):
+        self.collapse_scale = not self.collapse_scale
+        self.save_current_settings_to_file()
+
+        if hasattr(self, "melodic_mode") and self.melodic_mode:
+            self.melodic_mode.update_pads()
+
+        # Optional: Display notification on screen
+        if hasattr(self, "add_display_notification"):
+            self.add_display_notification(f"Collapse Scale: {'ON' if self.collapse_scale else 'OFF'}")
 
     def toggle_and_rotate_help_mode(self):
         if self.is_mode_active(self.help_mode):
@@ -287,6 +306,8 @@ class LogicApp(object):
                                                  :-4] if self.notes_midi_in is not None else None,
             'use_push2_display': self.use_push2_display,
             'target_frame_rate': self.target_frame_rate,
+            'debug_logs': self.debug_logs,
+            'collapse_scale': self.collapse_scale
         }
         for mode in self.get_all_modes():
             mode_settings = mode.get_settings_to_save()
@@ -896,6 +917,8 @@ def on_button_released(_, name):
 
     # - Trigger processed button actions
     def delayed_double_press_button_check(name):
+        if name not in buttons_pressing_log or not buttons_pressing_log[name]:
+            return  # or handle safely
         last_time_pressed = buttons_pressing_log[name][-1]
         try:
             previous_time_pressed = buttons_pressing_log[name][-2]
@@ -998,6 +1021,10 @@ def on_midi_connected(_):
 # Run app main loop
 if __name__ == "__main__":
     app = LogicApp()
+    # Set global DEBUG_LOGS from app state
+    import logic_keystrokes
+    logic_keystrokes.DEBUG_LOGS = app.debug_logs
+
     if midi_connected_received_before_app:
         # App received the "on_midi_connected" call before it was initialized. Do it now!
         print('Missed MIDI initialization call, doing it now...')

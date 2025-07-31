@@ -8,7 +8,7 @@ python3 app.py
 
 ```
 updated interface and controls to use new Osc file in Docs.   (WIP)
-Tested on Logic 11.1.2 / Mac OS 15.5
+Tested on Logic 11.2.2 / Mac OS 15.5
 
 
 LogicX-Push2 allows your ableton PUSH2 to have more functionality in Logic Pro beyond the default "user" mode.
@@ -16,7 +16,7 @@ LogicX-Push2 allows your ableton PUSH2 to have more functionality in Logic Pro b
 
 ### New Features include:
 * NO LONGER NEED OSCulator (keybinds are now from a json file)
-* Collapsable SCALES.  Now you can remove the black keys from your pad and only show notes found in your desired scales.
+* Collapsible Scales – Hide unused pads and display only the notes in your selected scale, giving you a cleaner, more focused playing surface.
 * Updated Frontend UI
 * Updated Transport Controls (Stop / Play / Record / Metronome / Mute / Solo )
 * Better Navigation Controls

@@ -24,9 +24,6 @@ class MelodicMode(definitions.LogicMode):
     scale = definitions.SCALES[0].notes
     scale_index = 0
 
-    # scale_name
-    collapse_scale = False
-
     lumi_midi_out = None
     last_time_tried_initialize_lumi = 0
 
@@ -36,11 +33,6 @@ class MelodicMode(definitions.LogicMode):
     scale_button = push2_python.constants.BUTTON_SCALE
 
     buttons_used = [octave_up_button, octave_down_button, accent_button, scale_button]
-
-    def toggle_collapse_scale(self):
-        self.collapse_scale = not self.collapse_scale
-        self.app.add_display_notification(f"Collapse Scale: {'ON' if self.collapse_scale else 'OFF'}")
-        self.update_pads()
 
     def get_scale_note_for_index(self, index):
         scale_notes = []
@@ -56,7 +48,6 @@ class MelodicMode(definitions.LogicMode):
         Toggles the scale picker GUI mode.
         """
         self.app.toggle_mode(self.app.scalemenu_mode)
-
 
     def init_lumi_midi_out(self):
         print('Configuring LUMI notes MIDI out...')
@@ -103,6 +94,9 @@ class MelodicMode(definitions.LogicMode):
             self.poly_at_max_range = settings.get('poly_at_max_range', 40)
             self.poly_at_curve_bending = settings.get('poly_at_curve_bending', 50)
 
+            # NEW: Load collapse_scale startup setting
+            self.app.collapse_scale = settings.get('collapse_scale', False)
+
     def get_settings_to_save(self):
         return {
             'use_poly_at': self.use_poly_at,
@@ -111,6 +105,7 @@ class MelodicMode(definitions.LogicMode):
             'channel_at_range_end': self.channel_at_range_end,
             'poly_at_max_range': self.poly_at_max_range,
             'poly_at_curve_bending': self.poly_at_curve_bending,
+            'collapse_scale': self.app.collapse_scale,
         }
 
     def set_channel_at_range_start(self, value):
@@ -182,10 +177,10 @@ class MelodicMode(definitions.LogicMode):
         return True
 
     def pad_ij_to_midi_note(self, pad_ij):
-        if self.collapse_scale:
-            row = 7 - pad_ij[0]       # Flip so 0 = bottom row, 7 = top row
-            col = pad_ij[1]           # 0–7 left to right
-            base_index = row * 3      # 4-note overlap shift per row
+        if self.app.collapse_scale:
+            row = 7 - pad_ij[0]  # Flip so 0 = bottom row, 7 = top row
+            col = pad_ij[1]  # 0–7 left to right
+            base_index = row * 3  # 4-note overlap shift per row
             index = base_index + col  # fill across 8 columns
             return self.get_scale_note_for_index(index)
         else:
@@ -282,7 +277,7 @@ class MelodicMode(definitions.LogicMode):
             for j in range(0, 8):
                 note = self.pad_ij_to_midi_note([i, j])
                 color = definitions.WHITE
-                if not self.collapse_scale and not self.scale[note % 12]:
+                if not self.app.collapse_scale and not self.scale[note % 12]:
                     color = definitions.BLACK
                 if self.is_midi_note_root_octave(note):
                     try:
@@ -328,6 +323,7 @@ class MelodicMode(definitions.LogicMode):
             self.app.send_midi(msg)
             self.update_pads()  # Directly calling update pads method because we want user to feel feedback as quick as possible
             return True
+        return None
 
     def on_pad_aftertouch(self, pad_n, pad_ij, velocity):
         if pad_n is not None:
@@ -396,7 +392,7 @@ class MelodicMode(definitions.LogicMode):
                 return True
             elif button_name == self.scale_button:
                 if shift:
-                    self.toggle_collapse_scale()
+                    self.app.toggle_collapse_scale()
                 else:
                     self.toggle_scale()  # your GUI picker logic
                 return True

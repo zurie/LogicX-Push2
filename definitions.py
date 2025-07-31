@@ -8,7 +8,7 @@ from functools import wraps
 
 from push2_python.constants import ANIMATION_STATIC
 
-VERSION = '0.5'
+VERSION = '1.1.1'
 
 DELAYED_ACTIONS_APPLY_TIME = 1.0  # Encoder changes won't be applied until this time has passed since last moved
 isPlaying = 0.0  # instead of False
