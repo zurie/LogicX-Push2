@@ -98,7 +98,8 @@ class LogicApp(object):
         self.quantize_used_as_modifier = False
         self.debug_logs = settings.get("debug_logs", False)
         self.collapse_scale = settings.get("collapse_scale", False)
-        self.use_mcu = settings.get("use_mcu", False)   # <── NEW
+        self.use_mcu = settings.get("use_mcu", True)
+        self.debug_mcu = settings.get("debug_mcu", False)
 
         self.set_midi_in_channel(settings.get('midi_in_default_channel', 0))
         self.set_midi_out_channel(settings.get('midi_out_default_channel', 0))
@@ -110,22 +111,31 @@ class LogicApp(object):
         self.init_notes_midi_in(device_name=settings.get('default_notes_midi_in_device_name', None))
         self.init_push()
 
-        # --- Logic MIDI listener (non-MCU mode)
-        self.logic_listener = LogicMidiListener(
-            midi_port_name="IAC Driver Default",
-            play_state_callback=self.update_play_button_color,
-            record_state_callback=self.update_record_button_color
-        )
-        self.logic_listener.start()
+        if settings.get("use_mcu", False):
+            # --- MCU Manager (full Mackie Control support)
+            self.mcu_manager = LogicMCUManager(
+                self,
+                port_name=settings.get("mcu_port_name", "IAC Driver LogicMCU_In")
+            )
 
-        # --- MCU Manager
-        self.mcu_manager = LogicMCUManager(
-            self,
-            port_name=settings.get("mcu_port_name", "IAC Driver LogicMCU_In"),
-            enabled=self.use_mcu
-        )
-        if self.use_mcu:
+            # Optional: hook transport changes to update button colors
+            def handle_transport_change(state):
+                definitions.isPlaying = 1.0 if state.get("play") else 0.0
+                definitions.isRecording = 1.0 if state.get("record") else 0.0
+                self.update_play_button_color(state.get("play"))
+                self.update_record_button_color(state.get("record"))
+
+            self.mcu_manager.on_transport_change = handle_transport_change
             self.mcu_manager.start()
+
+        else:
+            # --- Logic MIDI listener (non-MCU mode)
+            self.logic_listener = LogicMidiListener(
+                midi_port_name=settings.get("default_midi_port_name", "IAC Driver Default"),
+                play_state_callback=self.update_play_button_color,
+                record_state_callback=self.update_record_button_color
+            )
+            self.logic_listener.start()
 
         self.init_modes(settings)
 
@@ -173,17 +183,18 @@ class LogicApp(object):
         else:
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.LIME)
 
-        # Track 1 solo/mute test
-        if self.mcu_manager.solo_states[0]:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.YELLOW)
-        else:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.OFF_BTN_COLOR)
+        # Track solo/mute update for selected track
+        sel_idx = self.mcu_manager.selected_track_idx
+        if sel_idx is not None:
+            if self.mcu_manager.solo_states[sel_idx]:
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.YELLOW)
+            else:
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.OFF_BTN_COLOR)
 
-        if self.mcu_manager.mute_states[0]:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.RED)
-        else:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.OFF_BTN_COLOR)
-
+            if self.mcu_manager.mute_states[sel_idx]:
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.RED)
+            else:
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.OFF_BTN_COLOR)
 
     def get_all_modes(self):
         return [getattr(self, element) for element in vars(self) if
@@ -322,6 +333,42 @@ class LogicApp(object):
             else:
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN)
 
+    def update_push2_mute_solo(self, track_idx=None):
+        """Update Push2 mute and solo button LEDs based on the specified track's state (or selected track if None)."""
+        try:
+            mcu = getattr(self, "mcu_manager", None)
+            if not mcu:
+                return  # MCU not initialized
+
+            # Use passed index or fallback to selected
+            if track_idx is None:
+                track_idx = mcu.selected_track_idx
+
+            if track_idx is None:
+                return  # No track selected yet
+
+            mute_state = mcu.mute_states[track_idx]
+            solo_state = mcu.solo_states[track_idx]
+
+            # Debug logging
+            if self.debug_mcu:
+                print(f"[Push2] Updating Mute/Solo LEDs for track {track_idx + 1}: mute={mute_state}, solo={solo_state}")
+
+            # Set Mute button color
+            if mute_state:
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.RED)
+            else:
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.OFF_BTN_COLOR)
+
+            # Set Solo button color
+            if solo_state:
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.YELLOW)
+            else:
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.OFF_BTN_COLOR)
+
+        except Exception as e:
+            print(f"[Push2] Error updating Mute/Solo LEDs: {e}")
+
     def toggle_mode(self, mode):
         if self.is_mode_active(mode):
             self.unset_mode_for_xor_group(mode)
@@ -369,6 +416,7 @@ class LogicApp(object):
             'debug_logs': self.debug_logs,
             'collapse_scale': self.collapse_scale,
             'use_mcu': self.use_mcu,
+            'debug_mcu': self.debug_mcu,
             'mcu_port_name': self.mcu_manager.port_name if self.mcu_manager else None,
         }
         for mode in self.get_all_modes():
@@ -711,6 +759,11 @@ class LogicApp(object):
         # Initialize all buttons to black, initialize all pads to off
         app.push.buttons.set_all_buttons_color(color=definitions.BLACK)
         app.push.pads.set_all_pads_to_color(color=definitions.BLACK)
+        # Restore MCU button states
+        if self.use_mcu and self.mcu_manager:
+            self.update_push2_mute_solo()
+            self.update_play_button_color(self.mcu_manager.transport["play"])
+            self.update_record_button_color(self.mcu_manager.transport["record"])
 
         # Iterate over modes and (re-)activate them
         for mode in self.active_modes:
