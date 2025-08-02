@@ -1,3 +1,5 @@
+# import time
+
 import mido
 import threading
 
@@ -78,13 +80,18 @@ class LogicMCUManager:
             return
         try:
             self.input_port = mido.open_input(self.port_name)
+
+            # Open the matching output port
+            mcu_out_name = self.port_name.replace("_In", "_Out")
+            self.output_port = mido.open_output(mcu_out_name)
+
             self.running = True
             self.listener_thread = threading.Thread(target=self.listen_loop, daemon=True)
             self.listener_thread.start()
             print("[MCU] Listening on", self.port_name)
+            print("[MCU] Sending on", mcu_out_name)
         except Exception as e:
-            if self.debug_mcu:
-                print("[MCU] Could not open port:", e)
+            print("[MCU] Could not open port:", e)
 
     def stop(self):
         self.running = False
@@ -93,6 +100,30 @@ class LogicMCUManager:
             self.input_port = None
             if self.debug_mcu:
                 print("[MCU] Input port closed")
+
+    def send_mcu_button(self, button_type):
+        if not self.output_port:
+            print("[MCU] No output port available to send", button_type)
+            return
+
+        if self.selected_track_idx is None:
+            print("[MCU] No selected track to send", button_type)
+            return
+
+        if button_type.upper() == "SOLO":
+            note_num = 8 + self.selected_track_idx
+        elif button_type.upper() == "MUTE":
+            note_num = 16 + self.selected_track_idx
+        else:
+            print("[MCU] Unknown button type:", button_type)
+            return
+
+        msg_press = mido.Message("note_on", note=note_num, velocity=127, channel=0)
+        msg_release = mido.Message("note_on", note=note_num, velocity=0, channel=0)
+        self.output_port.send(msg_press)
+        #time.sleep(0.05)
+        self.output_port.send(msg_release)
+        print(f"[MCU] Sent {button_type} for track {self.selected_track_idx + 1} (note {note_num})")
 
     def listen_loop(self):
         print("[MCU] Starting listen loop")
@@ -189,7 +220,7 @@ class LogicMCUManager:
         ch, bits = payload[0], payload[1]
 
         # Update channel states
-        self.rec_states[ch]  = bool(bits & 0x04)  # Record arm LED
+        self.rec_states[ch] = bool(bits & 0x04)  # Record arm LED
         self.solo_states[ch] = bool(bits & 0x08)  # Solo LED
         self.mute_states[ch] = bool(bits & 0x10)  # Mute LED
         if self.debug_mcu:

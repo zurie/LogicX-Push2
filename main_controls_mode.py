@@ -359,19 +359,27 @@ class MainControlsMode(definitions.LogicMode):
 
             # SOLO
             elif button_name == self.solo_button:
-                if long_press:
-                    self.app.logic_interface.solo_lock(shift=shift, select=select)
+                if self.app.mcu_manager.enabled:
+                    # Use MCU protocol instead of keybind
+                    self.app.mcu_manager.send_mcu_button("SOLO")
                 else:
-                    self.app.logic_interface.solo(shift=shift, select=select)
+                    if long_press:
+                        self.app.logic_interface.solo_lock(shift=shift, select=select)
+                    else:
+                        self.app.logic_interface.solo(shift=shift, select=select)
                 self.app.buttons_need_update = True
                 return True
 
             # MUTE
             elif button_name == self.mute_button:
-                if long_press:
-                    self.app.logic_interface.mute_off()
+                if self.app.mcu_manager.enabled:
+                    # Use MCU protocol instead of keybind
+                    self.app.mcu_manager.send_mcu_button("MUTE")
                 else:
-                    self.app.logic_interface.mute()
+                    if long_press:
+                        self.app.logic_interface.mute_off()
+                    else:
+                        self.app.logic_interface.mute()
                 self.app.buttons_need_update = True
                 return True
 
