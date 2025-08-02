@@ -167,6 +167,11 @@ class MainControlsMode(definitions.LogicMode):
             self.app.buttons_need_update = True
             return True
 
+        if button_name == self.settings_button:
+            self.app.toggle_and_rotate_settings_mode()
+            self.app.buttons_need_update = True
+            return True
+
         if not self.app.is_mode_active(self.app.help_mode):
 
             if button_name == self.automate_button:

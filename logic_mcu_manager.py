@@ -1,8 +1,7 @@
-# import time
 
 import mido
 import threading
-
+import time
 
 class LogicMCUManager:
     BUTTON_MAP = {
@@ -38,30 +37,36 @@ class LogicMCUManager:
         # --- Extra / Logic mappings ---
         100: "LOOP_ON_OFF", 101: "PUNCH",
         113: "MARKER_PREV", 114: "MARKER_NEXT", 115: "MARKER_SET",
+        118: "SETUP",  # Push 2 Setup button
+        119: "USER",   # Push 2 User button
     }
 
-    def __init__(self, app, port_name="IAC Driver LogicMCU_In", enabled=True):
+    def __init__(self, app, port_name="IAC Driver LogicMCU_In", enabled=True, update_interval=0.05):
         self.app = app
         self.enabled = enabled
         self.port_name = port_name
-        # Pull debug_mcu setting from app.settings if available
+        self.update_interval = update_interval  # Minimum time between display updates (50ms default)
+
         self.debug_mcu = getattr(app, "debug_mcu", False)
-        # Transport state
         self.transport = {"play": False, "stop": True, "record": False, "ffwd": False, "rew": False}
 
-        # Callback hooks (event-driven)
-        self.on_transport_change = None  # (transport_dict)
-        self.on_button = None  # (label, pressed)
-        self.on_fader = None  # (channel_idx, level)
-        self.on_vpot = None  # (idx, value)
-        self.on_track_state = None  # (channel_idx, rec, solo, mute)
+        # Callback hooks
+        self.on_transport_change = None
+        self.on_button = None
+        self.on_fader = None
+        self.on_vpot = None
+        self.on_track_state = None
 
-        # MIDI plumbing
         self.input_port = None
+        self.output_port = None
         self.listener_thread = None
         self.running = False
 
-        # Internal state cache
+        # State cache for throttling
+        self.last_update_time = 0
+        self.pending_update = False
+
+        # Track/LED state caches
         self.track_names = [""] * 8
         self.mute_states = [False] * 8
         self.solo_states = [False] * 8
@@ -72,7 +77,6 @@ class LogicMCUManager:
         self.selected_track_idx = None
         self.playhead = 0.0
 
-    # ---------------- Lifecycle ----------------
     def start(self):
         if not self.enabled:
             if self.debug_mcu:
@@ -80,11 +84,8 @@ class LogicMCUManager:
             return
         try:
             self.input_port = mido.open_input(self.port_name)
-
-            # Open the matching output port
             mcu_out_name = self.port_name.replace("_In", "_Out")
             self.output_port = mido.open_output(mcu_out_name)
-
             self.running = True
             self.listener_thread = threading.Thread(target=self.listen_loop, daemon=True)
             self.listener_thread.start()
@@ -155,11 +156,32 @@ class LogicMCUManager:
                 self.handle_sysex(bytes(msg.data))
             elif msg.type in ("note_on", "note_off"):
                 pressed = msg.type == "note_on" and msg.velocity > 0
-                self.handle_button(msg.note, pressed)
+                handled = self.handle_button(msg.note, pressed)
+
+                # If MCU didn't handle it, pass it through to Push 2 handler
+                if handled is False and hasattr(self.app, "on_push2_midi_message"):
+                    self.app.on_push2_midi_message(msg)
             elif msg.type == "control_change":
                 self.handle_cc(msg.control, msg.value)
             elif msg.type == "pitchwheel":
                 self.handle_pitchbend(msg.channel, msg.pitch)
+
+            # Throttle updates
+            now = time.time()
+            if now - self.last_update_time >= self.update_interval:
+                if self.pending_update:
+                    self.flush_updates()
+                    self.last_update_time = now
+                    self.pending_update = False
+
+    def flush_updates(self):
+        """Push all pending updates to Push 2 display in one go."""
+        if hasattr(self.app, "update_push2_mute_solo") and self.selected_track_idx is not None:
+            self.app.update_push2_mute_solo(track_idx=self.selected_track_idx)
+        if hasattr(self.app, "update_play_button_color"):
+            self.app.update_play_button_color(self.transport.get("play", False))
+        if hasattr(self.app, "update_record_button_color"):
+            self.app.update_record_button_color(self.transport.get("record", False))
 
     # ---------------- SysEx Handlers ----------------
     def handle_sysex(self, data):
@@ -233,6 +255,7 @@ class LogicMCUManager:
         # Force Push2 mute/solo LED refresh after big state dump
         if hasattr(self.app, "update_push2_mute_solo"):
             self.app.update_push2_mute_solo()
+        self.pending_update = True
 
     def _handle_channel_led(self, payload):
         ch, bits = payload[0], payload[1]
@@ -256,6 +279,7 @@ class LogicMCUManager:
                 self.app.update_play_button_color(self.transport["play"])
             if hasattr(self.app, "update_record_button_color"):
                 self.app.update_record_button_color(self.transport["record"])
+        self.pending_update = True
 
     def _handle_transport(self, payload):
         if len(payload) < 2:
@@ -276,12 +300,14 @@ class LogicMCUManager:
             if self.on_transport_change:
                 self.on_transport_change(self.transport)
             self.emit_event("transport", state=self.transport)
+            self.pending_update = True
 
     def _handle_vpot(self, payload):
         idx, val = payload[0], payload[1]
         self.vpot_rings[idx] = val
         if self.on_vpot:
             self.on_vpot(idx, val)
+            self.pending_update = True
 
     def _handle_time(self, payload):
         self.playhead = payload
@@ -302,7 +328,20 @@ class LogicMCUManager:
     # ---------------- Realtime Handlers ----------------
     def handle_button(self, note, pressed):
         label = self.BUTTON_MAP.get(note)
+
         if label:
+            # --- Push 2 Setup/User buttons in MCU mode ---
+            if label == "SETUP" and pressed:
+                if hasattr(self.app, "toggle_and_rotate_settings_mode"):
+                    self.app.toggle_and_rotate_settings_mode()
+                    self.app.buttons_need_update = True
+                return True
+
+            if label == "USER" and pressed:
+                if hasattr(self.app, "toggle_and_rotate_help_mode"):
+                    self.app.toggle_and_rotate_help_mode()
+                    self.app.buttons_need_update = True
+                return True
             # --- Rec/Solo/Mute states ---
             if label.startswith("REC["):
                 idx = int(label[4:-1]) - 1
@@ -345,8 +384,24 @@ class LogicMCUManager:
             if self.on_button:
                 self.on_button(label, pressed)
             self.emit_event("button", label=label, pressed=pressed)
+            self.pending_update = True
+            return True  # ✅ MCU handled this button
+
         else:
+            # Forward unhandled buttons (like User, Setup, Scale, Note) to Push 2 handler
+            if hasattr(self.app, "on_push2_midi_message"):
+                try:
+                    msg_type = "note_on" if pressed else "note_off"
+                    msg = mido.Message(msg_type, note=note, velocity=127 if pressed else 0)
+                    self.app.on_push2_midi_message(msg)
+                    if self.debug_mcu:
+                        print(f"[MCU] Forwarded note {note} ({'pressed' if pressed else 'released'}) to Push2 handler")
+                except Exception as e:
+                    if self.debug_mcu:
+                        print(f"[MCU] Failed to forward to Push2 handler: {e}")
             self.emit_event("button_unknown", note=note, pressed=pressed)
+            return False  # ✅ Unhandled by MCU, passed on
+
 
     # ---------------- Main MIDI Event Loop ----------------
     def handle_midi_message(self, msg):
