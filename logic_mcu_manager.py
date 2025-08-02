@@ -106,14 +106,26 @@ class LogicMCUManager:
             print("[MCU] No output port available to send", button_type)
             return
 
-        if self.selected_track_idx is None:
-            print("[MCU] No selected track to send", button_type)
-            return
+        button_type = button_type.upper()
 
-        if button_type.upper() == "SOLO":
+        note_num = None
+
+        if button_type == "SOLO":
+            if self.selected_track_idx is None:
+                print("[MCU] No selected track to send SOLO")
+                return
             note_num = 8 + self.selected_track_idx
-        elif button_type.upper() == "MUTE":
+        elif button_type == "MUTE":
+            if self.selected_track_idx is None:
+                print("[MCU] No selected track to send MUTE")
+                return
             note_num = 16 + self.selected_track_idx
+        elif button_type == "PLAY":
+            note_num = 94
+        elif button_type == "STOP":
+            note_num = 93
+        elif button_type == "RECORD":
+            note_num = 95
         else:
             print("[MCU] Unknown button type:", button_type)
             return
@@ -121,9 +133,10 @@ class LogicMCUManager:
         msg_press = mido.Message("note_on", note=note_num, velocity=127, channel=0)
         msg_release = mido.Message("note_on", note=note_num, velocity=0, channel=0)
         self.output_port.send(msg_press)
-        #time.sleep(0.05)
         self.output_port.send(msg_release)
-        print(f"[MCU] Sent {button_type} for track {self.selected_track_idx + 1} (note {note_num})")
+
+        print(f"[MCU] Sent {button_type} (note {note_num})")
+
 
     def listen_loop(self):
         print("[MCU] Starting listen loop")

@@ -226,56 +226,44 @@ class MainControlsMode(definitions.LogicMode):
                 return True
 
             # PLAY
-            #
             elif button_name == self.play_button:
-                if long_press:
-                    # self.app.logic_interface.stop()
-                    if not shift:
-                        self.app.logic_interface.pause()
+                if getattr(self.app, "mcu_manager", None) and self.app.mcu_manager.enabled:
+                    if long_press:
+                        self.app.mcu_manager.send_mcu_button("STOP")
                     else:
-                        self.app.logic_interface.stop()
-                        pass
+                        self.app.mcu_manager.send_mcu_button("PLAY")
                 else:
-                    if not shift:
-                        self.app.logic_interface.play()
+                    if long_press:
+                        if not shift:
+                            self.app.logic_interface.pause()
+                        else:
+                            self.app.logic_interface.stop()
                     else:
-                        pass
+                        if not shift:
+                            self.app.logic_interface.play()
                 self.app.buttons_need_update = True
                 self.app.pads_need_update = True
                 return True
 
-
             # RECORD
-            #
             elif button_name == self.record_button:
-                if long_press:
-                    if not shift:
-                        pass
-                    else:
-                        pass
+                if getattr(self.app, "mcu_manager", None) and self.app.mcu_manager.enabled:
+                    self.app.mcu_manager.send_mcu_button("RECORD")
                 else:
                     if not shift:
                         self.app.logic_interface.record()
-                    else:
-                        pass
                 self.app.buttons_need_update = True
                 self.app.pads_need_update = True
                 return True
 
-            elif button_name == self.settings_button:
-                self.app.toggle_and_rotate_settings_mode()
-                self.app.buttons_need_update = True
+            # STOP CLIP
+            elif button_name == self.stop_clip_button:
+                if getattr(self.app, "mcu_manager", None) and self.app.mcu_manager.enabled:
+                    self.app.mcu_manager.send_mcu_button("STOP")
+                else:
+                    self.app.logic_interface.stop_clip(shift=shift, select=select)
                 return True
 
-            elif button_name == self.repeat_button:
-                self.app.toggle_and_rotate_repeat_mode()
-                self.app.buttons_need_update = True
-                return True
-
-            elif button_name == self.scalemode_button:
-                self.app.toggle_and_rotate_scalemenu_mode()
-                self.app.buttons_need_update = True
-                return True
 
             # # USER BUTTON
             # elif button_name == self.user_button:
@@ -359,7 +347,7 @@ class MainControlsMode(definitions.LogicMode):
 
             # SOLO
             elif button_name == self.solo_button:
-                if self.app.mcu_manager.enabled:
+                if getattr(self.app, "mcu_manager", None) and self.app.mcu_manager.enabled:
                     # Use MCU protocol instead of keybind
                     self.app.mcu_manager.send_mcu_button("SOLO")
                 else:
@@ -372,7 +360,7 @@ class MainControlsMode(definitions.LogicMode):
 
             # MUTE
             elif button_name == self.mute_button:
-                if self.app.mcu_manager.enabled:
+                if getattr(self.app, "mcu_manager", None) and self.app.mcu_manager.enabled:
                     # Use MCU protocol instead of keybind
                     self.app.mcu_manager.send_mcu_button("MUTE")
                 else:
