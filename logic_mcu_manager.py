@@ -108,23 +108,22 @@ class LogicMCUManager:
 
         button_type = button_type.upper()
 
-        note_num = None
+        # Track-specific buttons require a selected track
+        if button_type in ("SOLO", "MUTE", "REC") and self.selected_track_idx is None:
+            print(f"[MCU] No selected track to send {button_type}")
+            return
 
         if button_type == "SOLO":
-            if self.selected_track_idx is None:
-                print("[MCU] No selected track to send SOLO")
-                return
             note_num = 8 + self.selected_track_idx
         elif button_type == "MUTE":
-            if self.selected_track_idx is None:
-                print("[MCU] No selected track to send MUTE")
-                return
             note_num = 16 + self.selected_track_idx
+        elif button_type == "REC":  # record arm
+            note_num = 0 + self.selected_track_idx
         elif button_type == "PLAY":
             note_num = 94
         elif button_type == "STOP":
             note_num = 93
-        elif button_type == "RECORD":
+        elif button_type == "RECORD":  # transport record
             note_num = 95
         else:
             print("[MCU] Unknown button type:", button_type)
@@ -135,7 +134,13 @@ class LogicMCUManager:
         self.output_port.send(msg_press)
         self.output_port.send(msg_release)
 
-        print(f"[MCU] Sent {button_type} (note {note_num})")
+        if self.debug_mcu:
+            if button_type in ("SOLO", "MUTE", "REC"):
+                print(f"[MCU] Sent {button_type} for track {self.selected_track_idx + 1} (note {note_num})")
+            else:
+                print(f"[MCU] Sent {button_type} (note {note_num})")
+
+
 
 
     def listen_loop(self):
