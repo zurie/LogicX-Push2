@@ -1,9 +1,11 @@
-
 import mido
 import threading
 import time
 
+
 class LogicMCUManager:
+    SOLO_OFF_CONFIRM_TIME = 0.5  # seconds
+
     BUTTON_MAP = {
         # --- Channel strip buttons ---
         **{i: f"REC[{i + 1}]" for i in range(0, 8)},
@@ -38,7 +40,7 @@ class LogicMCUManager:
         100: "LOOP_ON_OFF", 101: "PUNCH",
         113: "MARKER_PREV", 114: "MARKER_NEXT", 115: "MARKER_SET",
         118: "SETUP",  # Push 2 Setup button
-        119: "USER",   # Push 2 User button
+        119: "USER",  # Push 2 User button
     }
 
     def __init__(self, app, port_name="IAC Driver LogicMCU_In", enabled=True, update_interval=0.05):
@@ -49,7 +51,7 @@ class LogicMCUManager:
 
         self.debug_mcu = getattr(app, "debug_mcu", False)
         self.transport = {"play": False, "stop": True, "record": False, "ffwd": False, "rew": False}
-
+        self._solo_off_pending = {}
         # Callback hooks
         self.on_transport_change = None
         self.on_button = None
@@ -141,9 +143,6 @@ class LogicMCUManager:
             else:
                 print(f"[MCU] Sent {button_type} (note {note_num})")
 
-
-
-
     def listen_loop(self):
         print("[MCU] Starting listen loop")
         for msg in self.input_port:
@@ -193,7 +192,6 @@ class LogicMCUManager:
         - Handles standard MCU SysEx commands
         """
         try:
-            # --- GUI/Arrow Track Selection ---
             if (
                     len(data) >= 8
                     and data[0:5] == [0xF0, 0x00, 0x00, 0x66, 0x14]
@@ -208,11 +206,32 @@ class LogicMCUManager:
                 if hasattr(self.app, "update_push2_mute_solo"):
                     self.app.update_push2_mute_solo(track_idx=track_index)
 
-                # ✅ Also ask Logic to resend LED state
+                # Delay and then reassert cached SOLO state
+                def delayed_solo_reassert():
+                    time.sleep(0.2)  # allow Logic's own LED updates to finish
+                    if self.output_port:
+                        solo_note = 8 + track_index
+                        mute_note = 16 + track_index
+                        if self.solo_states[track_index]:
+                            self.output_port.send(mido.Message("note_on", note=solo_note, velocity=127, channel=0))
+                        else:
+                            self.output_port.send(mido.Message("note_on", note=solo_note, velocity=0, channel=0))
+
+                        if self.mute_states[track_index]:
+                            self.output_port.send(mido.Message("note_on", note=mute_note, velocity=127, channel=0))
+                        else:
+                            self.output_port.send(mido.Message("note_on", note=mute_note, velocity=0, channel=0))
+
+                        if self.debug_mcu:
+                            print(f"[SOLO DEBUG] Reasserted state for Track {track_index+1} - solo={self.solo_states[track_index]} mute={self.mute_states[track_index]}")
+
+                threading.Thread(target=delayed_solo_reassert, daemon=True).start()
+
                 self.request_channel_led_state(track_index)
                 return
 
-            # --- Standard MCU SysEx Handling ---
+
+    # --- Standard MCU SysEx Handling ---
             if not self.enabled or data[:4] != (0, 0, 102, 20):
                 return
 
@@ -259,26 +278,51 @@ class LogicMCUManager:
 
     def _handle_channel_led(self, payload):
         ch, bits = payload[0], payload[1]
+        now = time.time()
 
-        # Update channel states
-        self.rec_states[ch] = bool(bits & 0x04)  # Record arm LED
-        self.solo_states[ch] = bool(bits & 0x08)  # Solo LED
-        self.mute_states[ch] = bool(bits & 0x10)  # Mute LED
+        # Record arm
+        self.rec_states[ch] = bool(bits & 0x04)
+
+        # Solo LED with debounce for OFF
+        new_solo = bool(bits & 0x08)
+        if new_solo != self.solo_states[ch]:
+            if not new_solo:
+                last_pending = getattr(self, "_solo_off_pending", {}).get(ch)
+                if last_pending and (now - last_pending) > self.SOLO_OFF_CONFIRM_TIME:
+                    self.solo_states[ch] = False
+                    self._solo_off_pending.pop(ch, None)
+                    if self.debug_mcu:
+                        print(f"[SOLO DEBUG] Confirmed OFF (Track {ch + 1})")
+                else:
+                    self._solo_off_pending = getattr(self, "_solo_off_pending", {})
+                    self._solo_off_pending[ch] = now
+                    if self.debug_mcu:
+                        print(f"[SOLO DEBUG] OFF pending (Track {ch + 1})")
+            else:
+                self.solo_states[ch] = True
+                if hasattr(self, "_solo_off_pending") and ch in self._solo_off_pending:
+                    self._solo_off_pending.pop(ch, None)
+        else:
+            if hasattr(self, "_solo_off_pending") and ch in self._solo_off_pending:
+                self._solo_off_pending.pop(ch, None)
+
+        # Mute LED
+        self.mute_states[ch] = bool(bits & 0x10)
+
         if self.debug_mcu:
             print(f"[MCU] Ch{ch + 1} mute={self.mute_states[ch]} solo={self.solo_states[ch]} rec={self.rec_states[ch]}")
 
-        # Fire track state callback if present
+        # Fire track state callback
         if self.on_track_state:
             self.on_track_state(ch, self.rec_states[ch], self.solo_states[ch], self.mute_states[ch])
 
         if ch == self.selected_track_idx:
             self.app.update_push2_mute_solo(track_idx=ch)
-
-            # ✅ Also refresh transport LEDs from MCU state
             if hasattr(self.app, "update_play_button_color"):
                 self.app.update_play_button_color(self.transport["play"])
             if hasattr(self.app, "update_record_button_color"):
                 self.app.update_record_button_color(self.transport["record"])
+
         self.pending_update = True
 
     def _handle_transport(self, payload):
@@ -365,6 +409,10 @@ class LogicMCUManager:
             if label.startswith("SELECT[") and pressed:
                 try:
                     self.selected_track_idx = int(label.split("[")[1].strip("]")) - 1
+                    if self.solo_states[self.selected_track_idx] and hasattr(self.app, "set_push2_solo_led"):
+                        self.app.set_push2_solo_led(True)
+                    if self.mute_states[self.selected_track_idx] and hasattr(self.app, "set_push2_mute_led"):
+                        self.app.set_push2_mute_led(True)
                     if self.debug_mcu:
                         print(f"[MCU] Selected track index set to {self.selected_track_idx + 1}")
                     if hasattr(self.app, "update_push2_mute_solo"):
@@ -402,7 +450,6 @@ class LogicMCUManager:
             self.emit_event("button_unknown", note=note, pressed=pressed)
             return False  # ✅ Unhandled by MCU, passed on
 
-
     # ---------------- Main MIDI Event Loop ----------------
     def handle_midi_message(self, msg):
         if msg.type in ("note_on", "note_off"):
@@ -423,9 +470,33 @@ class LogicMCUManager:
         # --- SOLO CC messages ---
         elif 64 <= control <= 71:
             track_idx = control - 64
-            self.solo_states[track_idx] = (value == 127)
+            now = time.time()
+            new_solo = (value == 127)
+
+            if new_solo != self.solo_states[track_idx]:
+                if not new_solo:
+                    last_pending = getattr(self, "_solo_off_pending", {}).get(track_idx)
+                    if last_pending and (now - last_pending) > self.SOLO_OFF_CONFIRM_TIME:
+                        self.solo_states[track_idx] = False
+                        self._solo_off_pending.pop(track_idx, None)
+                        if self.debug_mcu:
+                            print(f"[SOLO DEBUG] Confirmed OFF (Track {track_idx + 1}) [CC]")
+                    else:
+                        self._solo_off_pending = getattr(self, "_solo_off_pending", {})
+                        self._solo_off_pending[track_idx] = now
+                        if self.debug_mcu:
+                            print(f"[SOLO DEBUG] OFF pending (Track {track_idx + 1}) [CC]")
+                else:
+                    self.solo_states[track_idx] = True
+                    if hasattr(self, "_solo_off_pending") and track_idx in self._solo_off_pending:
+                        self._solo_off_pending.pop(track_idx, None)
+            else:
+                if hasattr(self, "_solo_off_pending") and track_idx in self._solo_off_pending:
+                    self._solo_off_pending.pop(track_idx, None)
+
             if self.debug_mcu:
                 print(f"[MCU] Solo[{track_idx + 1}] = {self.solo_states[track_idx]}")
+
             if track_idx == self.selected_track_idx and hasattr(self.app, "update_push2_mute_solo"):
                 self.app.update_push2_mute_solo(track_idx=track_idx)
 
