@@ -193,18 +193,23 @@ class LogicMCUManager:
         """
         try:
             if (
-                    len(data) >= 8
-                    and data[0:5] == [0xF0, 0x00, 0x00, 0x66, 0x14]
-                    and data[5] == 0x0E
-                    and data[7] == 0x03
+                len(data) >= 8
+                and data[0:5] == [0xF0, 0x00, 0x00, 0x66, 0x14]
+                and data[5] == 0x0E
+                and data[7] == 0x03
             ):
-                track_index = data[6]  # 0-based
+                track_index = data[6]  # 0-based in visible bank
                 self.selected_track_idx = track_index
                 if self.debug_mcu:
                     print(f"[MCU] (GUI/Arrow) Selected track index set to {track_index + 1}")
 
                 if hasattr(self.app, "update_push2_mute_solo"):
                     self.app.update_push2_mute_solo(track_idx=track_index)
+
+                # ✅ Request LED state for ALL 8 tracks in current bank
+                bank_start = (track_index // 8) * 8
+                for ch in range(8):
+                    self.request_channel_led_state(bank_start + ch)
 
                 # Delay and then reassert cached SOLO state
                 def delayed_solo_reassert():
@@ -227,11 +232,9 @@ class LogicMCUManager:
 
                 threading.Thread(target=delayed_solo_reassert, daemon=True).start()
 
-                self.request_channel_led_state(track_index)
-                return
+                return  # ✅ Only one return at the very end of the block
 
-
-    # --- Standard MCU SysEx Handling ---
+            # --- Standard MCU SysEx Handling ---
             if not self.enabled or data[:4] != (0, 0, 102, 20):
                 return
 
