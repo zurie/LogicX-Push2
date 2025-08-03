@@ -91,7 +91,8 @@
     "/push2/record_shift": "#R",
     "/push2/metronome": "K",
     "/push2/metronome_shift": "#K",
-    "/push2/mix": "X",
+    "/push2/mix": "x",
+    "/push2/mix_long": "x",
     "/push2/mix_shift": "#X"
   }
 }

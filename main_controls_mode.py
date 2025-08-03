@@ -326,7 +326,7 @@ class MainControlsMode(definitions.LogicMode):
                 self.app.logic_interface.device(shift=shift, select=select)
                 return True
             elif button_name == self.mix_button:
-                self.app.logic_interface.mix(shift=shift, select=select)
+                self.app.logic_interface.mix(shift=shift, select=select, long_press=long_press)
                 return True
             elif button_name == self.browse_button:
                 self.app.logic_interface.browse(shift=shift, select=select)

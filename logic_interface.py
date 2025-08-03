@@ -128,9 +128,16 @@ class LogicInterface(definitions.LogicMode):
     def device(shift=False, select=False):
         press_command('/push2/device', shift=shift, select=select)
 
-    @staticmethod
-    def mix(shift=False, select=False):
-        press_command('/push2/mix', shift=shift, select=select)
+    def mix(self, shift=False, select=False, long_press=False):
+        if long_press:
+            press_command('/push2/mix_long', shift=shift, select=select)
+        elif getattr(self.app, "mcu_manager", None) and self.app.mcu_manager.enabled:
+            if hasattr(self.app, "toggle_and_rotate_track_control_mode"):
+                self.app.toggle_and_rotate_track_control_mode()
+                self.app.buttons_need_update = True
+        else:
+            press_command('/push2/mix', shift=shift, select=select)
+
 
     @staticmethod
     def browse(shift=False, select=False):

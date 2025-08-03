@@ -2,9 +2,10 @@ import mido
 import threading
 import time
 
+import definitions
+
 
 class LogicMCUManager:
-    SOLO_OFF_CONFIRM_TIME = 2  # seconds
 
     BUTTON_MAP = {
         # --- Channel strip buttons ---
@@ -41,9 +42,11 @@ class LogicMCUManager:
         113: "MARKER_PREV", 114: "MARKER_NEXT", 115: "MARKER_SET",
         118: "SETUP",  # Push 2 Setup button
         119: "USER",  # Push 2 User button
+        120: "MIX"
     }
 
     def __init__(self, app, port_name="IAC Driver LogicMCU_In", enabled=True, update_interval=0.05):
+        self.button_press_times = None
         self.app = app
         self.enabled = enabled
         self.port_name = port_name
@@ -223,7 +226,7 @@ class LogicMCUManager:
 
                 # 3️⃣ Delay and then reassert SOLO/MUTE states for ALL tracks in bank
                 def delayed_bank_reassert():
-                    time.sleep(0.2)  # allow Logic's own LED updates to finish
+                    time.sleep(self.app.bank_reassert_delay)  # allow Logic's own LED updates to finish
                     if self.output_port:
                         for ch in bank_tracks:
                             solo_note = 8 + ch
@@ -299,7 +302,7 @@ class LogicMCUManager:
         if new_solo != self.solo_states[ch]:
             if not new_solo:
                 last_pending = getattr(self, "_solo_off_pending", {}).get(ch)
-                if last_pending and (now - last_pending) > self.SOLO_OFF_CONFIRM_TIME:
+                if last_pending and (now - last_pending) > self.app.solo_off_confirm_time:
                     self.solo_states[ch] = False
                     self._solo_off_pending.pop(ch, None)
                     if self.debug_mcu:
@@ -385,18 +388,32 @@ class LogicMCUManager:
         label = self.BUTTON_MAP.get(note)
 
         if label:
-            # --- Push 2 Setup/User buttons in MCU mode ---
-            if label == "SETUP" and pressed:
-                if hasattr(self.app, "toggle_and_rotate_settings_mode"):
-                    self.app.toggle_and_rotate_settings_mode()
-                    self.app.buttons_need_update = True
-                return True
+
+            if label == "MIX":
+                now = time.time()
+
+                if pressed:
+                    self.button_press_times["MIX"] = now
+                    return True
+                else:
+                    pressed_time = self.button_press_times.get("MIX", 0)
+                    duration = now - pressed_time
+                    long_press = duration >= definitions.BUTTON_LONG_PRESS_TIME
+
+                    if hasattr(self.app, "logic_interface"):
+                        self.app.logic_interface.mix(
+                            shift=self.modifiers["shift"],
+                            select=self.modifiers["select"],
+                            long_press=long_press
+                        )
+                    return True
 
             if label == "USER" and pressed:
-                if hasattr(self.app, "toggle_and_rotate_help_mode"):
-                    self.app.toggle_and_rotate_help_mode()
-                    self.app.buttons_need_update = True
-                return True
+                    if hasattr(self.app, "toggle_and_rotate_help_mode"):
+                        self.app.toggle_and_rotate_help_mode()
+                        self.app.buttons_need_update = True
+                    return True
+                
             # --- Rec/Solo/Mute states ---
             if label.startswith("REC["):
                 idx = int(label[4:-1]) - 1
@@ -487,7 +504,7 @@ class LogicMCUManager:
             if new_solo != self.solo_states[track_idx]:
                 if not new_solo:
                     last_pending = getattr(self, "_solo_off_pending", {}).get(track_idx)
-                    if last_pending and (now - last_pending) > self.SOLO_OFF_CONFIRM_TIME:
+                    if last_pending and (now - last_pending) > self.app.solo_off_confirm_time:
                         self.solo_states[track_idx] = False
                         self._solo_off_pending.pop(track_idx, None)
                         if self.debug_mcu:

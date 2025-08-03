@@ -14,7 +14,6 @@ from collections import defaultdict
 from logic_midi_listener import LogicMidiListener
 from splash_screen import draw_splash_screen
 from logic_mcu_manager import LogicMCUManager
-
 from melodic_mode import MelodicMode
 from track_selection_mode import TrackSelectionMode
 from rhythmic_mode import RhythmicMode
@@ -22,6 +21,8 @@ from slice_notes_mode import SliceNotesMode
 from settings_mode import SettingsMode
 from help_mode import HelpMode
 from repeat_mode import RepeatMode
+from track_control_mode import TrackControlMode
+
 from scalemenu_mode import ScaleMenuMode
 from main_controls_mode import MainControlsMode
 from midi_cc_mode import MIDICCMode
@@ -98,6 +99,8 @@ class LogicApp(object):
         self.quantize_used_as_modifier = False
         self.debug_logs = settings.get("debug_logs", False)
         self.collapse_scale = settings.get("collapse_scale", False)
+        self.solo_off_confirm_time = settings.get("solo_off_confirm_time", 2.0)
+        self.bank_reassert_delay = settings.get("bank_reassert_delay", 0.2)
         self.use_mcu = settings.get("use_mcu", True)
         self.debug_mcu = settings.get("debug_mcu", False)
 
@@ -158,6 +161,7 @@ class LogicApp(object):
 
         self.settings_mode = SettingsMode(self, settings=settings)
         self.help_mode = HelpMode(self, settings=settings)
+        self.track_mode = TrackControlMode(self)
         self.repeat_mode = RepeatMode(self, settings=settings)
         self.scalemenu_mode = ScaleMenuMode(self, settings=settings)
 
@@ -192,7 +196,7 @@ class LogicApp(object):
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.OFF_BTN_COLOR)
 
             if self.mcu_manager.mute_states[sel_idx]:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.RED)
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.SKYBLUE)
             else:
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.OFF_BTN_COLOR)
 
@@ -233,6 +237,16 @@ class LogicApp(object):
         else:
             self.active_modes.append(self.settings_mode)
             self.settings_mode.activate()
+
+    def toggle_and_rotate_track_control_mode(self):
+        if self.is_mode_active(self.track_mode):
+            rotation_finished = self.track_mode.move_to_next_page()
+            if rotation_finished:
+                self.active_modes = [mode for mode in self.active_modes if mode != self.track_mode]
+                self.track_mode.deactivate()
+        else:
+            self.active_modes.append(self.track_mode)
+            self.track_mode.activate()
 
     def toggle_and_rotate_repeat_mode(self):
         if self.is_mode_active(self.repeat_mode):
@@ -356,7 +370,7 @@ class LogicApp(object):
 
             # Set Mute button color
             if mute_state:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.RED)
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.SKYBLUE)
             else:
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.OFF_BTN_COLOR)
 
@@ -417,6 +431,8 @@ class LogicApp(object):
             'collapse_scale': self.collapse_scale,
             'use_mcu': self.use_mcu,
             'debug_mcu': self.debug_mcu,
+            'solo_off_confirm_time': self.solo_off_confirm_time,
+            'bank_reassert_delay': self.bank_reassert_delay,
             'mcu_port_name': self.mcu_manager.port_name if self.mcu_manager else None,
         }
         for mode in self.get_all_modes():
@@ -771,9 +787,9 @@ class LogicApp(object):
 
         # Update buttons and pads (just in case something was missing!)
         self.update_play_button_color(False)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.YELLOW)
-        self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.RED)
+        #self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN)
+        #self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.YELLOW)
+        #self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.RED)
 
         app.update_push2_buttons()
         app.update_push2_pads()
