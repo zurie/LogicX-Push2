@@ -192,6 +192,7 @@ class LogicMCUManager:
         - Handles standard MCU SysEx commands
         """
         try:
+            # --- Track selection via GUI/Arrow ---
             if (
                 len(data) >= 8
                 and data[0:5] == [0xF0, 0x00, 0x00, 0x66, 0x14]
@@ -203,36 +204,37 @@ class LogicMCUManager:
                 if self.debug_mcu:
                     print(f"[MCU] (GUI/Arrow) Selected track index set to {track_index + 1}")
 
+                # Instant Push2 LED update from cache
                 if hasattr(self.app, "update_push2_mute_solo"):
                     self.app.update_push2_mute_solo(track_idx=track_index)
 
-                # ✅ Request LED state for ALL 8 tracks in current bank
+                # Request LED state for ALL 8 tracks in the current bank
                 bank_start = (track_index // 8) * 8
                 for ch in range(8):
                     self.request_channel_led_state(bank_start + ch)
 
-                # Delay and then reassert cached SOLO state
+                # Delay and then reassert cached SOLO/MUTE state to Logic MCU
                 def delayed_solo_reassert():
                     time.sleep(0.2)  # allow Logic's own LED updates to finish
                     if self.output_port:
                         solo_note = 8 + track_index
                         mute_note = 16 + track_index
-                        if self.solo_states[track_index]:
-                            self.output_port.send(mido.Message("note_on", note=solo_note, velocity=127, channel=0))
-                        else:
-                            self.output_port.send(mido.Message("note_on", note=solo_note, velocity=0, channel=0))
 
-                        if self.mute_states[track_index]:
-                            self.output_port.send(mido.Message("note_on", note=mute_note, velocity=127, channel=0))
-                        else:
-                            self.output_port.send(mido.Message("note_on", note=mute_note, velocity=0, channel=0))
+                        self.output_port.send(mido.Message(
+                            "note_on", note=solo_note,
+                            velocity=127 if self.solo_states[track_index] else 0, channel=0
+                        ))
+                        self.output_port.send(mido.Message(
+                            "note_on", note=mute_note,
+                            velocity=127 if self.mute_states[track_index] else 0, channel=0
+                        ))
 
                         if self.debug_mcu:
-                            print(f"[SOLO DEBUG] Reasserted state for Track {track_index+1} - solo={self.solo_states[track_index]} mute={self.mute_states[track_index]}")
+                            print(f"[SOLO DEBUG] Reasserted state for Track {track_index+1} "
+                                  f"- solo={self.solo_states[track_index]} mute={self.mute_states[track_index]}")
 
                 threading.Thread(target=delayed_solo_reassert, daemon=True).start()
-
-                return  # ✅ Only one return at the very end of the block
+                return  # ✅ End of track-selection handling
 
             # --- Standard MCU SysEx Handling ---
             if not self.enabled or data[:4] != (0, 0, 102, 20):
