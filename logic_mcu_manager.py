@@ -128,6 +128,11 @@ class LogicMCUManager:
             note_num = 93
         elif button_type == "RECORD":  # transport record
             note_num = 95
+        elif button_type == "FFWD":
+            note_num = 92
+        elif button_type == "REW":
+            note_num = 91
+
         else:
             print("[MCU] Unknown button type:", button_type)
             return
