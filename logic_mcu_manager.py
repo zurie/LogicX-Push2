@@ -4,7 +4,7 @@ import time
 
 
 class LogicMCUManager:
-    SOLO_OFF_CONFIRM_TIME = 0.5  # seconds
+    SOLO_OFF_CONFIRM_TIME = 2  # seconds
 
     BUTTON_MAP = {
         # --- Channel strip buttons ---
@@ -188,52 +188,53 @@ class LogicMCUManager:
         Unified SysEx handler for Logic MCU:
         - Detects track selection via GUI/arrow keys
         - Immediately updates Push 2 LEDs from cached state
-        - Requests LED refresh for the newly selected track
+        - Requests LED refresh for all tracks in the current bank
         - Handles standard MCU SysEx commands
         """
         try:
             # --- Track selection via GUI/Arrow ---
             if (
-                len(data) >= 8
-                and data[0:5] == [0xF0, 0x00, 0x00, 0x66, 0x14]
-                and data[5] == 0x0E
-                and data[7] == 0x03
+                    len(data) >= 8
+                    and data[0:5] == [0xF0, 0x00, 0x00, 0x66, 0x14]
+                    and data[5] == 0x0E
+                    and data[7] == 0x03
             ):
                 track_index = data[6]  # 0-based in visible bank
                 self.selected_track_idx = track_index
-                if self.debug_mcu:
-                    print(f"[MCU] (GUI/Arrow) Selected track index set to {track_index + 1}")
-
-                # Instant Push2 LED update from cache
-                if hasattr(self.app, "update_push2_mute_solo"):
-                    self.app.update_push2_mute_solo(track_idx=track_index)
-
-                # Request LED state for ALL 8 tracks in the current bank
                 bank_start = (track_index // 8) * 8
-                for ch in range(8):
-                    self.request_channel_led_state(bank_start + ch)
+                bank_tracks = list(range(bank_start, bank_start + 8))
 
-                # Delay and then reassert cached SOLO/MUTE state to Logic MCU
-                def delayed_solo_reassert():
+                if self.debug_mcu:
+                    print(f"[MCU] (GUI/Arrow) Selected track index set to {track_index + 1} (Bank {bank_start+1}-{bank_start+8})")
+
+                # 1️⃣ Instant Push2 LED update from cache for ALL tracks in bank
+                if hasattr(self.app, "update_push2_mute_solo"):
+                    for ch in bank_tracks:
+                        self.app.update_push2_mute_solo(track_idx=ch)
+
+                # 2️⃣ Request LED state for ALL 8 tracks in this bank
+                for ch in bank_tracks:
+                    self.request_channel_led_state(ch)
+
+                # 3️⃣ Delay and then reassert SOLO/MUTE states for ALL tracks in bank
+                def delayed_bank_reassert():
                     time.sleep(0.2)  # allow Logic's own LED updates to finish
                     if self.output_port:
-                        solo_note = 8 + track_index
-                        mute_note = 16 + track_index
+                        for ch in bank_tracks:
+                            solo_note = 8 + ch
+                            mute_note = 16 + ch
+                            self.output_port.send(mido.Message(
+                                "note_on", note=solo_note,
+                                velocity=127 if self.solo_states[ch] else 0, channel=0
+                            ))
+                            self.output_port.send(mido.Message(
+                                "note_on", note=mute_note,
+                                velocity=127 if self.mute_states[ch] else 0, channel=0
+                            ))
+                            if self.debug_mcu:
+                                print(f"[SOLO DEBUG] Reasserted Track {ch+1} - solo={self.solo_states[ch]} mute={self.mute_states[ch]}")
 
-                        self.output_port.send(mido.Message(
-                            "note_on", note=solo_note,
-                            velocity=127 if self.solo_states[track_index] else 0, channel=0
-                        ))
-                        self.output_port.send(mido.Message(
-                            "note_on", note=mute_note,
-                            velocity=127 if self.mute_states[track_index] else 0, channel=0
-                        ))
-
-                        if self.debug_mcu:
-                            print(f"[SOLO DEBUG] Reasserted state for Track {track_index+1} "
-                                  f"- solo={self.solo_states[track_index]} mute={self.mute_states[track_index]}")
-
-                threading.Thread(target=delayed_solo_reassert, daemon=True).start()
+                threading.Thread(target=delayed_bank_reassert, daemon=True).start()
                 return  # ✅ End of track-selection handling
 
             # --- Standard MCU SysEx Handling ---
