@@ -308,6 +308,76 @@ class TrackControlMode(definitions.LogicMode):
         #      f"touch={getattr(self, '_touch_state', ['?']*8)[channel]}")
         # ─────────────────────────────────────────
 
+    # ──────────────────────────────────────────────────────────────
+    # FADER UTILITY HELPERS
+    # ──────────────────────────────────────────────────────────────
+    @staticmethod
+    def _db_to_level(db: float) -> float:
+        """
+        Convert dB to the 0-1 linear range Logic expects.
+        –∞ dB (≤-60) → 0.0
+         0  dB       → ≈0.76   (matches Logic’s unity-gain tick ≈ 12443)
+        +6  dB       → 1.0
+        """
+        if db <= -60:
+            return 0.0
+        lin = 10 ** (db / 20.0)          # amplitude ratio
+        return min(lin / 1.32, 1.0)      # 1.32 places 0 dB ≈ 0.76
+
+    def set_bank_levels(self, levels):
+        """
+        Push an iterable of up-to-8 linear 0-1 values to the current MCU bank.
+        Also refresh encoders / display so Push stays in sync.
+        """
+        for ch, val in enumerate(levels[:8]):
+            # 1) cache in MCU manager so GUI rings draw correctly
+            self.app.mcu_manager.fader_levels[ch] = val
+            # 2) stream to Logic
+            self._send_mcu_fader_move(ch, val)
+
+        # 3) refresh the Push UI
+        self.update_encoders()
+        self.update_strip_values()
+
+        # ──────────────────────────────────────────────────────────────
+        # Logic fader ↔ linear helpers
+        # ──────────────────────────────────────────────────────────────
+        _POW   = 2.864          #   fitted so 25 % → –27.3 dB, 100 % → +6 dB
+        _REF   = 0.75           #   reference point for 0 dB
+
+        @staticmethod
+        def _level_to_db(level: float) -> float:
+            """
+            Convert 0-1 linear level (as Logic sends in pitch-bend) to decibels.
+            0.75 → 0 dB, 1.0 → +6 dB, 0.25 → –27.3 dB.
+            """
+            if level <= 0:
+                return float('-inf')
+            import math
+            return 20.0 * TrackControlMode._POW * math.log10(level / TrackControlMode._REF)
+
+        @staticmethod
+        def _db_to_level(db: float) -> float:
+            """
+            Inverse of _level_to_db().
+            Clamp to the 0-1 range so we never send illegal MCU values.
+            """
+            import math
+            if db <= -60:                       # treat everything ≤ –60 dB as –∞
+                return 0.0
+            lv = TrackControlMode._REF * 10.0 ** (db / (20.0 * TrackControlMode._POW))
+            return max(0.0, min(1.0, lv))
+
+    # ─────────── push eight levels at once ───────────
+    def set_bank_levels(self, levels):
+        """levels = iterable of ≤8 linear floats.  Writes them to Logic and refreshes Push rings."""
+        for ch, val in enumerate(levels[:8]):
+            self.app.mcu_manager.fader_levels[ch] = val
+            self._send_mcu_fader_move(ch, val)
+
+        self.update_encoders()
+        self.update_strip_values()
+
     def on_encoder_rotated(self, encoder_name, increment):
         if encoder_name not in self.encoder_names:
             return False

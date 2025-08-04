@@ -606,5 +606,26 @@ class LogicMCUManager:
             if self.debug_mcu:
                 print(f"[MCU] CC {control} = {value}")
 
-    def handle_pitchbend(self, channel, value):
-        return None
+    def handle_pitchbend(self, channel, pitch):
+        """
+        Logic → MCU fader refresh.
+        `pitch` comes in as –8192…+8191 (mido already signed-decodes it).
+        """
+        level = max(0.0, min(1.0, (pitch + 8192) / 16383.0))
+
+        # grow the cache list if Logic sends master (ch-8) or extenders
+        if channel >= len(self.fader_levels):
+            self.fader_levels.extend([0.0] * (channel + 1 - len(self.fader_levels)))
+        self.fader_levels[channel] = level
+
+        # callback for anyone listening
+        if self.on_fader:
+            self.on_fader(channel, level)
+
+        # live UI refresh while Track-Control mode is showing
+        if getattr(self.app, "track_mode", None) and self.app.is_mode_active(self.app.track_mode):
+            self.app.track_mode.update_encoders()
+            self.app.track_mode.update_strip_values()
+
+        self.pending_update = True
+
