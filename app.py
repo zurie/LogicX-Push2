@@ -131,7 +131,6 @@ class LogicApp(object):
                 self.update_record_button_color(state.get("record"))
 
             self.mcu_manager.on_transport_change = handle_transport_change
-            self.mcu_manager.start()
 
         else:
             # --- Logic MIDI listener (non-MCU mode)

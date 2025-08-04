@@ -303,19 +303,27 @@ class LogicMCUManager:
             text_bytes = text_bytes + b' ' * (56 - len(text_bytes))
             text_bytes = text_bytes[:56]  # Always 56 bytes
             text = text_bytes.decode("ascii", errors="ignore")
-            # print(f"[DEBUG] Decoded track text: '{text}' (len={len(text)})")
             track_names = [text[i:i + 7].strip() for i in range(0, 56, 7)]
-            print(f"[MCU] Track names (offset {offset}):", track_names)
-            # If offset is 0 (bank start), update all
-            if offset == 0:
-                self.track_names = (track_names + [''] * 8)[:8]
-                if hasattr(self.app, "update_push2_mute_solo"):
-                    self.app.update_push2_mute_solo()
-                self.pending_update = True
-                if self.app.is_mode_active(self.app.track_mode):
-                    self.app.track_mode.activate()
+            # print(f"[MCU] Track names (offset {offset}):", track_names)
+
+            # 1. Ignore all offsets except 0
+            if offset > 0:
+                return
+
+            # 2. Ignore if all names are empty or '-'
+            if all(n.strip() in ['', '-'] for n in track_names):
+                return
+
+            # Actually apply the names
+            self.track_names = (track_names + [''] * 8)[:8]
+            if hasattr(self.app, "update_push2_mute_solo"):
+                self.app.update_push2_mute_solo()
+            self.pending_update = True
+            if self.app.is_mode_active(self.app.track_mode):
+                self.app.track_mode.activate()
         else:
             print("[DEBUG] No strips in payload; ignoring.")
+
 
 
 

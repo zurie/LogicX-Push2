@@ -2,7 +2,7 @@ import definitions
 import push2_python
 import math
 from display_utils import show_text
-
+import mido
 
 class TrackStrip:
     def __init__(self, index, name, get_color_func, get_volume_func, set_volume_func):
@@ -14,7 +14,7 @@ class TrackStrip:
         self.vmin = 0.0
         self.vmax = 1.0
 
-    def draw(self, ctx, x_part):
+    def draw(self, ctx, x_part, selected=False):
         margin_top = 25
         name_height = 20
         val_height = 30
@@ -22,16 +22,29 @@ class TrackStrip:
         radius = height / 2
 
         display_w = push2_python.constants.DISPLAY_LINE_PIXELS
-        x = ((display_w // 8) * x_part) + ((display_w // 8) * .25)
-        y = margin_top + name_height + val_height + radius + 5
-        xc = x + radius + 3
-        yc = y
+        display_h = push2_python.constants.DISPLAY_N_LINES
+        col_width = display_w // 8
+        x = int(col_width * x_part)
+        y = 0  # top
 
         color = self.get_color_func(self.index)
         volume = self.get_volume_func(self.index)
         label = f"{int(volume * 100)}%"
 
-        show_text(ctx, x_part, margin_top, self.name, height=name_height, font_color=definitions.WHITE)
+        # -- HIGHLIGHT ENTIRE COLUMN IF SELECTED --
+        if selected:
+            ctx.save()
+            ctx.set_source_rgb(*definitions.get_color_rgb_float(definitions.GRAY_DARK))  # or BLUE etc
+            ctx.rectangle(x, y, col_width, display_h)
+            ctx.fill()
+            ctx.restore()
+
+        # Now, offset content a bit horizontally for visual balance
+        content_x = x + col_width * 0.25
+        xc = content_x + radius + 3
+        yc = margin_top + name_height + val_height + radius + 5
+
+        show_text(ctx, x_part, margin_top, self.name, height=name_height, font_color=definitions.SKYBLUE)
         show_text(ctx, x_part, margin_top + name_height, label, height=val_height, font_color=color)
 
         start_rad = math.radians(130)
@@ -55,6 +68,8 @@ class TrackStrip:
         ctx.stroke()
 
         ctx.restore()
+
+
 
     def update_value(self, increment):
         step = 0.01
@@ -130,6 +145,8 @@ class TrackControlMode(definitions.LogicMode):
         print("[TrackMode] Setting track names:", names)
 
         self.update_buttons()
+        self.update_encoders()
+        self.update_strip_values()
 
     def deactivate(self):
         # clear all 4×8 pads
@@ -160,11 +177,61 @@ class TrackControlMode(definitions.LogicMode):
         ctx.fill()
 
         start = self.current_page * self.tracks_per_page
+        selected_idx = None
+        if hasattr(self.app, "mcu_manager") and hasattr(self.app.mcu_manager, "selected_track_idx"):
+            selected_idx = self.app.mcu_manager.selected_track_idx
+
         for i in range(self.tracks_per_page):
             try:
-                self.track_strips[start + i].draw(ctx, i)
+                strip_idx = start + i
+                # highlight if this strip is the selected track
+                is_selected = (strip_idx == selected_idx)
+                self.track_strips[strip_idx].draw(ctx, i, selected=is_selected)
             except IndexError:
                 pass
+
+
+
+    def update_strip_values(self):
+        """
+        Trigger a redraw of the current visible strips—typically by causing
+        the Push 2 display to repaint with latest track values.
+        """
+        # Try app-level request first
+        if hasattr(self.app, "update_push2_display"):
+            self.app.update_push2_display()
+        elif hasattr(self.app, "request_push2_display_update"):
+            self.app.request_push2_display_update()
+        elif hasattr(self.push, "update_display"):
+            self.push.update_display()
+        else:
+            print("[WARN] No display update function found for Push2")
+
+    def update_encoders(self):
+        """
+        Update all 8 encoder LED rings to reflect the current volume value
+        for each visible track strip.
+        """
+        for i in range(self.tracks_per_page):
+            strip_idx = self.current_page * self.tracks_per_page + i
+            if strip_idx >= len(self.track_strips):
+                continue
+            strip = self.track_strips[strip_idx]
+            value = strip.get_volume_func(strip.index)
+            led_val = int(value * 127)
+            encoder_name = self.encoder_names[i]
+
+            # Find the correct method to set encoder ring
+            encoders = self.push.encoders
+            if hasattr(encoders, 'set_ring_value'):
+                encoders.set_ring_value(encoder_name, led_val)
+            elif hasattr(encoders, 'set_encoder_ring_value'):
+                encoders.set_encoder_ring_value(encoder_name, led_val)
+            elif hasattr(encoders, 'set_value'):
+                encoders.set_value(encoder_name, led_val)
+            else:
+                print("[ERROR] No method found to set encoder ring value in Push2Encoders")
+
 
     def on_button_pressed_raw(self, button_name):
         for col in range(self.tracks_per_page):
@@ -189,8 +256,6 @@ class TrackControlMode(definitions.LogicMode):
         # 1) locally update Push GUI
         self.track_strips[track_idx].update_value(increment)
 
-        # 2) build and send Pitch Bend (14-bit) on channel idx
-        import mido
         # read the new 0.0–1.0 level from your MCU state:
         level = self.app.mcu_manager.fader_levels[idx]
         # convert to 14-bit 0…16383 signed (Mackie uses –8192…+8191)
