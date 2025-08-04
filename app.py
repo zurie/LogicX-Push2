@@ -79,12 +79,14 @@ class LogicApp(object):
     # fixing issue with 2 lumis and alternating channel pressure values
     last_cp_value_received = 0
     last_cp_value_received_time = 0
-
+    _last_tick       = 0
+    _channels_this_tick = set()
     # interface with logic
     logic_interface = None
 
     def __init__(self):
         self.melodic_mode = None
+
         self.main_controls_mode = None
         self._last_mcu_transport = None
         if os.path.exists('settings.json'):
@@ -143,21 +145,32 @@ class LogicApp(object):
 
         self.init_modes(settings)
 
-    def _on_mcu_vpot(self, idx, value):
-        """
-        MCU v-pot comes in as 0–127 with 64 = no movement.
-        Turn it into a +/-1 step and fire our TrackControlMode handler.
-        """
-        delta = value - 64
-        if delta == 0:
+    def _on_mcu_vpot(self, idx: int, value: int):
+        global _last_tick, _channels_this_tick
+
+        # ── 1. ignore LED pattern bytes (b5-4 ≠ 00)
+        if value & 0x30:
             return
 
-        increment = 1 if delta > 0 else -1
-        # Map encoder index to the Push2 constant name
+        # ── 2. ignore bursts touching several channels in same tick
+        now_tick = int(time.time() * 1000)         # coarse 1 ms resolution
+        if now_tick != _last_tick:
+            _last_tick = now_tick
+            _channels_this_tick.clear()
+        if idx in _channels_this_tick:
+            return          # duplicate within same tick
+        _channels_this_tick.add(idx)
+        if len(_channels_this_tick) > 1:
+            return          # more than one channel updated – treat as refresh
+
+        # ── genuine human turn → translate to ±1 step
+        direction = -1 if value & 0x40 else +1
         encoder_name = TrackControlMode.encoder_names[idx]
-        # Forward into your existing on_encoder_rotated()
-        # This updates the Push display and sends CC72–79 on MCU Out
-        self.track_mode.on_encoder_rotated(encoder_name, increment)
+        if self.is_mode_active(self.track_mode):
+            self.track_mode.on_encoder_rotated(encoder_name, direction)
+
+
+
     # ───────────────────────────────────────────────────────────
     # MODE INIT
     def init_modes(self, settings):
@@ -270,11 +283,13 @@ class LogicApp(object):
 
     def toggle_and_rotate_track_control_mode(self):
         if self.is_mode_active(self.track_mode):
+            self.mcu_manager.on_vpot = None
             rotation_finished = self.track_mode.move_to_next_page()
             if rotation_finished:
                 self.active_modes = [mode for mode in self.active_modes if mode != self.track_mode]
                 self.track_mode.deactivate()
         else:
+            self.mcu_manager.on_vpot = self._on_mcu_vpot
             self.active_modes.append(self.track_mode)
             self.track_mode.activate()
 
@@ -396,7 +411,8 @@ class LogicApp(object):
 
             # Debug logging
             if self.debug_mcu:
-                print(f"[Push2] Updating Mute/Solo LEDs for track {track_idx + 1}: mute={mute_state}, solo={solo_state}")
+                print(
+                    f"[Push2] Updating Mute/Solo LEDs for track {track_idx + 1}: mute={mute_state}, solo={solo_state}")
 
             # Set Mute button color
             if mute_state:

@@ -2,6 +2,8 @@ import mido
 import threading
 import time
 
+import push2_python
+
 import definitions
 
 
@@ -246,7 +248,7 @@ class LogicMCUManager:
             if not self.enabled:
                 print("[DEBUG] MCU is not enabled; skipping SysEx")
                 return
-            print(f"[DEBUG] handle_sysex raw data: {data!r}")
+            # print(f"[DEBUG] handle_sysex raw data: {data!r}")
 
             # Accept Mackie MCU SysEx: 00 00 66 14 ...
             if not (len(data) > 3 and list(data[:4]) == [0x00, 0x00, 0x66, 0x14]):
@@ -294,7 +296,7 @@ class LogicMCUManager:
                 print(f"[MCU] Failed to request channel LED state: {e}")
 
     def _handle_display_text(self, payload):
-        print("[DEBUG] Entered _handle_display_text")
+        # print("[DEBUG] Entered _handle_display_text")
         # print(f"[DEBUG] RAW DISPLAY TEXT PAYLOAD: {payload}")
 
         if len(payload) >= 2:
@@ -314,7 +316,7 @@ class LogicMCUManager:
             if all(n.strip() in ['', '-'] for n in track_names):
                 return
 
-            # Actually apply the names
+            # A ctually apply the names
             self.track_names = (track_names + [''] * 8)[:8]
             if hasattr(self.app, "update_push2_mute_solo"):
                 self.app.update_push2_mute_solo()

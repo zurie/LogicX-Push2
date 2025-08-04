@@ -1,12 +1,29 @@
-import definitions
-import push2_python
-import math
+import math, mido, threading, time
+import definitions, push2_python
 from display_utils import show_text
-import mido
 
+# ──────────────────────────────────────────────────────────────────────────────
+# MCU-TOUCH BOOK-KEEPING  (one slot per channel 0-7)
+# ──────────────────────────────────────────────────────────────────────────────
+TOUCH_DOWN  = [False] * 8          # True while NOTE-ON 127 is held
+TOUCH_TIMER = [None]  * 8          # threading.Timer() objects
+RELEASE_MS  = 400
+# ──────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ──────────────────────────────────────────────────────────────────────────────
+def _bank(idx: int) -> int:
+    """Return the 0-7 index within the current 8-channel MCU bank."""
+    return idx % 8
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TrackStrip
+# ──────────────────────────────────────────────────────────────────────────────
 class TrackStrip:
+    """A little data-object plus draw / update helpers."""
+
     def __init__(self, index, name, get_color_func, get_volume_func, set_volume_func):
-        self.index = index
+        self.index = index  # 0-63 absolute
         self.name = name
         self.get_color_func = get_color_func
         self.get_volume_func = get_volume_func
@@ -14,6 +31,7 @@ class TrackStrip:
         self.vmin = 0.0
         self.vmax = 1.0
 
+    # ---------------------------------------------------------------------- UI
     def draw(self, ctx, x_part, selected=False):
         margin_top = 25
         name_height = 20
@@ -31,21 +49,23 @@ class TrackStrip:
         volume = self.get_volume_func(self.index)
         label = f"{int(volume * 100)}%"
 
-        # -- HIGHLIGHT ENTIRE COLUMN IF SELECTED --
+        # highlight selected track
         if selected:
             ctx.save()
-            ctx.set_source_rgb(*definitions.get_color_rgb_float(definitions.GRAY_DARK))  # or BLUE etc
+            ctx.set_source_rgb(*definitions.get_color_rgb_float(definitions.GRAY_DARK))
             ctx.rectangle(x, y, col_width, display_h)
             ctx.fill()
             ctx.restore()
 
-        # Now, offset content a bit horizontally for visual balance
+        # horizontal centring
         content_x = x + col_width * 0.25
         xc = content_x + radius + 3
         yc = margin_top + name_height + val_height + radius + 5
 
-        show_text(ctx, x_part, margin_top, self.name, height=name_height, font_color=definitions.SKYBLUE)
-        show_text(ctx, x_part, margin_top + name_height, label, height=val_height, font_color=color)
+        show_text(ctx, x_part, margin_top, self.name,
+                  height=name_height, font_color=definitions.SKYBLUE)
+        show_text(ctx, x_part, margin_top + name_height, label,
+                  height=val_height, font_color=color)
 
         start_rad = math.radians(130)
         arc_rad = start_rad + (math.radians(280) * volume)
@@ -66,18 +86,21 @@ class TrackStrip:
         ctx.set_source_rgb(*definitions.get_color_rgb_float(color))
         ctx.set_line_width(3)
         ctx.stroke()
-
         ctx.restore()
 
-
-
+    # ------------------------------------------------------------------ values
     def update_value(self, increment):
         step = 0.01
-        new_val = max(self.vmin,
-                      min(self.vmax, self.get_volume_func(self.index) + increment * step))
+        new_val = max(
+            self.vmin,
+            min(self.vmax, self.get_volume_func(self.index) + increment * step),
+        )
         self.set_volume_func(self.index, new_val)
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# TrackControlMode
+# ──────────────────────────────────────────────────────────────────────────────
 class TrackControlMode(definitions.LogicMode):
     current_page = 0
     n_pages = 1
@@ -96,26 +119,34 @@ class TrackControlMode(definitions.LogicMode):
         push2_python.constants.ENCODER_TRACK8_ENCODER,
     ]
 
+    # ---------------------------------------------------------------- init/up
     def initialize(self, settings=None):
-        """Build 64 default strips wired to MCU manager fader state."""
+        """Build 64 default strips wired to MCU-manager fader state (8-bank safe)."""
         self.track_strips = []
         self.current_page = 0
         self.tracks_per_page = 8
 
         def get_color(idx):
             if hasattr(self.app, "mcu_manager"):
-                return definitions.GREEN if self.app.mcu_manager.select_states[idx] else definitions.GRAY_LIGHT
+                return (
+                    definitions.GREEN
+                    if self.app.mcu_manager.select_states[_bank(idx)]
+                    else definitions.GRAY_LIGHT
+                )
             return definitions.GRAY_LIGHT
 
         def get_volume(idx):
             if hasattr(self.app, "mcu_manager"):
-                return self.app.mcu_manager.fader_levels[idx]
+                return self.app.mcu_manager.fader_levels[_bank(idx)]
             return 0.0
 
         def set_volume(idx, val):
             if hasattr(self.app, "mcu_manager"):
-                self.app.mcu_manager.fader_levels[idx] = val
-                self.app.mcu_manager.emit_event("fader", channel_idx=idx, level=val)
+                bank_idx = _bank(idx)
+                self.app.mcu_manager.fader_levels[bank_idx] = val
+                self.app.mcu_manager.emit_event(
+                    "fader", channel_idx=bank_idx, level=val
+                )
 
         for i in range(64):
             name = f"Track {i + 1}"
@@ -123,6 +154,7 @@ class TrackControlMode(definitions.LogicMode):
                 TrackStrip(i, name, get_color, get_volume, set_volume)
             )
 
+    # -------------------------------------------------------------- navigation
     def move_to_next_page(self):
         self.app.buttons_need_update = True
         self.current_page += 1
@@ -149,13 +181,13 @@ class TrackControlMode(definitions.LogicMode):
         self.update_strip_values()
 
     def deactivate(self):
-        # clear all 4×8 pads
         for row in range(4):
             for col in range(8):
                 btn = self.get_pad_button(col, row)
                 if btn:
                     self.push.buttons.set_button_color(btn, definitions.BLACK)
 
+    # ------------------------------------------------------- Push UI refreshes
     def update_buttons(self):
         for i in range(self.tracks_per_page):
             try:
@@ -171,68 +203,46 @@ class TrackControlMode(definitions.LogicMode):
                 self.push.buttons.set_button_color(btn, c)
 
     def update_display(self, ctx, w, h):
-        # clear screen
         ctx.rectangle(0, 0, w, h)
         ctx.set_source_rgb(0, 0, 0)
         ctx.fill()
 
         start = self.current_page * self.tracks_per_page
-        selected_idx = None
-        if hasattr(self.app, "mcu_manager") and hasattr(self.app.mcu_manager, "selected_track_idx"):
-            selected_idx = self.app.mcu_manager.selected_track_idx
+        selected_idx = getattr(self.app.mcu_manager, "selected_track_idx", None)
 
         for i in range(self.tracks_per_page):
-            try:
-                strip_idx = start + i
-                # highlight if this strip is the selected track
-                is_selected = (strip_idx == selected_idx)
-                self.track_strips[strip_idx].draw(ctx, i, selected=is_selected)
-            except IndexError:
-                pass
-
-
+            strip_idx = start + i
+            if strip_idx < len(self.track_strips):
+                self.track_strips[strip_idx].draw(
+                    ctx, i, selected=(strip_idx == selected_idx)
+                )
 
     def update_strip_values(self):
-        """
-        Trigger a redraw of the current visible strips—typically by causing
-        the Push 2 display to repaint with latest track values.
-        """
-        # Try app-level request first
         if hasattr(self.app, "update_push2_display"):
             self.app.update_push2_display()
         elif hasattr(self.app, "request_push2_display_update"):
             self.app.request_push2_display_update()
         elif hasattr(self.push, "update_display"):
             self.push.update_display()
-        else:
-            print("[WARN] No display update function found for Push2")
 
     def update_encoders(self):
-        """
-        Update all 8 encoder LED rings to reflect the current volume value
-        for each visible track strip.
-        """
+        encoders = self.push.encoders
         for i in range(self.tracks_per_page):
             strip_idx = self.current_page * self.tracks_per_page + i
             if strip_idx >= len(self.track_strips):
                 continue
-            strip = self.track_strips[strip_idx]
-            value = strip.get_volume_func(strip.index)
+            value = self.track_strips[strip_idx].get_volume_func(strip_idx)
             led_val = int(value * 127)
             encoder_name = self.encoder_names[i]
 
-            # Find the correct method to set encoder ring
-            encoders = self.push.encoders
-            if hasattr(encoders, 'set_ring_value'):
+            if hasattr(encoders, "set_ring_value"):
                 encoders.set_ring_value(encoder_name, led_val)
-            elif hasattr(encoders, 'set_encoder_ring_value'):
+            elif hasattr(encoders, "set_encoder_ring_value"):
                 encoders.set_encoder_ring_value(encoder_name, led_val)
-            elif hasattr(encoders, 'set_value'):
+            elif hasattr(encoders, "set_value"):
                 encoders.set_value(encoder_name, led_val)
-            else:
-                print("[ERROR] No method found to set encoder ring value in Push2Encoders")
 
-
+    # ---------------------------------------------------------------- inputs
     def on_button_pressed_raw(self, button_name):
         for col in range(self.tracks_per_page):
             if button_name == self.get_pad_button(col, 0):
@@ -240,46 +250,88 @@ class TrackControlMode(definitions.LogicMode):
                 return True
         return False
 
+    # ───────────────────────────────────────────────────────────────────── MIDI
+    def _send_mcu_fader_move(self, channel: int, level: float):
+        """
+        Emulate a Mackie fader with Push 2's endless encoders:
+
+        • Send NOTE-ON 127 once at the start of the gesture (“touch down”)
+        • Stream PITCHBEND while the knob moves
+        • 400 ms after the last tick, send NOTE-ON 0 (“touch up”)
+        """
+
+        mcu  = getattr(self.app, "mcu_manager", None)
+        port = mcu.output_port if (mcu and mcu.output_port) else getattr(self.app, "midi_out", None)
+        if port is None:
+            print("[TrackMode] ⚠️  No MIDI port for fader move!")
+            return
+
+        # ---------------------------------------------------------------- internal state
+        if not hasattr(self, "_touch_state"):
+            # one flag + one timer per encoder channel
+            self._touch_state  = [False] * 8      # False = up, True = down
+            self._touch_timer  = [None]  * 8
+
+        touch_note = 0x68 + channel                  # 0x68 … 0x6F  (always on MIDI Ch-1)
+        pb_value   = int(level * 16383) - 8192       # −8192 … +8191
+
+        # ---------------------------------------------------------------- touch-down
+        if not self._touch_state[channel]:
+            port.send(mido.Message('note_on', note=touch_note, velocity=127, channel=0))
+            self._touch_state[channel] = True
+            # print(f"▶ TOUCH DOWN ch{channel}  level={level:.3f}")
+
+        # ---------------------------------------------------------------- main fader data
+        port.send(mido.Message('pitchwheel', pitch=pb_value, channel=channel))
+
+        # ---------------------------------------------------------------- arm / refresh lift-off timer
+        def _lift():
+            # print(f"■ TOUCH UP   ch{channel}")
+            port.send(mido.Message('note_on', note=touch_note, velocity=0, channel=0))
+            self._touch_state[channel] = False
+            self._touch_timer[channel] = None
+
+        # cancel & restart the existing timer
+        #old_t = self._touch_timer[channel]
+        #if old_t:
+        #    old_t.cancel()
+
+        #t = threading.Timer(0.40, _lift)   # hold “touch” for 400 ms of silence
+        #t.daemon = True
+        #t.start()
+        #self._touch_timer[channel] = t
+        # ───────────---  TEMP DEBUG ---───────────
+        #if not hasattr(self, "_debug_counter"):
+        #    self._debug_counter = 0
+        #self._debug_counter += 1
+        #print(f"[DEBUG] call #{self._debug_counter:04d}  ch={channel}  "
+        #      f"touch={getattr(self, '_touch_state', ['?']*8)[channel]}")
+        # ─────────────────────────────────────────
+
     def on_encoder_rotated(self, encoder_name, increment):
-        """
-        Turn encoder 1–8 into Mackie‐Control faders 1–8 (Pitch Bend on channels 0–7)
-        and send exclusively over the MCU port so Logic updates.
-        """
         if encoder_name not in self.encoder_names:
             return False
 
-        idx = self.encoder_names.index(encoder_name)        # 0–7
-        track_idx = self.current_page * self.tracks_per_page + idx
-        if track_idx >= len(self.track_strips):
+        local_idx = self.encoder_names.index(encoder_name)  # 0-7 within page
+        strip_idx = self.current_page * self.tracks_per_page + local_idx
+        if strip_idx >= len(self.track_strips):
             return False
 
-        # 1) locally update Push GUI
-        self.track_strips[track_idx].update_value(increment)
+        # 1) update internal value + GUI
+        self.track_strips[strip_idx].update_value(increment)
 
-        # read the new 0.0–1.0 level from your MCU state:
-        level = self.app.mcu_manager.fader_levels[idx]
-        # convert to 14-bit 0…16383 signed (Mackie uses –8192…+8191)
-        pb = int(level * 16383) - 8192
-        msg = mido.Message(
-            "pitchwheel",
-            pitch=pb,
-            channel=idx    # MIDI channels 0–7 map to Logic tracks 1–8
-        )
+        # 2) read the new level (already bank-safe)
+        level = self.app.mcu_manager.fader_levels[local_idx]
 
-        # 3) send *only* on the MCU output port (where Logic is listening)
-        mcu = getattr(self.app, "mcu_manager", None)
-        if mcu and getattr(mcu, "output_port", None):
-            mcu.output_port.send(msg)
-        else:
-            # fallback if MCU isn’t up yet
-            self.app.midi_out.send(msg)
+        # 3) send Mackie fader move
+        self._send_mcu_fader_move(local_idx, level)
 
-        # 4) force an immediate Push redraw
+        # 4) flag Push redraws
         self.app.buttons_need_update = True
-        self.app.pads_need_update    = True
+        self.app.pads_need_update = True
         return True
 
-
+    # ---------------------------------------------------------------- misc
     @property
     def total_pages(self):
         return max(1, math.ceil(len(self.track_strips) / self.tracks_per_page))
