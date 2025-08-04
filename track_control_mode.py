@@ -117,19 +117,18 @@ class TrackControlMode(definitions.LogicMode):
         return False
 
     def activate(self):
-        # (re)build all 64 strips
         self.initialize()
         self.current_page = 0
 
-        # pull the first 8 track‐names from your MCU manager
-        names = getattr(self.app.mcu_manager, "track_names", [])[: self.tracks_per_page]
+        if hasattr(self.app.mcu_manager, "get_visible_track_names"):
+            names = self.app.mcu_manager.get_visible_track_names()
+        else:
+            names = getattr(self.app.mcu_manager, "track_names", [])[:self.tracks_per_page]
         for idx, nm in enumerate(names):
-            # if MCU hasn't filled in a name yet it'll be an empty string,
-            # so only overwrite when non‐empty
             if nm:
                 self.track_strips[idx].name = nm
+        print("[TrackMode] Setting track names:", names)
 
-        # light up the pads
         self.update_buttons()
 
     def deactivate(self):

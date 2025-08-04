@@ -6,7 +6,6 @@ import definitions
 
 
 class LogicMCUManager:
-
     BUTTON_MAP = {
         # --- Channel strip buttons ---
         **{i: f"REC[{i + 1}]" for i in range(0, 8)},
@@ -104,7 +103,6 @@ class LogicMCUManager:
         except Exception as e:
             print("[MCU] Could not open port:", e)
 
-
     def stop(self):
         self.running = False
         if self.input_port:
@@ -198,18 +196,11 @@ class LogicMCUManager:
 
     # ---------------- SysEx Handlers ----------------
     def handle_sysex(self, data):
-        """
-        Unified SysEx handler for Logic MCU:
-        - Detects track selection via GUI/arrow keys
-        - Immediately updates Push 2 LEDs from cached state
-        - Requests LED refresh for all tracks in the current bank
-        - Handles standard MCU SysEx commands
-        """
         try:
             # --- Track selection via GUI/Arrow ---
             if (
                     len(data) >= 8
-                    and data[0:5] == [0xF0, 0x00, 0x00, 0x66, 0x14]
+                    and list(data[:5]) == [0xF0, 0x00, 0x00, 0x66, 0x14]
                     and data[5] == 0x0E
                     and data[7] == 0x03
             ):
@@ -219,20 +210,18 @@ class LogicMCUManager:
                 bank_tracks = list(range(bank_start, bank_start + 8))
 
                 if self.debug_mcu:
-                    print(f"[MCU] (GUI/Arrow) Selected track index set to {track_index + 1} (Bank {bank_start+1}-{bank_start+8})")
+                    print(
+                        f"[MCU] (GUI/Arrow) Selected track index set to {track_index + 1} (Bank {bank_start + 1}-{bank_start + 8})"
+                    )
 
-                # 1️⃣ Instant Push2 LED update from cache for ALL tracks in bank
                 if hasattr(self.app, "update_push2_mute_solo"):
                     for ch in bank_tracks:
                         self.app.update_push2_mute_solo(track_idx=ch)
-
-                # 2️⃣ Request LED state for ALL 8 tracks in this bank
                 for ch in bank_tracks:
                     self.request_channel_led_state(ch)
 
-                # 3️⃣ Delay and then reassert SOLO/MUTE states for ALL tracks in bank
                 def delayed_bank_reassert():
-                    time.sleep(self.app.bank_reassert_delay)  # allow Logic's own LED updates to finish
+                    time.sleep(self.app.bank_reassert_delay)
                     if self.output_port:
                         for ch in bank_tracks:
                             solo_note = 8 + ch
@@ -246,20 +235,33 @@ class LogicMCUManager:
                                 velocity=127 if self.mute_states[ch] else 0, channel=0
                             ))
                             if self.debug_mcu:
-                                print(f"[SOLO DEBUG] Reasserted Track {ch+1} - solo={self.solo_states[ch]} mute={self.mute_states[ch]}")
+                                print(
+                                    f"[SOLO DEBUG] Reasserted Track {ch + 1} - solo={self.solo_states[ch]} mute={self.mute_states[ch]}"
+                                )
 
                 threading.Thread(target=delayed_bank_reassert, daemon=True).start()
-                return  # ✅ End of track-selection handling
+                # Don't return: Standard MCU messages may follow in same event!
 
             # --- Standard MCU SysEx Handling ---
-            if not self.enabled or data[:4] != (0, 0, 102, 20):
+            if not self.enabled:
+                print("[DEBUG] MCU is not enabled; skipping SysEx")
+                return
+            print(f"[DEBUG] handle_sysex raw data: {data!r}")
+
+            # Accept Mackie MCU SysEx: 00 00 66 14 ...
+            if not (len(data) > 3 and list(data[:4]) == [0x00, 0x00, 0x66, 0x14]):
+                print(f"[DEBUG] Skipping SysEx, bad header: {data[:8]!r}")
                 return
 
             payload = data[4:]
+            if not payload:
+                print("[DEBUG] SysEx: No payload after header!")
+                return
+
             cmd = payload[0]
 
             if cmd == 0x12:
-                self._handle_display_text(payload[1:])
+                self._handle_display_text(payload)
             elif cmd == 0x20:
                 self._handle_channel_led(payload[1:])
             elif cmd == 0x21:
@@ -268,10 +270,14 @@ class LogicMCUManager:
                 self._handle_vpot(payload[1:])
             elif cmd == 0x72:
                 self._handle_time(payload[1:])
+            else:
+                if self.debug_mcu:
+                    print(f"[MCU] Unhandled SysEx cmd: 0x{cmd:02X}, payload: {payload}")
 
         except Exception as e:
             if self.debug_mcu:
                 print("[MCU] Failed to parse SysEx:", e)
+
 
     def request_channel_led_state(self, track_idx):
         try:
@@ -288,13 +294,34 @@ class LogicMCUManager:
                 print(f"[MCU] Failed to request channel LED state: {e}")
 
     def _handle_display_text(self, payload):
-        text = bytes(payload).decode("ascii", errors="ignore").strip()
-        self.track_names = [text[i:i + 7].strip() for i in range(0, len(text), 7)]
-        print("[MCU] Track names:", self.track_names)
-        # Force Push2 mute/solo LED refresh after big state dump
-        if hasattr(self.app, "update_push2_mute_solo"):
-            self.app.update_push2_mute_solo()
-        self.pending_update = True
+        print("[DEBUG] Entered _handle_display_text")
+        # print(f"[DEBUG] RAW DISPLAY TEXT PAYLOAD: {payload}")
+
+        if len(payload) >= 2:
+            offset = payload[1]
+            text_bytes = payload[2:]
+            text_bytes = text_bytes + b' ' * (56 - len(text_bytes))
+            text_bytes = text_bytes[:56]  # Always 56 bytes
+            text = text_bytes.decode("ascii", errors="ignore")
+            # print(f"[DEBUG] Decoded track text: '{text}' (len={len(text)})")
+            track_names = [text[i:i + 7].strip() for i in range(0, 56, 7)]
+            print(f"[MCU] Track names (offset {offset}):", track_names)
+            # If offset is 0 (bank start), update all
+            if offset == 0:
+                self.track_names = (track_names + [''] * 8)[:8]
+                if hasattr(self.app, "update_push2_mute_solo"):
+                    self.app.update_push2_mute_solo()
+                self.pending_update = True
+                if self.app.is_mode_active(self.app.track_mode):
+                    self.app.track_mode.activate()
+        else:
+            print("[DEBUG] No strips in payload; ignoring.")
+
+
+
+
+
+
 
     def _handle_channel_led(self, payload):
         ch, bits = payload[0], payload[1]
@@ -389,6 +416,31 @@ class LogicMCUManager:
         elif event_type == "track_state" and self.on_track_state:
             self.on_track_state(kwargs.get("channel_idx"), kwargs.get("rec"), kwargs.get("solo"), kwargs.get("mute"))
 
+    def get_visible_track_names(self):
+        """
+        Return a list of 8 track names for the currently visible bank.
+        """
+        bank_start = 0
+        if self.selected_track_idx is not None:
+            bank_start = (self.selected_track_idx // 8) * 8
+        # Always return 8 names, padding with blanks if needed
+        names = (self.track_names + [""] * 8)  # pad in case too short
+        return names[bank_start:bank_start + 8]
+
+    def update_track_names_from_sysex(self, payload):
+        """
+        Robustly split a 56-char MCU track name field into 8 names, stripping spaces.
+        """
+        # Payload is expected as bytes
+        text = bytes(payload).decode("ascii", errors="ignore")
+        # MCU gives 7 chars per name, 8 names = 56 chars
+        track_names = [text[i:i + 7].strip() for i in range(0, 56, 7)]
+        # If payload shorter than 56, pad with empty strings
+        if len(track_names) < 8:
+            track_names += [""] * (8 - len(track_names))
+        self.track_names = track_names[:8]
+        print("[MCU] Track names updated:", self.track_names)
+
     # ---------------- Realtime Handlers ----------------
     def handle_button(self, note, pressed):
         label = self.BUTTON_MAP.get(note)
@@ -415,11 +467,11 @@ class LogicMCUManager:
                     return True
 
             if label == "USER" and pressed:
-                    if hasattr(self.app, "toggle_and_rotate_help_mode"):
-                        self.app.toggle_and_rotate_help_mode()
-                        self.app.buttons_need_update = True
-                    return True
-                
+                if hasattr(self.app, "toggle_and_rotate_help_mode"):
+                    self.app.toggle_and_rotate_help_mode()
+                    self.app.buttons_need_update = True
+                return True
+
             # --- Rec/Solo/Mute states ---
             if label.startswith("REC["):
                 idx = int(label[4:-1]) - 1
