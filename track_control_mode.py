@@ -38,6 +38,7 @@ class TrackStrip:
         arc_rad = start_rad + (math.radians(280) * volume)
 
         ctx.save()
+        # background arc
         ctx.set_source_rgb(0, 0, 0)
         ctx.move_to(xc, yc)
         ctx.stroke()
@@ -47,6 +48,7 @@ class TrackStrip:
         ctx.set_line_width(1)
         ctx.stroke()
 
+        # value arc
         ctx.arc(xc, yc, radius, start_rad, arc_rad)
         ctx.set_source_rgb(*definitions.get_color_rgb_float(color))
         ctx.set_line_width(3)
@@ -56,7 +58,8 @@ class TrackStrip:
 
     def update_value(self, increment):
         step = 0.01
-        new_val = max(self.vmin, min(self.vmax, self.get_volume_func(self.index) + increment * step))
+        new_val = max(self.vmin,
+                      min(self.vmax, self.get_volume_func(self.index) + increment * step))
         self.set_volume_func(self.index, new_val)
 
 
@@ -79,6 +82,7 @@ class TrackControlMode(definitions.LogicMode):
     ]
 
     def initialize(self, settings=None):
+        """Build 64 default strips wired to MCU manager fader state."""
         self.track_strips = []
         self.current_page = 0
         self.tracks_per_page = 8
@@ -100,68 +104,117 @@ class TrackControlMode(definitions.LogicMode):
 
         for i in range(64):
             name = f"Track {i + 1}"
-            self.track_strips.append(TrackStrip(i, name, get_color, get_volume, set_volume))
+            self.track_strips.append(
+                TrackStrip(i, name, get_color, get_volume, set_volume)
+            )
 
     def move_to_next_page(self):
         self.app.buttons_need_update = True
         self.current_page += 1
         if self.current_page >= self.n_pages:
             self.current_page = 0
-            return True  # Return true because page rotation finished
+            return True
         return False
 
     def activate(self):
+        # (re)build all 64 strips
+        self.initialize()
         self.current_page = 0
+
+        # pull the first 8 track‐names from your MCU manager
+        names = getattr(self.app.mcu_manager, "track_names", [])[: self.tracks_per_page]
+        for idx, nm in enumerate(names):
+            # if MCU hasn't filled in a name yet it'll be an empty string,
+            # so only overwrite when non‐empty
+            if nm:
+                self.track_strips[idx].name = nm
+
+        # light up the pads
         self.update_buttons()
 
     def deactivate(self):
+        # clear all 4×8 pads
         for row in range(4):
             for col in range(8):
-                button = self.get_pad_button(col, row)
-                if button:
-                    self.push.buttons.set_button_color(button, definitions.BLACK)
+                btn = self.get_pad_button(col, row)
+                if btn:
+                    self.push.buttons.set_button_color(btn, definitions.BLACK)
 
     def update_buttons(self):
-        for i in range(8):
+        for i in range(self.tracks_per_page):
             try:
-                track = self.track_strips[self.current_page * 8 + i]
-                color_name = track.get_color_func(track.index)
-                if color_name not in definitions.COLORS_NAMES:
-                    color_name = definitions.GRAY_LIGHT
-                color = color_name
+                strip = self.track_strips[self.current_page * self.tracks_per_page + i]
+                c = strip.get_color_func(strip.index)
+                if c not in definitions.COLORS_NAMES:
+                    c = definitions.GRAY_LIGHT
             except IndexError:
-                color = definitions.BLACK
+                c = definitions.BLACK
 
-            button = self.get_pad_button(i, 0)
-            if button:
-                self.push.buttons.set_button_color(button, color)
+            btn = self.get_pad_button(i, 0)
+            if btn:
+                self.push.buttons.set_button_color(btn, c)
 
     def update_display(self, ctx, w, h):
+        # clear screen
         ctx.rectangle(0, 0, w, h)
         ctx.set_source_rgb(0, 0, 0)
         ctx.fill()
+
         start = self.current_page * self.tracks_per_page
-        for i in range(8):
+        for i in range(self.tracks_per_page):
             try:
                 self.track_strips[start + i].draw(ctx, i)
             except IndexError:
-                continue
+                pass
 
     def on_button_pressed_raw(self, button_name):
-        for col in range(8):
+        for col in range(self.tracks_per_page):
             if button_name == self.get_pad_button(col, 0):
                 print(f"[TrackControlMode] Pressed Track Pad {col}")
                 return True
         return False
 
     def on_encoder_rotated(self, encoder_name, increment):
-        if encoder_name in self.encoder_names:
-            idx = self.encoder_names.index(encoder_name)
-            track_idx = self.current_page * self.tracks_per_page + idx
-            if track_idx < len(self.track_strips):
-                self.track_strips[track_idx].update_value(increment)
-                return True
-        return False
+        """
+        Turn encoder 1–8 into Mackie‐Control faders 1–8 (Pitch Bend on channels 0–7)
+        and send exclusively over the MCU port so Logic updates.
+        """
+        if encoder_name not in self.encoder_names:
+            return False
+
+        idx = self.encoder_names.index(encoder_name)        # 0–7
+        track_idx = self.current_page * self.tracks_per_page + idx
+        if track_idx >= len(self.track_strips):
+            return False
+
+        # 1) locally update Push GUI
+        self.track_strips[track_idx].update_value(increment)
+
+        # 2) build and send Pitch Bend (14-bit) on channel idx
+        import mido
+        # read the new 0.0–1.0 level from your MCU state:
+        level = self.app.mcu_manager.fader_levels[idx]
+        # convert to 14-bit 0…16383 signed (Mackie uses –8192…+8191)
+        pb = int(level * 16383) - 8192
+        msg = mido.Message(
+            "pitchwheel",
+            pitch=pb,
+            channel=idx    # MIDI channels 0–7 map to Logic tracks 1–8
+        )
+
+        # 3) send *only* on the MCU output port (where Logic is listening)
+        mcu = getattr(self.app, "mcu_manager", None)
+        if mcu and getattr(mcu, "output_port", None):
+            mcu.output_port.send(msg)
+        else:
+            # fallback if MCU isn’t up yet
+            self.app.midi_out.send(msg)
+
+        # 4) force an immediate Push redraw
+        self.app.buttons_need_update = True
+        self.app.pads_need_update    = True
+        return True
+
 
     @property
     def total_pages(self):

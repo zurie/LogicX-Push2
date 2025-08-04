@@ -91,7 +91,7 @@ class LogicApp(object):
             settings = json.load(open('settings.json'))
         else:
             settings = {}
-
+        self.settings = settings
         self.logic_interface = LogicInterface(self)
         self.shift_held = False
         self.select_held = False
@@ -115,11 +115,13 @@ class LogicApp(object):
         self.init_push()
 
         if settings.get("use_mcu", False):
-            # --- MCU Manager (full Mackie Control support)
-            self.mcu_manager = LogicMCUManager(
-                self,
-                port_name=settings.get("mcu_port_name", "IAC Driver LogicMCU_In")
-            )
+            # after you create the MCU manager:
+            self.mcu_manager = LogicMCUManager(self, port_name=self.settings.get("mcu_port_name"))
+            # hook incoming Push encoders (v-pots) into our TrackControlMode
+            self.mcu_manager.on_vpot = self._on_mcu_vpot
+
+            # start listening…
+            self.mcu_manager.start()
 
             # Optional: hook transport changes to update button colors
             def handle_transport_change(state):
@@ -142,6 +144,21 @@ class LogicApp(object):
 
         self.init_modes(settings)
 
+    def _on_mcu_vpot(self, idx, value):
+        """
+        MCU v-pot comes in as 0–127 with 64 = no movement.
+        Turn it into a +/-1 step and fire our TrackControlMode handler.
+        """
+        delta = value - 64
+        if delta == 0:
+            return
+
+        increment = 1 if delta > 0 else -1
+        # Map encoder index to the Push2 constant name
+        encoder_name = TrackControlMode.encoder_names[idx]
+        # Forward into your existing on_encoder_rotated()
+        # This updates the Push display and sends CC72–79 on MCU Out
+        self.track_mode.on_encoder_rotated(encoder_name, increment)
     # ───────────────────────────────────────────────────────────
     # MODE INIT
     def init_modes(self, settings):
@@ -199,6 +216,20 @@ class LogicApp(object):
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.SKYBLUE)
             else:
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.OFF_BTN_COLOR)
+
+    def _on_mcu_fader(self, channel_idx, level):
+        """
+        channel_idx: 0–7
+        level:      0.0–1.0
+        Sends a Pitch-bend message on that channel to Logic,
+        which will move the channel fader in the DAW.
+        """
+        # 14-bit 0…16383 → signed –8192…+8191
+        pb = int(level * 16383) - 8192
+        msg = mido.Message('pitchwheel', pitch=pb, channel=channel_idx)
+        # send it down the same MCU port Logic is listening to:
+        if self.mcu_manager.output_port:
+            self.mcu_manager.output_port.send(msg)
 
     def get_all_modes(self):
         return [getattr(self, element) for element in vars(self) if

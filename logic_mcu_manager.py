@@ -96,8 +96,14 @@ class LogicMCUManager:
             self.listener_thread.start()
             print("[MCU] Listening on", self.port_name)
             print("[MCU] Sending on", mcu_out_name)
+            # right after self.output_port = mido.open_output(...)
+            # tell Logic “hey, I’m a Mackie Control”
+            self.output_port.send(
+                mido.Message('sysex', data=[0x00, 0x00, 0x66, 0x14, 0x00])
+            )
         except Exception as e:
             print("[MCU] Could not open port:", e)
+
 
     def stop(self):
         self.running = False
