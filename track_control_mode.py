@@ -22,23 +22,33 @@ def _bank(idx: int) -> int:
 class TrackStrip:
     """A little data-object plus draw / update helpers."""
 
-    def __init__(self, app, index, name, get_color_func, get_volume_func, set_volume_func):
+    def __init__(
+            self,
+            app,
+            index,
+            name,
+            get_color_func,
+            get_volume_func,
+            set_volume_func,
+            get_pan_func,
+    ):
         self.app = app
         self.index = index  # 0-63 absolute
         self.name = name
         self.get_color_func = get_color_func
         self.get_volume_func = get_volume_func
         self.set_volume_func = set_volume_func
+        self.get_pan_func    = get_pan_func
         self.vmin = 0.0
         self.vmax = 1.0
 
     # ---------------------------------------------------------------------- UI
     def draw(self, ctx, x_part, selected=False):
         margin_top = 25
-        name_height = 20
-        val_height = 30
-        height = 55
-        radius = height / 2
+        name_h = 20
+        val_h = 30
+        meter_h = 55
+        radius = meter_h / 2
 
         display_w = push2_python.constants.DISPLAY_LINE_PIXELS
         display_h = push2_python.constants.DISPLAY_N_LINES
@@ -62,12 +72,12 @@ class TrackStrip:
         # horizontal centring
         content_x = x + col_width * 0.25
         xc = content_x + radius + 3
-        yc = margin_top + name_height + val_height + radius + 5
+        yc = margin_top + name_h + val_h + radius + 5
 
         show_text(ctx, x_part, margin_top, self.name,
-                  height=name_height, font_color=definitions.SKYBLUE)
-        show_text(ctx, x_part, margin_top + name_height, label,
-                  height=val_height, font_color=color)
+                  height=name_h, font_color=definitions.SKYBLUE)
+        show_text(ctx, x_part, margin_top + name_h, label,
+                  height=val_h, font_color=color)
 
         start_rad = math.radians(130)
         arc_rad = start_rad + (math.radians(280) * volume)
@@ -89,6 +99,13 @@ class TrackStrip:
         ctx.set_line_width(3)
         ctx.stroke()
         ctx.restore()
+
+        # ----- NEW: centred green pan value ----------------------------------
+        pan_val  = int(max(-64, min(64, self.get_pan_func(self.index))))
+        pan_text = f"{pan_val:+d}"
+        pan_y    = margin_top + name_h + val_h + meter_h + 5
+        show_text(ctx, x_part, pan_y, pan_text, height=18,
+                  font_color=definitions.GREEN)
 
     # ------------------------------------------------------------------ values
     def update_value(self, increment):
@@ -170,15 +187,38 @@ class TrackControlMode(definitions.LogicMode):
             if hasattr(self.app, "mcu_manager"):
                 bank_idx = _bank(idx)
                 self.app.mcu_manager.fader_levels[bank_idx] = val
-                self.app.mcu_manager.emit_event(
-                    "fader", channel_idx=bank_idx, level=val
-                )
+                self.app.mcu_manager.emit_event("fader", channel_idx=bank_idx, level=val)
+
+        # NEW ────────────────────────────────────────────────────────────
+        def get_pan(idx):
+            mm = getattr(self.app, "mcu_manager", None)
+            if mm and hasattr(mm, "pan_levels"):
+                return mm.pan_levels[_bank(idx)]
+            return 0
 
         for i in range(64):
             name = f"Track {i + 1}"
             self.track_strips.append(
-                TrackStrip(self.app, i, name, get_color, get_volume, set_volume)
+                TrackStrip(self.app, i, name, get_color, get_volume, set_volume, get_pan)
             )
+
+        # OPTIONAL: register for realtime pan events if the manager emits them
+        mm = getattr(self.app, "mcu_manager", None)
+        if mm and hasattr(mm, "add_listener"):
+            mm.add_listener("pan", self._on_mcu_pan)
+
+    # ----------------------------- MCU pan event (optional but snappy)
+    def _on_mcu_pan(self, *, channel_idx: int, value: int, **_):
+        if channel_idx is None:
+            return
+        global_idx = self.current_page * 8 + channel_idx
+        try:
+            strip = self.track_strips[global_idx]
+            if strip:
+                # force a UI refresh; value is already in mm.pan_levels
+                self.update_strip_values()
+        except IndexError:
+            pass
 
     # -------------------------------------------------------------- navigation
     def move_to_next_page(self):
@@ -309,30 +349,6 @@ class TrackControlMode(definitions.LogicMode):
 
         # ---------------------------------------------------------------- main fader data
         port.send(mido.Message('pitchwheel', pitch=pb_value, channel=channel))
-
-        # ---------------------------------------------------------------- arm / refresh lift-off timer
-        def _lift():
-            # print(f"■ TOUCH UP   ch{channel}")
-            port.send(mido.Message('note_on', note=touch_note, velocity=0, channel=0))
-            self._touch_state[channel] = False
-            self._touch_timer[channel] = None
-
-        # cancel & restart the existing timer
-        #old_t = self._touch_timer[channel]
-        #if old_t:
-        #    old_t.cancel()
-
-        #t = threading.Timer(0.40, _lift)   # hold “touch” for 400 ms of silence
-        #t.daemon = True
-        #t.start()
-        #self._touch_timer[channel] = t
-        # ───────────---  TEMP DEBUG ---───────────
-        #if not hasattr(self, "_debug_counter"):
-        #    self._debug_counter = 0
-        #self._debug_counter += 1
-        #print(f"[DEBUG] call #{self._debug_counter:04d}  ch={channel}  "
-        #      f"touch={getattr(self, '_touch_state', ['?']*8)[channel]}")
-        # ─────────────────────────────────────────
 
     def set_bank_levels(self, levels):
         """levels = iterable of ≤8 linear floats.  Writes them to Logic and refreshes Push rings."""

@@ -1,9 +1,6 @@
 import mido
 import threading
 import time
-
-import push2_python
-
 import definitions
 
 
@@ -79,6 +76,7 @@ class LogicMCUManager:
         self.rec_states = [False] * 8
         self.select_states = [False] * 8
         self.fader_levels = [0] * 8
+        self.pan_levels    = [0] * 8
         self.vpot_rings = [0] * 9
         self.selected_track_idx = None
         self.playhead = 0.0
@@ -403,18 +401,27 @@ class LogicMCUManager:
             self.emit_event("transport", state=self.transport)
             self.pending_update = True
 
+    # ───────────────────────────────────────────────────────────────────────
+    #  VPOT / PAN                                                            ─
+    # ───────────────────────────────────────────────────────────────────────
     def _handle_vpot(self, payload):
-        idx, val = payload[0], payload[1]
-        self.vpot_rings[idx] = val
+        """Store ring LED value; actual pan comes from CC 48-55."""
+        idx, ring_val = payload[0], payload[1]
+        self.vpot_rings[idx] = ring_val
+
+        # forward raw ring value to any callback
         if self.on_vpot:
-            self.on_vpot(idx, val)
-            self.pending_update = True
+            self.on_vpot(idx, ring_val)
+
+        # --------------------------------------------------------------------
 
     def _handle_time(self, payload):
         self.playhead = payload
 
     def emit_event(self, event_type, **kwargs):
         """Generic event dispatcher."""
+        if event_type == "pan" and hasattr(self.app, "on_pan"):
+            self.app.on_pan(kwargs.get("channel_idx"), kwargs.get("value"))
         if event_type == "button" and self.on_button:
             self.on_button(kwargs.get("label"), kwargs.get("pressed"))
         elif event_type == "transport" and self.on_transport_change:
@@ -557,11 +564,39 @@ class LogicMCUManager:
         # --- MUTE CC messages ---
         if 48 <= control <= 55:
             track_idx = control - 48
-            self.mute_states[track_idx] = (value == 127)
-            if self.debug_mcu:
-                print(f"[MCU] Mute[{track_idx + 1}] = {self.mute_states[track_idx]}")
-            if track_idx == self.selected_track_idx and hasattr(self.app, "update_push2_mute_solo"):
-                self.app.update_push2_mute_solo(track_idx=track_idx)
+
+            if value in (0, 127):
+                # MUTE LED (unchanged)
+                self.mute_states[track_idx] = (value == 127)
+                if track_idx == self.selected_track_idx and hasattr(self.app, "update_push2_mute_solo"):
+                    self.app.update_push2_mute_solo(track_idx=track_idx)
+                if self.debug_mcu:
+                    print(f"[MCU] Mute[{track_idx + 1}] = {self.mute_states[track_idx]}")
+            else:
+                # -------- PAN DETENT TABLE --------
+                # Logic sends only 11 distinct values for pan on MCU:
+                PAN_CC_MAP = {
+                    17: -64,
+                    18: -64,  # sometimes reported at hard‑left too
+                    19: -51,
+                    20: -38,
+                    21: -25,
+                    22:   0,
+                    23: +13,
+                    24: +26,
+                    25: +38,
+                    26: +51,
+                    27: +64,
+                }
+                pan_val = PAN_CC_MAP.get(value, 0)
+                self.pan_levels[track_idx] = pan_val
+
+                if self.debug_mcu:
+                    print(f"[MCU] Pan[{track_idx + 1}] = {pan_val}")
+
+                self.emit_event("pan", channel_idx=track_idx, value=pan_val)
+                if getattr(self.app, "track_mode", None) and self.app.is_mode_active(self.app.track_mode):
+                    self.app.track_mode.update_strip_values()
 
         # --- SOLO CC messages ---
         elif 64 <= control <= 71:
