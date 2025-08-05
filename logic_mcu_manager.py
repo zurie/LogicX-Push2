@@ -51,6 +51,7 @@ class LogicMCUManager:
         self.update_interval = update_interval  # Minimum time between display updates (50ms default)
 
         self.debug_mcu = getattr(app, "debug_mcu", False)
+        self._listeners = {"track_state": [], "pan": [], "transport": []}
         self.transport = {"play": False, "stop": True, "record": False, "ffwd": False, "rew": False}
         self._solo_off_pending = {}
         # Callback hooks
@@ -68,7 +69,9 @@ class LogicMCUManager:
         # State cache for throttling
         self.last_update_time = 0
         self.pending_update = False
+        # Simple MCU track‑type colours (8‑color rotating palette)
 
+        self.track_colors = [definitions.MIXER_PALETTE[i % len(definitions.MIXER_PALETTE)] for i in range(8)]
         # Track/LED state caches
         self.track_names = [""] * 8
         self.mute_states = [False] * 8
@@ -76,7 +79,7 @@ class LogicMCUManager:
         self.rec_states = [False] * 8
         self.select_states = [False] * 8
         self.fader_levels = [0] * 8
-        self.pan_levels    = [0] * 8
+        self.pan_levels = [0] * 8
         self.vpot_rings = [0] * 9
         self.selected_track_idx = None
         self.playhead = 0.0
@@ -110,6 +113,14 @@ class LogicMCUManager:
             self.input_port = None
             if self.debug_mcu:
                 print("[MCU] Input port closed")
+
+    def add_listener(self, event_type: str, callback):
+        """Register a callback for generic events (pan, track_state …)."""
+        self._listeners.setdefault(event_type, []).append(callback)
+
+    def _fire(self, evt, **kw):
+        for fn in self._listeners.get(evt, []):
+            fn(**kw)
 
     def send_mcu_button(self, button_type):
         if not self.output_port:
@@ -204,16 +215,21 @@ class LogicMCUManager:
                     and data[5] == 0x0E
                     and data[7] == 0x03
             ):
+                print("*** Bank changed -> selected_track_idx:",
+                      self.selected_track_idx, "(waiting for LED dump)")
                 track_index = data[6]  # 0-based in visible bank
                 self.selected_track_idx = track_index
                 bank_start = (track_index // 8) * 8
                 bank_tracks = list(range(bank_start, bank_start + 8))
-
+                self._fire("selected_track", idx=track_index)
                 if self.debug_mcu:
                     print(
                         f"[MCU] (GUI/Arrow) Selected track index set to {track_index + 1} (Bank {bank_start + 1}-{bank_start + 8})"
                     )
-
+                # --- NEW: wipe the old colours so Push won’t show them ---
+                self.solo_states = [False] * 8
+                self.mute_states = [False] * 8
+                self.pending_update = True  # repaint ASAP
                 if hasattr(self.app, "update_push2_mute_solo"):
                     for ch in bank_tracks:
                         self.app.update_push2_mute_solo(track_idx=ch)
@@ -278,7 +294,6 @@ class LogicMCUManager:
             if self.debug_mcu:
                 print("[MCU] Failed to parse SysEx:", e)
 
-
     def request_channel_led_state(self, track_idx):
         try:
             if self.input_port and self.input_port.closed is False:
@@ -316,6 +331,8 @@ class LogicMCUManager:
 
             # A ctually apply the names
             self.track_names = (track_names + [''] * 8)[:8]
+            if self.app.is_mode_active(self.app.track_mode):
+                self.app.track_mode.update_strip_values()   # refresh the screen
             if hasattr(self.app, "update_push2_mute_solo"):
                 self.app.update_push2_mute_solo()
             self.pending_update = True
@@ -324,22 +341,16 @@ class LogicMCUManager:
         else:
             print("[DEBUG] No strips in payload; ignoring.")
 
-
-
-
-
-
-
-
     def _handle_channel_led(self, payload):
+        print(f"<< LED dump for ch {payload[0]} ({'new' if payload[0] == 0 else ''})")
+
         ch, bits = payload[0], payload[1]
         now = time.time()
 
         # Record arm
         self.rec_states[ch] = bool(bits & 0x04)
-
-        # Solo LED with debounce for OFF
         new_solo = bool(bits & 0x08)
+        self.mute_states[ch] = bool(bits & 0x10)
         if new_solo != self.solo_states[ch]:
             if not new_solo:
                 last_pending = getattr(self, "_solo_off_pending", {}).get(ch)
@@ -360,16 +371,23 @@ class LogicMCUManager:
         else:
             if hasattr(self, "_solo_off_pending") and ch in self._solo_off_pending:
                 self._solo_off_pending.pop(ch, None)
-
+        # fire event for anybody interested ---------------------------------
+        self._fire("track_state", channel_idx=ch,
+                   rec=self.rec_states[ch],
+                   solo=self.solo_states[ch],
+                   mute=self.mute_states[ch])
         # Mute LED
         self.mute_states[ch] = bool(bits & 0x10)
 
         if self.debug_mcu:
             print(f"[MCU] Ch{ch + 1} mute={self.mute_states[ch]} solo={self.solo_states[ch]} rec={self.rec_states[ch]}")
 
-        # Fire track state callback
-        if self.on_track_state:
-            self.on_track_state(ch, self.rec_states[ch], self.solo_states[ch], self.mute_states[ch])
+        # keep legacy callback & UI flag ------------------------------------
+        if hasattr(self, "on_track_state") and self.on_track_state:
+            self.on_track_state(ch, self.rec_states[ch],
+                                self.solo_states[ch], self.mute_states[ch])
+        self.app.buttons_need_update = True
+        self.pending_update = True
 
         if ch == self.selected_track_idx:
             self.app.update_push2_mute_solo(track_idx=ch)
@@ -419,19 +437,33 @@ class LogicMCUManager:
         self.playhead = payload
 
     def emit_event(self, event_type, **kwargs):
-        """Generic event dispatcher."""
+        """Dispatch to the old dedicated hooks *and* any add_listener() hooks."""
+        # 1. dedicated single-slot callbacks (kept for backward-compat)
         if event_type == "pan" and hasattr(self.app, "on_pan"):
             self.app.on_pan(kwargs.get("channel_idx"), kwargs.get("value"))
         if event_type == "button" and self.on_button:
             self.on_button(kwargs.get("label"), kwargs.get("pressed"))
-        elif event_type == "transport" and self.on_transport_change:
+        if event_type == "transport" and self.on_transport_change:
             self.on_transport_change(kwargs.get("state"))
-        elif event_type == "fader" and self.on_fader:
+        if event_type == "fader" and self.on_fader:
             self.on_fader(kwargs.get("channel_idx"), kwargs.get("level"))
-        elif event_type == "vpot" and self.on_vpot:
+        if event_type == "vpot" and self.on_vpot:
             self.on_vpot(kwargs.get("idx"), kwargs.get("value"))
-        elif event_type == "track_state" and self.on_track_state:
-            self.on_track_state(kwargs.get("channel_idx"), kwargs.get("rec"), kwargs.get("solo"), kwargs.get("mute"))
+        if event_type == "track_state" and self.on_track_state:
+            self.on_track_state(
+                kwargs.get("channel_idx"),
+                kwargs.get("rec"),
+                kwargs.get("solo"),
+                kwargs.get("mute"),
+            )
+
+        # 2. broadcast to any listeners registered via add_listener()
+        for cb in self._listeners.get(event_type, []):
+            try:
+                cb(**kwargs)
+            except Exception as e:
+                if self.debug_mcu:
+                    print(f"[MCU] listener for '{event_type}' raised:", e)
 
     def get_visible_track_names(self):
         """
@@ -581,7 +613,7 @@ class LogicMCUManager:
                     19: -51,
                     20: -38,
                     21: -25,
-                    22:   0,
+                    22: 0,
                     23: +13,
                     24: +26,
                     25: +38,
@@ -597,6 +629,7 @@ class LogicMCUManager:
                 self.emit_event("pan", channel_idx=track_idx, value=pan_val)
                 if getattr(self.app, "track_mode", None) and self.app.is_mode_active(self.app.track_mode):
                     self.app.track_mode.update_strip_values()
+                    self.app.track_mode.update_buttons()
 
         # --- SOLO CC messages ---
         elif 64 <= control <= 71:
@@ -663,4 +696,3 @@ class LogicMCUManager:
             self.app.track_mode.update_strip_values()
 
         self.pending_update = True
-
