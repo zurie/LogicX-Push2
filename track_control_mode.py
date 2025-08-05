@@ -22,7 +22,8 @@ def _bank(idx: int) -> int:
 class TrackStrip:
     """A little data-object plus draw / update helpers."""
 
-    def __init__(self, index, name, get_color_func, get_volume_func, set_volume_func):
+    def __init__(self, app, index, name, get_color_func, get_volume_func, set_volume_func):
+        self.app = app
         self.index = index  # 0-63 absolute
         self.name = name
         self.get_color_func = get_color_func
@@ -91,7 +92,22 @@ class TrackStrip:
 
     # ------------------------------------------------------------------ values
     def update_value(self, increment):
-        step = 0.01
+        """
+        Normal turn   : coarse   (0.5 dB)
+        SHIFT held    : fine     (0.05 dB)
+        SHIFT+SELECT  : super-fine (0.01 dB)  – good for mastering tweaks
+        """
+        # base step = ~0.5 dB (= 0.007 in Logic’s 0-1 range around unity)
+        base_step = 0.007
+
+        # live modifier keys from the app
+        mult = 1.0
+        if self.app.shift_held:
+            mult = 0.1                   # 10× finer
+            if self.app.select_held:
+                mult = 0.02              # 50× finer (0.01 dB-ish)
+
+        step = base_step * mult
         new_val = max(
             self.vmin,
             min(self.vmax, self.get_volume_func(self.index) + increment * step),
@@ -161,7 +177,7 @@ class TrackControlMode(definitions.LogicMode):
         for i in range(64):
             name = f"Track {i + 1}"
             self.track_strips.append(
-                TrackStrip(i, name, get_color, get_volume, set_volume)
+                TrackStrip(self.app, i, name, get_color, get_volume, set_volume)
             )
 
     # -------------------------------------------------------------- navigation
