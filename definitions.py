@@ -115,32 +115,151 @@ class Scale:
 
 
 SCALES = (
-    Scale(name='Major',            notes=[1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1]),
-    Scale(name='Minor',            notes=[1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0]),
-    Scale(name='Dorian',           notes=[1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0]),
-    Scale(name='Mixolydian',       notes=[1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0]),
-    Scale(name='Lydian',           notes=[1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1]),
-    Scale(name='Phrygian',         notes=[1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0]),
-    Scale(name='Locrian',          notes=[1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0]),
-    Scale(name='Diminished',       notes=[1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0]),
-    Scale(name='Whole half',       notes=[1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1]),
-    Scale(name='Whole Tone',       notes=[1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]),
-    Scale(name='Minor Blues',      notes=[1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0]),
+    Scale(name='Major', notes=[1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1]),
+    Scale(name='Minor', notes=[1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0]),
+    Scale(name='Dorian', notes=[1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 0]),
+    Scale(name='Mixolydian', notes=[1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0]),
+    Scale(name='Lydian', notes=[1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1]),
+    Scale(name='Phrygian', notes=[1, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0]),
+    Scale(name='Locrian', notes=[1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0]),
+    Scale(name='Diminished', notes=[1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0]),
+    Scale(name='Whole half', notes=[1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1]),
+    Scale(name='Whole Tone', notes=[1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]),
+    Scale(name='Minor Blues', notes=[1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0]),
     Scale(name='Minor Pentatonic', notes=[1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0]),
     Scale(name='Major Pentatonic', notes=[1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0]),
-    Scale(name='Harmonic Minor',   notes=[1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1]),
-    Scale(name='Melodic Minor',    notes=[1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1]),
-    Scale(name='Super Locrian',    notes=[1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0]),
-    Scale(name='Bhairav',          notes=[1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1]),
-    Scale(name='Hungarian Minor',  notes=[1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1]),
-    Scale(name='Minor Gypsy',      notes=[1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0]),
-    Scale(name='Hirojoshi',        notes=[1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0]),
-    Scale(name='In Sen',           notes=[1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0]),
-    Scale(name='Iwato',            notes=[1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0]),
-    Scale(name='Kumoi',            notes=[1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0]),
-    Scale(name='Pelog',            notes=[1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0]),
-    Scale(name='Spanish',          notes=[1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 0])
+    Scale(name='Harmonic Minor', notes=[1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1]),
+    Scale(name='Melodic Minor', notes=[1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1]),
+    Scale(name='Super Locrian', notes=[1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 0]),
+    Scale(name='Bhairav', notes=[1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1]),
+    Scale(name='Hungarian Minor', notes=[1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1]),
+    Scale(name='Minor Gypsy', notes=[1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0]),
+    Scale(name='Hirojoshi', notes=[1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 0]),
+    Scale(name='In Sen', notes=[1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0]),
+    Scale(name='Iwato', notes=[1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0]),
+    Scale(name='Kumoi', notes=[1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 0]),
+    Scale(name='Pelog', notes=[1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0]),
+    Scale(name='Spanish', notes=[1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 0])
 )
+_FADER_TABLE = [
+    # pb , dB
+    (60, -100.0),  # _added_
+    (127, -95.0),
+    (140, -90.0),
+    (153, -85.0),
+    (166, -80.0),
+    (172, -77.5),  # _added_
+    (179, -75.0),
+    (185, -72.5),  # _added_
+    (192, -70.0),
+
+    (324, -65.0),
+    (457, -60.0),
+    (647, -58.0),
+    (994, -55.0),
+
+    (1090, -50.0),
+    (1183, -48.0),  # _added_
+    (1276, -47.5),
+    (1361, -46.0),  # _added_
+    (1446, -45.0),
+    (1568, -44.0),  # _added_
+    (1629, -43.0),  # _added_
+    (1691, -42.5),
+    (1877, -41.0),  # _added_
+    (2564, -40.0),
+
+    (2680, -39.0),  # _added_
+    (2797, -38.0),  # _added_
+    (2797, -37.5),
+    (2927, -36.5),  # _added_
+    (3058, -35.0),
+    (3312, -34.0),  # _added_
+    (3439, -33.0),  # _added_
+    (3567, -32.5),
+    (3778, -31.0),  # _added_
+    (3990, -30.0),
+    (4162, -29.0),  # _added_
+    (4335, -27.3),
+    (4500, -26.0),  # _added_
+    (4664, -25.0),
+    (4812, -24.0),
+    (4950, -23.0),
+    (5064, -22.0),
+    (5178, -21.0),
+    (5293, -20.0),
+    (5533, -19.0),  # _added_
+    (5772, -18.0),
+    (6025, -17.0),  # _added_
+    (6250, -16.0),  # _added_
+    (6479, -15.0),
+    (6828, -14.0),  # _added_
+    (7003, -13.0),  # _added_
+    (7178, -12.0),
+    (7678, -11.0),  # _added_
+    (7927, -10.0),  # _added_
+    (8178, -9.0),
+    (8739, -8.0),  # _added_
+    (9298, -7.0),  # _added_
+    (9874, -6.0),
+    (10451, -5.0),
+    (10849, -4.0),
+    (11248, -3.0),
+    (11646, -2.0),
+    (12044, -1.0),
+    (12443, 0.0),
+    (12645, +0.5),  # _added_
+    (12846, +1.0),
+    (13048, +1.5),
+    (13250, +2.0),
+    (13452, +2.5),
+    (13653, +3.0),
+    (13855, +3.5),
+    (14057, +4.0),
+    (14259, +4.5),
+    (14461, +5.0),
+    (14653, +5.5),
+    (14845, +6.0),
+    (15030, +7.0),  # _added_
+    (15220, +8.0),  # _added_
+    (15600, +10.0),  # _added_
+]
+# split into two parallel tuples once, for speed
+_PB, _DB = zip(*_FADER_TABLE)
+
+
+def _interp(xs, ys, x):
+    """Simple monotonic linear interpolation/extrapolation."""
+    import bisect
+    pos = bisect.bisect_left(xs, x)
+    if pos == 0:
+        return ys[0]
+    if pos == len(xs):
+        return ys[-1]
+    x0, x1 = xs[pos - 1], xs[pos]
+    y0, y1 = ys[pos - 1], ys[pos]
+    f = (x - x0) / float(x1 - x0)
+    return y0 * (1 - f) + y1 * f
+
+
+def pb_to_db(pb):
+    """unsigned 14-bit pitch-bend → dB (float)."""
+    return _interp(_PB, _DB, pb)
+
+
+def db_to_pb(db):
+    """dB → nearest unsigned pitch-bend (int 0…16383)."""
+    # reverse interpolation by searching in the _DB list
+    import bisect
+    pos = bisect.bisect_left(_DB, db)
+    if pos == 0:
+        return _PB[0]
+    if pos == len(_DB):
+        return _PB[-1]
+    d0, d1 = _DB[pos - 1], _DB[pos]
+    p0, p1 = _PB[pos - 1], _PB[pos]
+    f = (db - d0) / float(d1 - d0)
+    return int(p0 + f * (p1 - p0) + 0.5)  # round to nearest int
 
 
 def get_color_rgb(color_name):
