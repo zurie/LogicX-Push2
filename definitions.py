@@ -97,7 +97,16 @@ COLORS_NAMES = [ROYALBLUE,
                 GRAY_LIGHT,
                 GRAY_DARK,
                 BLACK]
-
+MIXER_PALETTE = [
+    ORANGE,
+    TANGERINE,
+    YELLOW,
+    GREEN,
+    SKYBLUE,
+    PROTEUS,
+    KARMA,
+    PINK,
+]
 SCALE_NAME = 'Major'
 
 
