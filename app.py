@@ -122,7 +122,7 @@ class LogicApp(object):
             # after you create the MCU manager:
             self.mcu_manager = LogicMCUManager(self, port_name=self.settings.get("mcu_port_name"))
             # hook incoming Push encoders (v-pots) into our TrackControlMode
-            self.mcu_manager.on_vpot = self._on_mcu_vpot
+            # self.mcu_manager.on_vpot = self._on_mcu_vpot
 
             # start listening…
             self.mcu_manager.start()
@@ -294,7 +294,7 @@ class LogicApp(object):
             if rotation_finished:
                 self.unset_mode_for_xor_group(self.track_mode)
         else:
-            self.mcu_manager.on_vpot = self._on_mcu_vpot
+            # self.mcu_manager.on_vpot = self._on_mcu_vpot
             self.set_mode_for_xor_group(self.track_mode)
 
     def toggle_and_rotate_repeat_mode(self):

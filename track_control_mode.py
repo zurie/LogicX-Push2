@@ -271,6 +271,10 @@ class TrackControlMode(definitions.LogicMode):
     def _on_mcu_pan(self, *, channel_idx: int, value: int, **_):
         if channel_idx is None:
             return
+        encoder_name = self.encoder_names[channel_idx]   # TRACK1-TRACK8 dial
+        led_val = int((value + 64) * 127 / 128)          # map −64…+64 → 0…127
+        self.push.encoders.set_ring_value(encoder_name, led_val)
+        self.app.display_dirty = True
         global_idx = self.current_page * 8 + channel_idx
         try:
             strip = self.track_strips[global_idx]
