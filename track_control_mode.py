@@ -2,6 +2,7 @@ import math, mido, threading, time
 import definitions, push2_python
 from display_utils import show_text
 from definitions import pb_to_db, db_to_pb
+from pad_meter import PadMeter
 
 # ──────────────────────────────────────────────────────────────────────────────
 # MCU-TOUCH BOOK-KEEPING  (one slot per channel 0-7)
@@ -18,7 +19,9 @@ def _bank(idx: int) -> int:
     """Return the 0-7 index within the current 8-channel MCU bank."""
     return idx % 8
 
-
+PAD_COLUMNS = [[(row, col)          # 0-based, bottom-row = 0
+                for row in range(8)]
+               for col in range(8)]
 # ──────────────────────────────────────────────────────────────────────────────
 # TrackStrip
 # ──────────────────────────────────────────────────────────────────────────────
@@ -164,11 +167,22 @@ class TrackStrip:
 # TrackControlMode
 # ──────────────────────────────────────────────────────────────────────────────
 class TrackControlMode(definitions.LogicMode):
-    xor_group = 'pads'
+    xor_group = "pads"
+
+    # ---------------------------------------------------------------- helpers
+    def _blank_track_row_buttons(self):
+        for btn in self.buttons_used:
+            self.push.buttons.set_button_color(btn, definitions.OFF_BTN_COLOR)
+
+    def _tap_mcu_button(self, note_num: int):
+        port = self.app.mcu_manager.output_port or getattr(self.app, "midi_out", None)
+        if not port:
+            return
+        port.send(mido.Message('note_on', note=note_num, velocity=127, channel=0))
+        port.send(mido.Message('note_on', note=note_num, velocity=0, channel=0))
 
     @staticmethod
     def _level_to_db(level: float) -> float:
-        # level is kept 0…1   →   pb is 0…16383
         return pb_to_db(int(level * 16383))
 
     @staticmethod
@@ -225,7 +239,9 @@ class TrackControlMode(definitions.LogicMode):
 
     # ---------------------------------------------------------------- init/up
     def initialize(self, settings=None):
-        """Build 64 default strips wired to MCU-manager fader state (8-bank safe)."""
+        """Build default strips and start meter timer."""
+        super().initialize(settings) if hasattr(super(), "initialize") else None
+        self._pad_meter = PadMeter(self.push)
         self.track_strips = []
         self.current_page = 0
         self.tracks_per_page = 8
@@ -237,26 +253,23 @@ class TrackControlMode(definitions.LogicMode):
             return definitions.GRAY_LIGHT
 
         def get_volume(idx):
-            if hasattr(self.app, "mcu_manager"):
-                return self.app.mcu_manager.fader_levels[_bank(idx)]
-            return 0.0
+            mm = getattr(self.app, "mcu_manager", None)
+            return mm.fader_levels[_bank(idx)] if mm else 0.0
 
         def set_volume(idx, val):
-            if hasattr(self.app, "mcu_manager"):
+            mm = getattr(self.app, "mcu_manager", None)
+            if mm:
                 bank_idx = _bank(idx)
-                self.app.mcu_manager.fader_levels[bank_idx] = val
-                self.app.mcu_manager.emit_event("fader", channel_idx=bank_idx, level=val)
+                mm.fader_levels[bank_idx] = val
+                mm.emit_event("fader", channel_idx=bank_idx, level=val)
 
         def get_pan(idx):
             mm = getattr(self.app, "mcu_manager", None)
-            if mm and hasattr(mm, "pan_levels"):
-                return mm.pan_levels[_bank(idx)]
-            return 0
+            return mm.pan_levels[_bank(idx)] if mm else 0
 
         for i in range(64):
-            name = f"Track {i + 1}"
             self.track_strips.append(
-                TrackStrip(self.app, i, name, get_color, get_volume, set_volume, get_pan)
+                TrackStrip(self.app, i, f"Track {i + 1}", get_color, get_volume, set_volume, get_pan)
             )
 
         # add listeners only once
@@ -266,14 +279,40 @@ class TrackControlMode(definitions.LogicMode):
             mm.add_listener("track_state", self._on_mcu_track_state)
             mm.add_listener("solo", self._on_mcu_track_state)
             mm.add_listener("mute", self._on_mcu_track_state)
+            mm.add_listener("meter", self._on_mcu_meter)
 
-    # ----------------------------- MCU pan event (optional but snappy)
+            self._listeners_added = True
+
+    # --- meters ------------------------------------------------------
+    def _on_mcu_meter(self, **_):
+        mm    = self.app.mcu_manager
+        start = self.current_page * 8          # which 8-track page is visible?
+        self._pad_meter.update(mm.meter_levels[start:start + 8])
+
+    # ---------------------------------------------------------------- ring helper
+    def _set_ring(self, idx: int, value: int):
+        """
+        Push 2 encoders have three possible APIs depending on the library
+        version.  This helper picks whichever one exists.
+        """
+        enc = self.push.encoders
+        name = self.encoder_names[idx]
+
+        if hasattr(enc, "set_ring_value"):           # push2-python ≥1.2
+            enc.set_ring_value(name, value)
+        elif hasattr(enc, "set_encoder_ring_value"): # very old push2-python
+            enc.set_encoder_ring_value(name, value)
+        else:                                        # fallback
+            enc.set_value(name, value)
+
     def _on_mcu_pan(self, *, channel_idx: int, value: int, **_):
+        if self.current_page * 8 > channel_idx or channel_idx >= (self.current_page + 1) * 8:
+            return  # pan event belongs to another page; ignore
         if channel_idx is None:
             return
-        encoder_name = self.encoder_names[channel_idx]   # TRACK1-TRACK8 dial
-        led_val = int((value + 64) * 127 / 128)          # map −64…+64 → 0…127
-        self._set_ring(channel_idx, led_val)
+        encoder_name = self.encoder_names[channel_idx % 8]
+        led_val = int((value + 64) * 127 / 128)
+        self._set_ring(channel_idx % 8, led_val)
         self.app.display_dirty = True
         global_idx = self.current_page * 8 + channel_idx
         try:
@@ -302,7 +341,6 @@ class TrackControlMode(definitions.LogicMode):
     def activate(self):
         self.initialize()
         self.current_page = 0
-
         if hasattr(self.app.mcu_manager, "get_visible_track_names"):
             names = self.app.mcu_manager.get_visible_track_names()
         else:
@@ -317,9 +355,15 @@ class TrackControlMode(definitions.LogicMode):
         self._blank_track_row_buttons()
         self.update_buttons()
         self.update_strip_values()
+        # ── paint meters immediately, no need to wait for the next event
+        mm = getattr(self.app, "mcu_manager", None)
+        if mm:
+            self._pad_meter.update(mm.meter_levels[self.current_page*8 :
+                                                   self.current_page*8+8])
 
     def deactivate(self):
         # Run supperclass deactivate to set all used buttons to black
+        self.push.pads.set_all_pads_to_color(definitions.BLACK)
         super().deactivate()
         # Also set all pads to black
         self._blank_track_row_buttons()

@@ -76,6 +76,7 @@ class LogicMCUManager:
         self.mute_states = [False] * 8
         self.solo_states = [False] * 8
         self.rec_states = [False] * 8
+        self.meter_levels = [0] * 64        # instead of 8
         self.select_states = [False] * 8
         self.fader_levels = [0] * 8
         self.pan_levels = [0] * 8
@@ -186,6 +187,12 @@ class LogicMCUManager:
                 self.handle_cc(msg.control, msg.value)
             elif msg.type == "pitchwheel":
                 self.handle_pitchbend(msg.channel, msg.pitch)
+            elif msg.type in ("aftertouch", "polytouch"):
+                # Channel‑pressure: Logic streams meters 0‑127
+                ch = getattr(msg, "channel", 0)
+                self.meter_levels[ch % 8] = msg.value
+                self._fire("meter", channel_idx=ch % 8, value=msg.value)
+                self.pending_update = True
 
             # Throttle updates
             now = time.time()
@@ -252,7 +259,9 @@ class LogicMCUManager:
                 return
 
             cmd = payload[0]
-
+            if 0x10 <= cmd <= 0x17 and len(payload) == 9:       # level meters
+                self._handle_meter_dump(payload)
+                return
             if cmd == 0x12:
                 self._handle_display_text(payload)
             elif cmd == 0x20:
@@ -309,7 +318,7 @@ class LogicMCUManager:
             # A ctually apply the names
             self.track_names = (track_names + [''] * 8)[:8]
             if self.app.is_mode_active(self.app.track_mode):
-                self.app.track_mode.update_strip_values()   # refresh the screen
+                self.app.track_mode.update_strip_values()  # refresh the screen
             if hasattr(self.app, "update_push2_mute_solo"):
                 self.app.update_push2_mute_solo()
             self.pending_update = True
@@ -620,3 +629,20 @@ class LogicMCUManager:
             self.app.track_mode.update_strip_values()
 
         self.pending_update = True
+
+    # --- Meter -----------------------------------------------------------------
+    def _handle_meter_dump(self, payload):
+        """
+        Logic sends:  F0 00 00 66 14 1n v1 v2 v3 v4 v5 v6 v7 v8 F7
+                       |  |  |  |  |  |__ eight 7-bit levels
+                       |  |  |  |  +-- 0x1n : n = 0…7 bank number
+        """
+        bank = payload[0] & 0x0F
+        for i, lvl in enumerate(payload[1:9]):          # eight bytes
+            idx = bank * 8 + i
+            # grow list if you ever attach extenders
+            if idx >= len(self.meter_levels):
+                self.meter_levels.extend([0]* (idx + 1 - len(self.meter_levels)))
+            self.meter_levels[idx] = lvl
+            self._fire("meter", channel_idx=i, value=lvl)
+            print("[A] meter_dump bank", bank, "levels", payload[1:9])
