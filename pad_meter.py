@@ -49,6 +49,8 @@ class PadMeter:
             return definitions.GREEN
         if row < 6:
             return definitions.YELLOW
+        if row < 7:
+            return definitions.ORANGE
         return definitions.RED
 
     # -----------------------------------------------------------------------

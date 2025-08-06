@@ -283,7 +283,12 @@ class TrackControlMode(definitions.LogicMode):
             mm.add_listener("meter", self._on_mcu_meter)
             # ─────────── new state flag ───────────
             self._playing = mm.transport.get("play", False)
-
+             # ensure we respect the current transport state right away
+            self._on_mcu_transport(state=mm.transport)
+            # and render one meter frame immediately
+            self._on_mcu_meter()
+            # instantiate our Push2 meter renderer
+            self.pad_meter = PadMeter(self.push)
             self._listeners_added = True
 
     # ─── transport callback ───────────────────────────────────────────
@@ -296,7 +301,7 @@ class TrackControlMode(definitions.LogicMode):
            self.push.pads.set_all_pads_to_color(definitions.BLACK)
 
 
-# --- meters ------------------------------------------------------
+    # --- meters ------------------------------------------------------
     def _on_mcu_meter(self, **_):
         # Only light pads while Track-Control (Mix) mode is ACTIVE.
         if not self.app.is_mode_active(self):
@@ -304,11 +309,21 @@ class TrackControlMode(definitions.LogicMode):
 
         # Ignore all meter packets unless we’re actually playing
         if not getattr(self, "_playing", False):
-           return
+            return
 
         mm    = self.app.mcu_manager
         start = self.current_page * 8
-        self._pad_meter.update(mm.meter_levels[start:start + 8])
+
+        # grab your 8 raw levels (0–~20)
+        raw    = mm.meter_levels[start:start + 8]
+        # linearly map 0–20 → 0–127 (adjust 20 if your peak raw is different)
+        scaled = [min(127, int(val * (127/13))) for val in raw]
+
+        # push to PadMeter
+        self._pad_meter.update(scaled)
+
+        # debug
+        print(f"[TrackMode] Playing={self._playing}  raw={raw}  scaled={scaled}")
 
     # ---------------------------------------------------------------- ring helper
     def _set_ring(self, idx: int, value: int):
