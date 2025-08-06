@@ -53,7 +53,6 @@ class LogicMCUManager:
         self.debug_mcu = getattr(app, "debug_mcu", False)
         self._listeners = {"track_state": [], "pan": [], "transport": []}
         self.transport = {"play": False, "stop": True, "record": False, "ffwd": False, "rew": False}
-        self._solo_off_pending = {}
         # Callback hooks
         self.on_transport_change = None
         self.on_button = None
@@ -236,28 +235,6 @@ class LogicMCUManager:
                 for ch in bank_tracks:
                     self.request_channel_led_state(ch)
 
-                def delayed_bank_reassert():
-                    time.sleep(self.app.bank_reassert_delay)
-                    if self.output_port:
-                        for ch in bank_tracks:
-                            solo_note = 8 + ch
-                            mute_note = 16 + ch
-                            self.output_port.send(mido.Message(
-                                "note_on", note=solo_note,
-                                velocity=127 if self.solo_states[ch] else 0, channel=0
-                            ))
-                            self.output_port.send(mido.Message(
-                                "note_on", note=mute_note,
-                                velocity=127 if self.mute_states[ch] else 0, channel=0
-                            ))
-                            if self.debug_mcu:
-                                print(
-                                    f"[SOLO DEBUG] Reasserted Track {ch + 1} - solo={self.solo_states[ch]} mute={self.mute_states[ch]}"
-                                )
-
-                threading.Thread(target=delayed_bank_reassert, daemon=True).start()
-                # Don't return: Standard MCU messages may follow in same event!
-
             # --- Standard MCU SysEx Handling ---
             if not self.enabled:
                 print("[DEBUG] MCU is not enabled; skipping SysEx")
@@ -349,28 +326,7 @@ class LogicMCUManager:
 
         # Record arm
         self.rec_states[ch] = bool(bits & 0x04)
-        new_solo = bool(bits & 0x08)
         self.mute_states[ch] = bool(bits & 0x10)
-        if new_solo != self.solo_states[ch]:
-            if not new_solo:
-                last_pending = getattr(self, "_solo_off_pending", {}).get(ch)
-                if last_pending and (now - last_pending) > self.app.solo_off_confirm_time:
-                    self.solo_states[ch] = False
-                    self._solo_off_pending.pop(ch, None)
-                    if self.debug_mcu:
-                        print(f"[SOLO DEBUG] Confirmed OFF (Track {ch + 1})")
-                else:
-                    self._solo_off_pending = getattr(self, "_solo_off_pending", {})
-                    self._solo_off_pending[ch] = now
-                    if self.debug_mcu:
-                        print(f"[SOLO DEBUG] OFF pending (Track {ch + 1})")
-            else:
-                self.solo_states[ch] = True
-                if hasattr(self, "_solo_off_pending") and ch in self._solo_off_pending:
-                    self._solo_off_pending.pop(ch, None)
-        else:
-            if hasattr(self, "_solo_off_pending") and ch in self._solo_off_pending:
-                self._solo_off_pending.pop(ch, None)
         # fire event for anybody interested ---------------------------------
         self._fire("track_state", channel_idx=ch,
                    rec=self.rec_states[ch],
@@ -631,38 +587,6 @@ class LogicMCUManager:
                     self.app.track_mode.update_strip_values()
                     self.app.track_mode.update_buttons()
 
-        # --- SOLO CC messages ---
-        elif 64 <= control <= 71:
-            track_idx = control - 64
-            now = time.time()
-            new_solo = (value == 127)
-
-            if new_solo != self.solo_states[track_idx]:
-                if not new_solo:
-                    last_pending = getattr(self, "_solo_off_pending", {}).get(track_idx)
-                    if last_pending and (now - last_pending) > self.app.solo_off_confirm_time:
-                        self.solo_states[track_idx] = False
-                        self._solo_off_pending.pop(track_idx, None)
-                        if self.debug_mcu:
-                            print(f"[SOLO DEBUG] Confirmed OFF (Track {track_idx + 1}) [CC]")
-                    else:
-                        self._solo_off_pending = getattr(self, "_solo_off_pending", {})
-                        self._solo_off_pending[track_idx] = now
-                        if self.debug_mcu:
-                            print(f"[SOLO DEBUG] OFF pending (Track {track_idx + 1}) [CC]")
-                else:
-                    self.solo_states[track_idx] = True
-                    if hasattr(self, "_solo_off_pending") and track_idx in self._solo_off_pending:
-                        self._solo_off_pending.pop(track_idx, None)
-            else:
-                if hasattr(self, "_solo_off_pending") and track_idx in self._solo_off_pending:
-                    self._solo_off_pending.pop(track_idx, None)
-
-            if self.debug_mcu:
-                print(f"[MCU] Solo[{track_idx + 1}] = {self.solo_states[track_idx]}")
-
-            if track_idx == self.selected_track_idx and hasattr(self.app, "update_push2_mute_solo"):
-                self.app.update_push2_mute_solo(track_idx=track_idx)
 
         # --- Faders ---
         elif 72 <= control <= 79:
