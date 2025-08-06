@@ -273,7 +273,7 @@ class TrackControlMode(definitions.LogicMode):
             return
         encoder_name = self.encoder_names[channel_idx]   # TRACK1-TRACK8 dial
         led_val = int((value + 64) * 127 / 128)          # map −64…+64 → 0…127
-        self.push.encoders.set_ring_value(encoder_name, led_val)
+        self._set_ring(channel_idx, led_val)
         self.app.display_dirty = True
         global_idx = self.current_page * 8 + channel_idx
         try:
@@ -371,12 +371,7 @@ class TrackControlMode(definitions.LogicMode):
             port.send(mido.Message('control_change', control=cc_num, value=value, channel=0))
 
     def update_strip_values(self):
-        if hasattr(self.app, "update_push2_display"):
-            self.app.update_push2_display()
-        elif hasattr(self.app, "request_push2_display_update"):
-            self.app.request_push2_display_update()
-        elif hasattr(self.push, "update_display"):
-            self.push.update_display()
+        self.app.display_dirty = True
 
     def update_encoders(self):
         encoders = self.push.encoders
