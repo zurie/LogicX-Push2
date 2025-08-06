@@ -319,7 +319,7 @@ class LogicMCUManager:
             print("[DEBUG] No strips in payload; ignoring.")
 
     def _handle_channel_led(self, payload):
-        print(f"<< LED dump for ch {payload[0]} ({'new' if payload[0] == 0 else ''})")
+        # print(f"<< LED dump for ch {payload[0]} ({'new' if payload[0] == 0 else ''})")
 
         ch, bits = payload[0], payload[1]
         now = time.time()

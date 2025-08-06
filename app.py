@@ -292,12 +292,10 @@ class LogicApp(object):
             self.mcu_manager.on_vpot = None
             rotation_finished = self.track_mode.move_to_next_page()
             if rotation_finished:
-                self.active_modes = [mode for mode in self.active_modes if mode != self.track_mode]
-                self.track_mode.deactivate()
+                self.unset_mode_for_xor_group(self.track_mode)
         else:
             self.mcu_manager.on_vpot = self._on_mcu_vpot
-            self.active_modes.append(self.track_mode)
-            self.track_mode.activate()
+            self.set_mode_for_xor_group(self.track_mode)
 
     def toggle_and_rotate_repeat_mode(self):
         if self.is_mode_active(self.repeat_mode):

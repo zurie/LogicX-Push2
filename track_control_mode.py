@@ -2,12 +2,15 @@ import math, mido, threading, time
 import definitions, push2_python
 from display_utils import show_text
 from definitions import pb_to_db, db_to_pb
+
 # ──────────────────────────────────────────────────────────────────────────────
 # MCU-TOUCH BOOK-KEEPING  (one slot per channel 0-7)
 # ──────────────────────────────────────────────────────────────────────────────
-TOUCH_DOWN  = [False] * 8          # True while NOTE-ON 127 is held
-TOUCH_TIMER = [None]  * 8          # threading.Timer() objects
-RELEASE_MS  = 400
+TOUCH_DOWN = [False] * 8  # True while NOTE-ON 127 is held
+TOUCH_TIMER = [None] * 8  # threading.Timer() objects
+RELEASE_MS = 400
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
@@ -263,6 +266,7 @@ class TrackControlMode(definitions.LogicMode):
             mm.add_listener("track_state", self._on_mcu_track_state)
             mm.add_listener("solo", self._on_mcu_track_state)
             mm.add_listener("mute", self._on_mcu_track_state)
+
     # ----------------------------- MCU pan event (optional but snappy)
     def _on_mcu_pan(self, *, channel_idx: int, value: int, **_):
         if channel_idx is None:
@@ -315,12 +319,15 @@ class TrackControlMode(definitions.LogicMode):
         super().deactivate()
         # Also set all pads to black
         self._blank_track_row_buttons()
-        self.app.push.pads.set_all_pads_to_color(color=definitions.BLACK)
+        self.app.pads_need_update = True
 
     def on_pad_pressed(self, pad_n, pad_ij, velocity, loop=False, quantize=False, shift=False, select=False,
                        long_press=False, double_press=False):
-        self.app.pads_need_update = False
-        return False
+        self.app.pads_need_update = True
+        return True
+
+    def on_pad_released(self, pad_n, pad_ij, **_):
+        return True
 
     def update_display(self, ctx, w, h):
         ctx.rectangle(0, 0, w, h)
@@ -476,7 +483,7 @@ class TrackControlMode(definitions.LogicMode):
     def _on_mcu_track_state(self, **_):
         if not self.app.is_mode_active(self): return
         # solo / mute LEDs or record-arm changed
-        print("[TrackMode] live LED refresh")  # debug proof
+        # print("[TrackMode] live LED refresh")  # debug proof
         self.update_buttons()
         self.update_strip_values()
 
