@@ -276,21 +276,38 @@ class TrackControlMode(definitions.LogicMode):
         mm = getattr(self.app, "mcu_manager", None)
         if mm and not getattr(self, "_listeners_added", False):
             mm.add_listener("pan", self._on_mcu_pan)
+            mm.add_listener("transport", self._on_mcu_transport)
             mm.add_listener("track_state", self._on_mcu_track_state)
             mm.add_listener("solo", self._on_mcu_track_state)
             mm.add_listener("mute", self._on_mcu_track_state)
             mm.add_listener("meter", self._on_mcu_meter)
+            # ─────────── new state flag ───────────
+            self._playing = mm.transport.get("play", False)
 
             self._listeners_added = True
 
-    # --- meters ------------------------------------------------------
+    # ─── transport callback ───────────────────────────────────────────
+    def _on_mcu_transport(self, *, state, **_):
+        self._playing = bool(state.get("play", False))
+
+        # If Logic just stopped, hard-blank the grid once
+        if not self._playing and self.app.is_mode_active(self):
+           self._pad_meter.update([0] * 8)                  # clear cache + pads
+           self.push.pads.set_all_pads_to_color(definitions.BLACK)
+
+
+# --- meters ------------------------------------------------------
     def _on_mcu_meter(self, **_):
         # Only light pads while Track-Control (Mix) mode is ACTIVE.
         if not self.app.is_mode_active(self):
             return
 
+        # Ignore all meter packets unless we’re actually playing
+        if not getattr(self, "_playing", False):
+           return
+
         mm    = self.app.mcu_manager
-        start = self.current_page * 8          # which 8-track page is visible?
+        start = self.current_page * 8
         self._pad_meter.update(mm.meter_levels[start:start + 8])
 
     # ---------------------------------------------------------------- ring helper
@@ -302,11 +319,11 @@ class TrackControlMode(definitions.LogicMode):
         enc = self.push.encoders
         name = self.encoder_names[idx]
 
-        if hasattr(enc, "set_ring_value"):           # push2-python ≥1.2
+        if hasattr(enc, "set_ring_value"):  # push2-python ≥1.2
             enc.set_ring_value(name, value)
-        elif hasattr(enc, "set_encoder_ring_value"): # very old push2-python
+        elif hasattr(enc, "set_encoder_ring_value"):  # very old push2-python
             enc.set_encoder_ring_value(name, value)
-        else:                                        # fallback
+        else:  # fallback
             enc.set_value(name, value)
 
     def _on_mcu_pan(self, *, channel_idx: int, value: int, **_):
@@ -359,11 +376,15 @@ class TrackControlMode(definitions.LogicMode):
         self._blank_track_row_buttons()
         self.update_buttons()
         self.update_strip_values()
-        # ── paint meters immediately, no need to wait for the next event
         mm = getattr(self.app, "mcu_manager", None)
-        if mm:
-            self._pad_meter.update(mm.meter_levels[self.current_page*8 :
-                                                   self.current_page*8+8])
+        if mm and mm.transport.get("play", False):
+            # live song → show meters right away
+            self._pad_meter.update(
+                mm.meter_levels[self.current_page * 8: self.current_page * 8 + 8]
+            )
+        else:
+            # stopped song → keep pads dark
+            self._pad_meter.update([0] * 8)
 
     def deactivate(self):
         # Run supperclass deactivate to set all used buttons to black
