@@ -45,6 +45,8 @@ class PadMeter:
     def _row_colour(row: int, lit: int):
         if row >= lit:
             return definitions.BLACK
+        if row < 2:
+            return definitions.GREEN_LIGHT
         if row < 4:
             return definitions.GREEN
         if row < 6:

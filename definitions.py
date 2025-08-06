@@ -39,6 +39,7 @@ BROWN_RGB = [153, 102, 0]
 
 LIME_RGB = [153, 255, 0]
 GREEN_RGB = [0, 255, 0]
+GREEN_LIGHT_RGB = [128, 128, 128]
 GREEN_DARK_RGB = [0, 50, 0]
 
 SKYBLUE_RGB = [0, 255, 255]
@@ -55,19 +56,19 @@ GRAY_DARK = 'gray_dark'
 GRAY_LIGHT = 'gray_light'
 WHITE = 'white'
 YELLOW = 'yellow'
-LIGHTYELLOW = 'blue'
+YELLOW_LIGHT = 'yellow_light'
 TANGERINE = 'tangerine'
 ORANGE = 'orange'
-LIGHTORANGE = 'blue'
+ORANGE_LIGHT = 'orange_light'
 RED = 'red'
-LIGHTRED = 'blue'
+RED_LIGHT = 'red_light'
 RED_DARK = 'red_dark'
 PINK = 'PINK'
 PURPLE = 'purple'
 BROWN = 'brown'
 LIME = 'lime'
 GREEN = 'green'
-LIGHTGREEN = 'blue'
+GREEN_LIGHT = 'green_light'
 GREEN_DARK = 'green_dark'
 SKYBLUE = 'skyblue'
 BLUE = 'blue'
@@ -87,11 +88,14 @@ COLORS_NAMES = [ROYALBLUE,
                 BROWN,
                 PURPLE,
                 RED,
+                RED_LIGHT,
                 RED_DARK,
                 PINK,
+                ORANGE_LIGHT,
                 ORANGE,
                 TANGERINE,
                 YELLOW,
+                YELLOW_LIGHT,
                 BLUE,
                 PROTEUS,
                 KARMA,
