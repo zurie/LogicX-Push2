@@ -7,9 +7,9 @@ import push2_python.constants as C
 
 # ---------------------------------------------------------------------------
 # Build a lookup table of Push-2 pad constants.
-# Real hardware: rows 0-7 (0 = bottom)  /  columns 1-8 (left→right)
+# Real hardware: rows 0-7 (0 = top) / columns 1-8 (left→right)
 # On the web-sim or stripped constants tables some values may be missing,
-# so we fall back to “None” – the update() method handles that.
+# so we fall back to None – update() handles that.
 # ---------------------------------------------------------------------------
 def _pad_const(row: int, col: int):
     try:
@@ -17,28 +17,25 @@ def _pad_const(row: int, col: int):
     except AttributeError:
         return None
 
-
-# in pad_meter.py, at top:
+# Natural pad map: 8 columns of 8 rows; row0=top hardware row
 _PAD = [
-    [ _pad_const(r, c+1)   for r in range(8) ]   # r=0..7 map to hardware rows 0..7
-    for c in range(8)                            # c=0..7 columns left→right
+    [_pad_const(r, c + 1) for r in range(8)]  # r=0..7 map to hardware rows top→bottom
+    for c in range(8)
 ]
 
 
 class PadMeter:
     """
-    Simple “bar-graph” meter painter.
+    Simple "bar-graph" meter painter.
 
-    Call `update(levels)` with an iterable of 8 values (0-127) whenever
-    you receive new meter data from Logic.  The class keeps an internal
-    cache so it only sends colour updates when something actually
-    changes, minimising MIDI traffic.
+    update(levels): supply 8 ints (0-127) to paint meters.
     """
 
     def __init__(self, push):
-        self.push = push
-        self._last = {}            # pad-id  → last colour sent
-        self._pad = [ col[::-1] for col in _PAD ]
+        self.push  = push
+        self._last = {}  # pad-id -> last color
+        # Flip vertical: logical row0(bottom) maps to hardware row7
+        self._pad = [col[::-1] for col in _PAD]
 
 
 # -----------------------------------------------------------------------

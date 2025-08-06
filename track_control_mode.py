@@ -313,11 +313,23 @@ class TrackControlMode(definitions.LogicMode):
 
         mm    = self.app.mcu_manager
         start = self.current_page * 8
+        raw   = mm.meter_levels[start:start + 8]
 
-        # grab your 8 raw levels (0–~20)
-        raw    = mm.meter_levels[start:start + 8]
-        # linearly map 0–20 → 0–127 (adjust 20 if your peak raw is different)
-        scaled = [min(127, int(val * (127/13))) for val in raw]
+        # only pay attention to raw values 5…14
+        MIN_RAW = 5
+        MAX_RAW = 14
+
+        scaled = []
+        for v in raw:
+            if v <= MIN_RAW:
+                # below or at the floor → totally off
+                s = 0
+            else:
+                # remap (MIN_RAW…MAX_RAW] → [1…127]
+                frac = (v - MIN_RAW) / (MAX_RAW - MIN_RAW)
+                s = int(frac * 127)        # 0…127
+                s = max(1, min(127, s))    # force at least 1
+            scaled.append(s)
 
         # push to PadMeter
         self._pad_meter.update(scaled)
