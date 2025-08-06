@@ -1,7 +1,7 @@
 import math, mido, threading, time
 import definitions, push2_python
 from display_utils import show_text
-from definitions import pb_to_db, db_to_pb
+from definitions import pb_to_db, db_to_pb, MCU_SYSEX_PREFIX, MCU_MODEL_ID, MCU_METERS_ON, MCU_METERS_OFF
 from pad_meter import PadMeter
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -10,7 +10,7 @@ from pad_meter import PadMeter
 TOUCH_DOWN = [False] * 8  # True while NOTE-ON 127 is held
 TOUCH_TIMER = [None] * 8  # threading.Timer() objects
 RELEASE_MS = 400
-
+POLL_PREFIX = MCU_SYSEX_PREFIX
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -311,13 +311,21 @@ class TrackControlMode(definitions.LogicMode):
         if not getattr(self, "_playing", False):
             return
 
-        mm    = self.app.mcu_manager
-        start = self.current_page * 8
-        raw   = mm.meter_levels[start:start + 8]
-
+        mm = self.app.mcu_manager
+        num_banks = len(mm.meter_levels) // 8
+        # For each of the 8 pad positions, grab that slot from every bank,
+        # mask off the high nibble, and take the max (i.e. whichever bank
+        # has a real track there).
+        raw = []
+        for i in range(8):
+            levels = [
+                (mm.meter_levels[bank * 8 + i] & 0x0F)
+                for bank in range(num_banks)
+            ]
+            raw.append(max(levels))
         # only pay attention to raw values 5…14
-        MIN_RAW = 5
-        MAX_RAW = 14
+        MIN_RAW = 4
+        MAX_RAW = 12
 
         scaled = []
         for v in raw:
@@ -335,7 +343,7 @@ class TrackControlMode(definitions.LogicMode):
         self._pad_meter.update(scaled)
 
         # debug
-        print(f"[TrackMode] Playing={self._playing}  raw={raw}  scaled={scaled}")
+        #print(f"[TrackMode] Playing={self._playing}  raw={raw}  scaled={scaled}")
 
     # ---------------------------------------------------------------- ring helper
     def _set_ring(self, idx: int, value: int):
@@ -386,9 +394,31 @@ class TrackControlMode(definitions.LogicMode):
             return True
         return False
 
+
+    def _start_meter_poll(self):
+        if not getattr(self, "_polling_active", False):
+            return
+        for bank in range(8):
+            msg = MCU_SYSEX_PREFIX + [0x10 + bank]
+            self.app.mcu_manager.output_port.send(
+                mido.Message('sysex', data=msg)
+            )
+        # schedule next
+        self._meter_timer = threading.Timer(0.1, self._start_meter_poll)
+        self._meter_timer.start()
+
     def activate(self):
+        print("→ Sending meters ON:",
+              self.app.mcu_manager.output_port,
+              [hex(b) for b in MCU_METERS_ON])
+        self.app.mcu_manager.output_port.send(
+            mido.Message('sysex', data=MCU_METERS_ON)
+        )
         self.initialize()
         self.current_page = 0
+        # start polling meters
+        self._polling_active = True
+        self._start_meter_poll()
         if hasattr(self.app.mcu_manager, "get_visible_track_names"):
             names = self.app.mcu_manager.get_visible_track_names()
         else:
@@ -414,9 +444,19 @@ class TrackControlMode(definitions.LogicMode):
             self._pad_meter.update([0] * 8)
 
     def deactivate(self):
+        print("→ Sending meters OFF:",
+              self.app.mcu_manager.output_port,
+              [hex(b) for b in MCU_METERS_OFF])
+        self.app.mcu_manager.output_port.send(
+            mido.Message('sysex', data=MCU_METERS_OFF)
+        )
+        # stop polling meters
+        self._polling_active = False
+        if hasattr(self, "_meter_timer"):
+            self._meter_timer.cancel()
+        super().deactivate()
         # Run supperclass deactivate to set all used buttons to black
         self.push.pads.set_all_pads_to_color(definitions.BLACK)
-        super().deactivate()
         # Also set all pads to black
         self._blank_track_row_buttons()
         self.app.pads_need_update = True

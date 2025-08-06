@@ -59,9 +59,6 @@ class LogicMCUManager:
         self.on_fader = None
         self.on_vpot = None
         self.on_track_state = None
-
-        self.input_port = None
-        self.output_port = None
         self.listener_thread = None
         self.running = False
 
@@ -99,9 +96,10 @@ class LogicMCUManager:
             print("[MCU] Listening on", self.port_name)
             print("[MCU] Sending on", mcu_out_name)
             # right after self.output_port = mido.open_output(...)
-            # tell Logic “hey, I’m a Mackie Control”
+            # tell Logic “hey, who are you?” (Device Inquiry)
+            #   F0 00 00 66 06 01 F7  → data = [0x00,0x00,0x66,0x06,0x01]
             self.output_port.send(
-                mido.Message('sysex', data=[0x00, 0x00, 0x66, 0x14, 0x00])
+                mido.Message('sysex', data=definitions.MCU_DEVICE_INQUIRY)
             )
         except Exception as e:
             print("[MCU] Could not open port:", e)
@@ -111,6 +109,10 @@ class LogicMCUManager:
         if self.input_port:
             self.input_port.close()
             self.input_port = None
+            # optionally re-inquire on shutdown
+            self.output_port.send(
+                mido.Message('sysex', data=[0x7E, 0x7F, 0x06, 0x01])
+            )
             if self.debug_mcu:
                 print("[MCU] Input port closed")
 
@@ -174,8 +176,19 @@ class LogicMCUManager:
                     print("[MCU] Stopping listen loop")
                 break
 
-            if msg.type == "sysex":
-                self.handle_sysex(bytes(msg.data))
+            if msg.type == 'sysex':
+                # 1) full message including F0/F7
+                raw = msg.bytes()  # list of ints: [F0, …, F7]
+                #print(f"[MCU] RAW SYSEX (msg.bytes): {' '.join(f'{b:02X}' for b in raw)}")
+
+                # 2) the underlying 'data' buffer, as seen by mido
+                data_buf = msg.data     # already stripped of F0/F7 by mido
+                #print(f"[MCU]   msg.data      : {' '.join(f'{b:02X}' for b in data_buf)}")
+
+                # 3) convert to bytes() and dispatch
+                payload = bytes(data_buf)
+                self.handle_sysex(payload)
+
             elif msg.type in ("note_on", "note_off"):
                 pressed = msg.type == "note_on" and msg.velocity > 0
                 handled = self.handle_button(msg.note, pressed)
@@ -213,11 +226,12 @@ class LogicMCUManager:
 
     # ---------------- SysEx Handlers ----------------
     def handle_sysex(self, data):
+
         try:
             # --- Track selection via GUI/Arrow ---
             if (
                     len(data) >= 8
-                    and list(data[:5]) == [0xF0, 0x00, 0x00, 0x66, 0x14]
+                    and list(data[:5]) == definitions.MCU_SYSEX_PREFIX
                     and data[5] == 0x0E
                     and data[7] == 0x03
             ):
@@ -249,7 +263,7 @@ class LogicMCUManager:
             # print(f"[DEBUG] handle_sysex raw data: {data!r}")
 
             # Accept Mackie MCU SysEx: 00 00 66 14 ...
-            if not (len(data) > 3 and list(data[:4]) == [0x00, 0x00, 0x66, 0x14]):
+            if not (len(data) > 3 and list(data[:4]) == definitions.MCU_SYSEX_PREFIX):
                 print(f"[DEBUG] Skipping SysEx, bad header: {data[:8]!r}")
                 return
 
@@ -645,4 +659,4 @@ class LogicMCUManager:
                 self.meter_levels.extend([0]* (idx + 1 - len(self.meter_levels)))
             self.meter_levels[idx] = lvl
             self._fire("meter", channel_idx=i, value=lvl)
-            print("[A] meter_dump bank", bank, "levels", payload[1:9])
+            # print("[A] meter_dump bank", bank, "levels", payload[1:9])

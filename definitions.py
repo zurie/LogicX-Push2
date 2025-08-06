@@ -15,6 +15,15 @@ isPlaying = 0.0  # instead of False
 isMetronome = 0.0
 isRecording = 0.0
 
+# -----------------------------------------------------------------------------
+# Mackie/MCU Model IDs & SysEx prefixes
+# -----------------------------------------------------------------------------
+MCU_MODEL_ID        = 0x12      # 0x12 = Mackie Control; change here if you ever need “Pro” (0x14), etc.
+MCU_SYSEX_PREFIX    = [0x00, 0x00, 0x66, MCU_MODEL_ID]
+MCU_DEVICE_INQUIRY  = MCU_SYSEX_PREFIX + [0x00, 0x00]    # F0 00 00 66 <ID> 00 00
+MCU_METERS_ON       = MCU_SYSEX_PREFIX + [0x00, 0x00]
+MCU_METERS_OFF      = MCU_SYSEX_PREFIX + [0x00, 0x01]
+
 LAYOUT_MELODIC = 'lmelodic'
 LAYOUT_RHYTHMIC = 'lrhythmic'
 LAYOUT_SLICES = 'lslices'
