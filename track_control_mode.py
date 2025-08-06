@@ -192,7 +192,7 @@ class TrackControlMode(definitions.LogicMode):
         push2_python.constants.BUTTON_LOWER_ROW_7,
         push2_python.constants.BUTTON_LOWER_ROW_8,
     ]
-    current_page = 0
+    # current_page = 0
     n_pages = 1
 
     tracks_per_page = 8
@@ -261,7 +261,8 @@ class TrackControlMode(definitions.LogicMode):
         if mm and not getattr(self, "_listeners_added", False):
             mm.add_listener("pan", self._on_mcu_pan)
             mm.add_listener("track_state", self._on_mcu_track_state)
-
+            mm.add_listener("solo", self._on_mcu_track_state)
+            mm.add_listener("mute", self._on_mcu_track_state)
     # ----------------------------- MCU pan event (optional but snappy)
     def _on_mcu_pan(self, *, channel_idx: int, value: int, **_):
         if channel_idx is None:
@@ -335,7 +336,7 @@ class TrackControlMode(definitions.LogicMode):
                 self.track_strips[strip_idx].draw(
                     ctx, i, selected=(strip_idx == selected_idx)
                 )
-
+        self.update_buttons()
 
     def current_page(self) -> int:
         """
