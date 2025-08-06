@@ -79,12 +79,14 @@ class LogicApp(object):
     # fixing issue with 2 lumis and alternating channel pressure values
     last_cp_value_received = 0
     last_cp_value_received_time = 0
-    _last_tick       = 0
+    _last_tick = 0
     _channels_this_tick = set()
     # interface with logic
     logic_interface = None
 
     def __init__(self):
+        self._last_mcu_row_state = None
+        self.display_dirty = None
         self.melodic_mode = None
 
         self.main_controls_mode = None
@@ -153,23 +155,21 @@ class LogicApp(object):
             return
 
         # ── 2. ignore bursts touching several channels in same tick
-        now_tick = int(time.time() * 1000)         # coarse 1 ms resolution
+        now_tick = int(time.time() * 1000)  # coarse 1 ms resolution
         if now_tick != _last_tick:
             _last_tick = now_tick
             _channels_this_tick.clear()
         if idx in _channels_this_tick:
-            return          # duplicate within same tick
+            return  # duplicate within same tick
         _channels_this_tick.add(idx)
         if len(_channels_this_tick) > 1:
-            return          # more than one channel updated – treat as refresh
+            return  # more than one channel updated – treat as refresh
 
         # ── genuine human turn → translate to ±1 step
         direction = -1 if value & 0x40 else +1
         encoder_name = TrackControlMode.encoder_names[idx]
         if self.is_mode_active(self.track_mode):
             self.track_mode.on_encoder_rotated(encoder_name, direction)
-
-
 
     # ───────────────────────────────────────────────────────────
     # MODE INIT
@@ -181,7 +181,6 @@ class LogicApp(object):
         self.rhyhtmic_mode = RhythmicMode(self, settings=settings)
         self.slice_notes_mode = SliceNotesMode(self, settings=settings)
         self.set_melodic_mode()
-
         self.track_selection_mode = TrackSelectionMode(self, settings=settings)
         self.preset_selection_mode = PresetSelectionMode(self, settings=settings)
         self.midi_cc_mode = MIDICCMode(self, settings=settings)
@@ -218,6 +217,13 @@ class LogicApp(object):
 
         # Track solo/mute update for selected track
         sel_idx = self.mcu_manager.selected_track_idx
+        state_signature = (tuple(self.mcu_manager.solo_states),
+                           tuple(self.mcu_manager.mute_states))
+        if getattr(self, "_last_mcu_row_state", None) == state_signature:
+            return
+        self._last_mcu_row_state = state_signature
+        self.display_dirty = True
+
         if sel_idx is not None:
             if self.mcu_manager.solo_states[sel_idx]:
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.YELLOW)
@@ -757,10 +763,12 @@ class LogicApp(object):
         if self.pads_need_update:
             self.update_push2_pads()
             self.pads_need_update = False
+            self.display_dirty = True
 
         if self.buttons_need_update:
             self.update_push2_buttons()
             self.buttons_need_update = False
+            self.display_dirty = True
 
         # NEW: MCU sync
         if self.use_mcu and self.mcu_manager:
@@ -818,7 +826,6 @@ class LogicApp(object):
                                              rgb=definitions.get_color_rgb_float(color_name), allow_overwrite=True)
         app.push.reapply_color_palette()
 
-        # Initialize all buttons to black, initialize all pads to off
         app.push.buttons.set_all_buttons_color(color=definitions.BLACK)
         app.push.pads.set_all_pads_to_color(color=definitions.BLACK)
         # Restore MCU button states
