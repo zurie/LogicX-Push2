@@ -285,6 +285,10 @@ class TrackControlMode(definitions.LogicMode):
 
     # --- meters ------------------------------------------------------
     def _on_mcu_meter(self, **_):
+        # Only light pads while Track-Control (Mix) mode is ACTIVE.
+        if not self.app.is_mode_active(self):
+            return
+
         mm    = self.app.mcu_manager
         start = self.current_page * 8          # which 8-track page is visible?
         self._pad_meter.update(mm.meter_levels[start:start + 8])
