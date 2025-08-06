@@ -18,9 +18,11 @@ def _pad_const(row: int, col: int):
         return None
 
 
-_PAD = [[_pad_const(7 - r, c + 1)          # flip so r=0 is the BOTTOM row
-         for r in range(8)]                # rows 0-7
-        for c in range(8)]                # columns 0-7  (we keep 0-based)
+# in pad_meter.py, at top:
+_PAD = [
+    [ _pad_const(r, c+1)   for r in range(8) ]   # r=0..7 map to hardware rows 0..7
+    for c in range(8)                            # c=0..7 columns left→right
+]
 
 
 class PadMeter:
@@ -36,9 +38,10 @@ class PadMeter:
     def __init__(self, push):
         self.push = push
         self._last = {}            # pad-id  → last colour sent
-        self._pad = _PAD           # shortcut
+        self._pad = [ col[::-1] for col in _PAD ]
 
-    # -----------------------------------------------------------------------
+
+# -----------------------------------------------------------------------
     # Colour helpers
     # -----------------------------------------------------------------------
     @staticmethod
@@ -62,10 +65,12 @@ class PadMeter:
         """
         for col, val in enumerate(levels[:8]):
             lit_rows = min(8, (val + 15) // 16)        # 0…8 rows lit
-            for row in range(8):
-                colour = self._row_colour(row, lit_rows)
-                pad_const = self._pad[col][row]        # may be None on sim
-                pad_id = pad_const if pad_const is not None else (row, col)
+            for logical_row in range(8):
+                # map bottom-up logical_row → hardware row by flipping
+                pad_row   = 7 - logical_row
+                colour    = self._row_colour(logical_row, lit_rows)
+                pad_const = self._pad[col][pad_row]      # may be None in sim
+                pad_id = pad_const if pad_const is not None else (pad_row, col)
 
                 if self._last.get(pad_id) != colour:
                     self.push.pads.set_pad_color(pad_id, colour)
