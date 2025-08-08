@@ -132,8 +132,8 @@ class LogicInterface(definitions.LogicMode):
         if long_press:
             press_command('/push2/mix_long', shift=shift, select=select)
         elif getattr(self.app, "mcu_manager", None) and self.app.mcu_manager.enabled:
-            if hasattr(self.app, "toggle_and_rotate_track_control_mode"):
-                self.app.toggle_and_rotate_track_control_mode()
+            if hasattr(self.app, "toggle_and_rotate_mackie_control_mode"):
+                self.app.toggle_and_rotate_mackie_control_mode()
                 self.app.buttons_need_update = True
         else:
             press_command('/push2/mix', shift=shift, select=select)

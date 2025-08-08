@@ -21,7 +21,7 @@ from slice_notes_mode import SliceNotesMode
 from settings_mode import SettingsMode
 from help_mode import HelpMode
 from repeat_mode import RepeatMode
-from track_control_mode import TrackControlMode
+from mackie_control_mode import MackieControlMode
 
 from scalemenu_mode import ScaleMenuMode
 from main_controls_mode import MainControlsMode
@@ -121,7 +121,7 @@ class LogicApp(object):
         if settings.get("use_mcu", False):
             # after you create the MCU manager:
             self.mcu_manager = LogicMCUManager(self, port_name=self.settings.get("mcu_port_name"))
-            # hook incoming Push encoders (v-pots) into our TrackControlMode
+            # hook incoming Push encoders (v-pots) into our MackieControlMode
             # self.mcu_manager.on_vpot = self._on_mcu_vpot
 
             # start listening…
@@ -167,9 +167,9 @@ class LogicApp(object):
 
         # ── genuine human turn → translate to ±1 step
         direction = -1 if value & 0x40 else +1
-        encoder_name = TrackControlMode.encoder_names[idx]
-        if self.is_mode_active(self.track_mode):
-            self.track_mode.on_encoder_rotated(encoder_name, direction)
+        encoder_name = MackieControlMode.encoder_names[idx]
+        if self.is_mode_active(self.mc_mode):
+            self.mc_mode.on_encoder_rotated(encoder_name, direction)
 
     # ───────────────────────────────────────────────────────────
     # MODE INIT
@@ -189,7 +189,7 @@ class LogicApp(object):
 
         self.settings_mode = SettingsMode(self, settings=settings)
         self.help_mode = HelpMode(self, settings=settings)
-        self.track_mode = TrackControlMode(self)
+        self.mc_mode = MackieControlMode(self)
         self.repeat_mode = RepeatMode(self, settings=settings)
         self.scalemenu_mode = ScaleMenuMode(self, settings=settings)
 
@@ -287,15 +287,15 @@ class LogicApp(object):
             self.active_modes.append(self.settings_mode)
             self.settings_mode.activate()
 
-    def toggle_and_rotate_track_control_mode(self):
-        if self.is_mode_active(self.track_mode):
+    def toggle_and_rotate_mackie_control_mode(self):
+        if self.is_mode_active(self.mc_mode):
             self.mcu_manager.on_vpot = None
-            rotation_finished = self.track_mode.move_to_next_page()
+            rotation_finished = self.mc_mode.move_to_next_page()
             if rotation_finished:
-                self.unset_mode_for_xor_group(self.track_mode)
+                self.unset_mode_for_xor_group(self.mc_mode)
         else:
             # self.mcu_manager.on_vpot = self._on_mcu_vpot
-            self.set_mode_for_xor_group(self.track_mode)
+            self.set_mode_for_xor_group(self.mc_mode)
 
     def toggle_and_rotate_repeat_mode(self):
         if self.is_mode_active(self.repeat_mode):

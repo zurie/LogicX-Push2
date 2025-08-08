@@ -262,11 +262,6 @@ class LogicMCUManager:
                 return
             # print(f"[DEBUG] handle_sysex raw data: {data!r}")
 
-            # Accept Mackie MCU SysEx: 00 00 66 14 ...
-            if not (len(data) > 3 and list(data[:4]) == definitions.MCU_SYSEX_PREFIX):
-                print(f"[DEBUG] Skipping SysEx, bad header: {data[:8]!r}")
-                return
-
             payload = data[4:]
             if not payload:
                 print("[DEBUG] SysEx: No payload after header!")
@@ -331,13 +326,13 @@ class LogicMCUManager:
 
             # A ctually apply the names
             self.track_names = (track_names + [''] * 8)[:8]
-            if self.app.is_mode_active(self.app.track_mode):
-                self.app.track_mode.update_strip_values()  # refresh the screen
+            if self.app.is_mode_active(self.app.mc_mode):
+                self.app.mc_mode.update_strip_values()
             if hasattr(self.app, "update_push2_mute_solo"):
                 self.app.update_push2_mute_solo()
             self.pending_update = True
-            if self.app.is_mode_active(self.app.track_mode):
-                self.app.track_mode.activate()
+            if self.app.is_mode_active(self.app.mc_mode):
+                self.app.mc_mode.activate()
         else:
             print("[DEBUG] No strips in payload; ignoring.")
 
@@ -606,9 +601,9 @@ class LogicMCUManager:
                     print(f"[MCU] Pan[{track_idx + 1}] = {pan_val}")
 
                 self.emit_event("pan", channel_idx=track_idx, value=pan_val)
-                if getattr(self.app, "track_mode", None) and self.app.is_mode_active(self.app.track_mode):
-                    self.app.track_mode.update_strip_values()
-                    self.app.track_mode.update_buttons()
+                if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
+                    self.app.mc_mode.update_strip_values()
+                    self.app.mc_mode.update_buttons()
 
 
         # --- Faders ---
@@ -638,9 +633,9 @@ class LogicMCUManager:
             self.on_fader(channel, level)
 
         # live UI refresh while Track-Control mode is showing
-        if getattr(self.app, "track_mode", None) and self.app.is_mode_active(self.app.track_mode):
-            self.app.track_mode.update_encoders()
-            self.app.track_mode.update_strip_values()
+        if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
+            self.app.mc_mode.update_encoders()
+            self.app.mc_mode.update_strip_values()
 
         self.pending_update = True
 

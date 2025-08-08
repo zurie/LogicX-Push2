@@ -64,7 +64,7 @@ class TrackStrip:
 
         color = self.get_color_func(self.index)
         volume = self.get_volume_func(self.index)
-        db = TrackControlMode._level_to_db(volume)
+        db = MackieControlMode._level_to_db(volume)
         label = "-∞ dB" if db == float('-inf') else f"{db:+.1f} dB"
 
         # highlight selected track
@@ -164,9 +164,9 @@ class TrackStrip:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# TrackControlMode
+# MackieControlMode
 # ──────────────────────────────────────────────────────────────────────────────
-class TrackControlMode(definitions.LogicMode):
+class MackieControlMode(definitions.LogicMode):
     xor_group = "pads"
 
     # ---------------------------------------------------------------- helpers
@@ -408,17 +408,17 @@ class TrackControlMode(definitions.LogicMode):
         self._meter_timer.start()
 
     def activate(self):
-        print("→ Sending meters ON:",
-              self.app.mcu_manager.output_port,
-              [hex(b) for b in MCU_METERS_ON])
-        self.app.mcu_manager.output_port.send(
-            mido.Message('sysex', data=MCU_METERS_ON)
-        )
+        # print("→ Sending meters ON:",
+        #       self.app.mcu_manager.output_port,
+        #       [hex(b) for b in MCU_METERS_ON])
+        # self.app.mcu_manager.output_port.send(
+        #     mido.Message('sysex', data=MCU_METERS_ON)
+        # )
         self.initialize()
         self.current_page = 0
         # start polling meters
-        self._polling_active = True
-        self._start_meter_poll()
+        # self._polling_active = True
+        # self._start_meter_poll()
         if hasattr(self.app.mcu_manager, "get_visible_track_names"):
             names = self.app.mcu_manager.get_visible_track_names()
         else:
@@ -444,16 +444,16 @@ class TrackControlMode(definitions.LogicMode):
             self._pad_meter.update([0] * 8)
 
     def deactivate(self):
-        print("→ Sending meters OFF:",
-              self.app.mcu_manager.output_port,
-              [hex(b) for b in MCU_METERS_OFF])
-        self.app.mcu_manager.output_port.send(
-            mido.Message('sysex', data=MCU_METERS_OFF)
-        )
+        # print("→ Sending meters OFF:",
+        #       self.app.mcu_manager.output_port,
+        #       [hex(b) for b in MCU_METERS_OFF])
+        # self.app.mcu_manager.output_port.send(
+        #     mido.Message('sysex', data=MCU_METERS_OFF)
+        # )
         # stop polling meters
-        self._polling_active = False
-        if hasattr(self, "_meter_timer"):
-            self._meter_timer.cancel()
+        # self._polling_active = False
+        # if hasattr(self, "_meter_timer"):
+        #     self._meter_timer.cancel()
         super().deactivate()
         # Run supperclass deactivate to set all used buttons to black
         self.push.pads.set_all_pads_to_color(definitions.BLACK)
