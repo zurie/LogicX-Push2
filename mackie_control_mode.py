@@ -4,6 +4,44 @@ from display_utils import show_text
 from definitions import pb_to_db, db_to_pb, MCU_SYSEX_PREFIX, MCU_MODEL_ID, MCU_METERS_ON, MCU_METERS_OFF
 from pad_meter import PadMeter
 
+# === Mode constants ===
+MODE_VOLUME = "volume"
+MODE_MUTE   = "mute"
+MODE_SOLO   = "solo"
+MODE_PAN    = "pan"
+MODE_VPOT   = "vpot"
+MODE_EXTRA1 = "extra1"
+MODE_EXTRA2 = "extra2"
+MODE_EXTRA3 = "extra3"
+
+MODE_LABELS = {
+    MODE_VOLUME: "VOL",
+    MODE_MUTE:   "MUTE",
+    MODE_SOLO:   "SOLO",
+    MODE_PAN:    "PAN",
+    MODE_VPOT:   "VPOT",
+    MODE_EXTRA1: "X1",
+    MODE_EXTRA2: "X2",
+    MODE_EXTRA3: "X3",
+}
+
+LOWER_ROW_MODES = [
+    MODE_VOLUME, MODE_MUTE, MODE_SOLO, MODE_PAN,
+    MODE_VPOT,   MODE_EXTRA1, MODE_EXTRA2, MODE_EXTRA3,
+]
+
+# Simple palette for the selector pads
+MODE_COLORS = {
+    MODE_VOLUME: definitions.GREEN,
+    MODE_MUTE:   definitions.SKYBLUE,
+    MODE_SOLO:   definitions.YELLOW,
+    MODE_PAN:    definitions.KARMA,
+    MODE_VPOT:   definitions.PINK,
+    MODE_EXTRA1: definitions.GRAY_DARK,
+    MODE_EXTRA2: definitions.GREEN_LIGHT,
+    MODE_EXTRA3: definitions.RED_LIGHT,
+}
+
 # ──────────────────────────────────────────────────────────────────────────────
 # MCU-TOUCH BOOK-KEEPING  (one slot per channel 0-7)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -168,7 +206,9 @@ class TrackStrip:
 # ──────────────────────────────────────────────────────────────────────────────
 class MackieControlMode(definitions.LogicMode):
     xor_group = "pads"
-
+    # === NEW: mode state ======================================================
+    active_mode = MODE_VOLUME  # default
+    _polling_active = False
     # ---------------------------------------------------------------- helpers
     def _blank_track_row_buttons(self):
         for btn in self.buttons_used:
@@ -236,6 +276,88 @@ class MackieControlMode(definitions.LogicMode):
         if not port: return
         port.send(mido.Message('note_on', note=note_num, velocity=127, channel=0))
         port.send(mido.Message('note_on', note=note_num, velocity=0, channel=0))
+    # === NEW: selector row paint + mode switch ================================
+    def _set_mode(self, mode: str):
+        if mode not in MODE_LABELS:
+            return
+        self.active_mode = mode
+        # Refresh everything that depends on mode
+        self.update_buttons()
+        self.update_encoders()
+        self._paint_selector_row()
+        self.app.pads_need_update = True
+        self.app.buttons_need_update = True
+
+    def _paint_lower_selector(self):
+        """Color the lower row buttons as mode selector."""
+        for i, mode in enumerate(LOWER_ROW_MODES):
+            btn = getattr(push2_python.constants, f"BUTTON_LOWER_ROW_{i + 1}")
+            col = MODE_COLORS.get(mode, definitions.GRAY)
+            # Selected mode gets its color; others are dim gray
+            self.push.buttons.set_button_color(btn, col if mode == self.active_mode else definitions.GRAY)
+
+    def _paint_selector_row(self):
+        """
+        Repaint the bottom row pads (hardware row=7) after PadMeter runs.
+        Selected mode = brighter (WHITE border via dual-color trick not possible,
+        so we simply use color vs. dark gray).
+        """
+        # hardware rows in pad_meter use (row, col), row 0 = top, row 7 = bottom
+        bottom_row = 7
+        for col, mode in enumerate(LOWER_ROW_MODES):
+            pad_id = (bottom_row, col)
+            colr = MODE_COLORS.get(mode, definitions.GRAY_DARK)
+            if mode == self.active_mode:
+                # brighten when selected
+                self.push.pads.set_pad_color(pad_id, colr)
+            else:
+                # dimmed version
+                self.push.pads.set_pad_color(pad_id, definitions.GRAY_DARK)
+
+    # === NEW: PAN + VPOT send =================================================
+    def _send_mcu_pan_step(self, channel: int, step_dir: int):
+        """
+        MCU pan uses CC 48–55 (track 1..8) with 11 detents.
+        We'll step through the detents and send the corresponding CC value.
+        """
+        mcu = getattr(self.app, "mcu_manager", None)
+        port = mcu.output_port if (mcu and mcu.output_port) else getattr(self.app, "midi_out", None)
+        if port is None:
+            return
+
+        # 11-step table used by Logic; keep in sync with logic_mcu_manager
+        pan_steps = [-64, -51, -38, -25, -13, 0, 13, 26, 38, 51, 64]
+        # Current value from cache
+        cur = 0
+        if mcu and 0 <= channel < len(mcu.pan_levels):
+            cur = int(mcu.pan_levels[channel])
+        idx = min(range(len(pan_steps)), key=lambda i: abs(pan_steps[i] - cur))
+        idx = max(0, min(len(pan_steps) - 1, idx + (1 if step_dir > 0 else -1)))
+
+        target = pan_steps[idx]
+        # inverse CC map (mirrors logic_mcu_manager.PAN_CC_MAP)
+        inv = {
+            -64: 17, -51: 19, -38: 20, -25: 21, 0: 22,
+            13: 23, 26: 24, 38: 25, 51: 26, 64: 27
+        }
+        cc_val = inv.get(target, 22)
+
+        port.send(mido.Message('control_change', control=48 + channel, value=cc_val))
+        # Trust Logic echo to update mcu.pan_levels; still nudge our display:
+        self.update_strip_values()
+
+    def _send_mcu_vpot_delta(self, channel: int, increment: int):
+        """
+        Basic MCU V-Pot delta:
+        CC 16–23, value 1..63 = CW, 65..127 = CCW. We'll send a single tick.
+        """
+        mcu = getattr(self.app, "mcu_manager", None)
+        port = mcu.output_port if (mcu and mcu.output_port) else getattr(self.app, "midi_out", None)
+        if port is None:
+            return
+        cc = 16 + channel
+        val = 1 if increment > 0 else 65
+        port.send(mido.Message('control_change', control=cc, value=val))
 
     # ---------------------------------------------------------------- init/up
     def initialize(self, settings=None):
@@ -433,6 +555,8 @@ class MackieControlMode(definitions.LogicMode):
         self._blank_track_row_buttons()
         self.update_buttons()
         self.update_strip_values()
+        # Ensure selector row shows the current mode
+        self._paint_selector_row()
         mm = getattr(self.app, "mcu_manager", None)
         if mm and mm.transport.get("play", False):
             # live song → show meters right away
@@ -463,6 +587,15 @@ class MackieControlMode(definitions.LogicMode):
 
     def on_pad_pressed(self, pad_n, pad_ij, velocity, loop=False, quantize=False, shift=False, select=False,
                        long_press=False, double_press=False):
+        # pad_ij is (row, col) where row 7 is bottom per pad_meter usage
+        row, col = pad_ij
+        if row == 7 and 0 <= col < 8:
+            # Bottom row is our selector
+            mode = LOWER_ROW_MODES[col]
+            self._set_mode(mode)
+            return True
+
+        # Anything else: just consume (PadMeter owns the grid painting)
         self.app.pads_need_update = True
         return True
 
@@ -530,36 +663,71 @@ class MackieControlMode(definitions.LogicMode):
     def update_buttons(self):
         mm = getattr(self.app, "mcu_manager", None)
         self._blank_track_row_buttons()
+
         if mm:
             for i in range(8):
                 strip_idx = self.current_page * self.tracks_per_page + i
                 solo = mm.solo_states[strip_idx % 8]
                 mute = mm.mute_states[strip_idx % 8]
 
-                solo_btn = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
-                mute_btn = getattr(push2_python.constants, f"BUTTON_LOWER_ROW_{i + 1}")
+                upper = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
+                lower = getattr(push2_python.constants, f"BUTTON_LOWER_ROW_{i + 1}")
 
+                # --- TOP ROW: shows either SOLO or MUTE depending on active section ---
+                if self.active_mode == MODE_SOLO:
+                    self.push.buttons.set_button_color(
+                        upper,
+                        definitions.YELLOW if solo else definitions.OFF_BTN_COLOR
+                    )
+                elif self.active_mode == MODE_MUTE:
+                    # Use SKYBLUE if you have it; fall back to CYAN otherwise
+                    sky = getattr(definitions, "SKYBLUE", getattr(definitions, "CYAN", definitions.BLUE))
+                    self.push.buttons.set_button_color(
+                        upper,
+                        sky if mute else definitions.OFF_BTN_COLOR
+                    )
+                else:
+                    self.push.buttons.set_button_color(upper, definitions.OFF_BTN_COLOR)
+
+                # --- BOTTOM ROW: mode selector colors ---
+                mode = LOWER_ROW_MODES[i]
+                col = MODE_COLORS.get(mode, definitions.GRAY_DARK)
                 self.push.buttons.set_button_color(
-                    solo_btn, definitions.YELLOW if solo else definitions.OFF_BTN_COLOR
+                    lower,
+                    col if mode == self.active_mode else definitions.GRAY_DARK
                 )
-                self.push.buttons.set_button_color(
-                    mute_btn, definitions.SKYBLUE if mute else definitions.OFF_BTN_COLOR
-                )
+
+
 
     def on_button_pressed_raw(self, btn):
+        # 1) LOWER ROW = MODE SELECTORS
         for i in range(8):
-            solo_btn = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
-            mute_btn = getattr(push2_python.constants, f"BUTTON_LOWER_ROW_{i + 1}")
-            if btn == solo_btn:
-                self._tap_mcu_button(8 + i)  # SOLO notes 8–15
-                self.app.buttons_need_update = True
+            lower_btn = getattr(push2_python.constants, f"BUTTON_LOWER_ROW_{i + 1}")
+            if btn == lower_btn:
+                self._set_mode(LOWER_ROW_MODES[i])
                 return True
 
-            if btn == mute_btn:
-                self._tap_mcu_button(16 + i)
-                self.app.buttons_need_update = True
-                return True
-        return btn in self.buttons_used  # absorb anything else on these rows
+        # 2) UPPER ROW = TRACK ACTIONS (only when mode requires)
+        for i in range(8):
+            upper_btn = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
+
+            if btn == upper_btn:
+                if self.active_mode == MODE_SOLO:
+                    # SOLO notes 8–15
+                    self._tap_mcu_button(8 + i)
+                    self.app.buttons_need_update = True
+                    return True
+                elif self.active_mode == MODE_MUTE:
+                    # MUTE notes 16–23
+                    self._tap_mcu_button(16 + i)
+                    self.app.buttons_need_update = True
+                    return True
+                else:
+                    # Other modes: upper row does nothing (absorb)
+                    return True
+
+        # Absorb anything else on these rows
+        return btn in self.buttons_used
 
     def on_button_pressed(self, button_name, **_):
         return button_name in self.buttons_used
@@ -631,19 +799,27 @@ class MackieControlMode(definitions.LogicMode):
         if strip_idx >= len(self.track_strips):
             return False
 
-        # 1) update internal value + GUI
-        self.track_strips[strip_idx].update_value(increment)
+        # MODED BEHAVIOR
+        if self.active_mode == MODE_VOLUME:
+            # Existing fader emulation (touch, pitchbend, release)
+            self.track_strips[strip_idx].update_value(increment)
+            level = self.app.mcu_manager.fader_levels[local_idx]
+            self._send_mcu_fader_move(local_idx, level)
 
-        # 2) read the new level (already bank-safe)
-        level = self.app.mcu_manager.fader_levels[local_idx]
+        elif self.active_mode == MODE_PAN:
+            self._send_mcu_pan_step(local_idx, +1 if increment > 0 else -1)
 
-        # 3) send Mackie fader move
-        self._send_mcu_fader_move(local_idx, level)
+        elif self.active_mode == MODE_VPOT:
+            # Raw V-Pot delta to Logic (plugin params / device under focus)
+            self._send_mcu_vpot_delta(local_idx, increment)
 
-        # 4) flag Push redraws
+        else:
+            # Other modes ignore encoders for now
+            return True
+
         self.app.buttons_need_update = True
-        # self.app.pads_need_update = True
         return True
+
 
     # ---------------------------------------------------------------- misc
     @property

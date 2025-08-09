@@ -66,7 +66,7 @@ class TrackSelectionMode(definitions.LogicMode):
                     'default_layout': instrument_data.get('default_layout', definitions.LAYOUT_MELODIC),
                     'illuminate_local_notes': instrument_data.get('illuminate_local_notes', True),
                 })
-            print('Created {0} tracks!'.format(len(self.tracks_info)))
+            #print('Created {0} tracks!'.format(len(self.tracks_info)))
             print('Created {0} tracks!'.format(self.tracks_info))
         else:
             # Create 64 empty tracks
