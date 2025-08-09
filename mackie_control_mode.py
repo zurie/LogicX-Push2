@@ -108,7 +108,7 @@ class TrackStrip:
         # highlight selected track
         if selected:
             ctx.save()
-            ctx.set_source_rgb(*definitions.get_color_rgb_float(definitions.GRAY_DARK))
+            ctx.set_source_rgb(*definitions.get_color_rgb_float(definitions.OFF_BLACK))
             ctx.rectangle(x, y, col_width, display_h)
             ctx.fill()
             ctx.restore()
@@ -169,12 +169,20 @@ class TrackStrip:
             ctx.move_to(x1, y1)
             ctx.line_to(x2, y2)
             ctx.stroke()
-        # ----- NEW: centred green pan value ----------------------------------
+        # ----- Centered green pan value (inside the arc) ----------------------------
         pan_val = int(max(-64, min(64, self.get_pan_func(self.index))))
         pan_text = f"{pan_val:+d}"
-        pan_y = margin_top + name_h + val_h + meter_h + 5
-        show_text(ctx, x_part, pan_y, pan_text, height=18,
-                  font_color=definitions.GREEN)
+        ctx.save()
+        ctx.set_source_rgb(*definitions.get_color_rgb_float(definitions.GREEN))
+        ctx.select_font_face("Helvetica", 0, 0)
+        ctx.set_font_size(14)
+
+        xb, yb, tw, th, xadv, yadv = ctx.text_extents(pan_text)
+        tx = xc - (tw / 2.0) - xb
+        ty = yc - (th / 2.0) - yb
+        ctx.move_to(tx, ty)
+        ctx.show_text(pan_text)
+        ctx.restore()
 
     # ------------------------------------------------------------------ values
     def update_value(self, increment):
@@ -210,6 +218,70 @@ class MackieControlMode(definitions.LogicMode):
     active_mode = MODE_VOLUME  # default
     _polling_active = False
     # ---------------------------------------------------------------- helpers
+    def _draw_top_mute_solo_header(self, ctx, w, h):
+        mm = getattr(self.app, "mcu_manager", None)
+        if not mm:
+            return
+
+        header_h = 22
+        y = 0
+        col_w = w / 8.0
+
+        sky = getattr(definitions, "SKYBLUE", getattr(definitions, "CYAN", definitions.BLUE))
+        yellow = definitions.YELLOW
+
+        for i in range(8):
+            strip_idx = self.current_page * self.tracks_per_page + i
+            mute = bool(mm.mute_states[strip_idx % 8])
+            solo = bool(mm.solo_states[strip_idx % 8])
+
+            x = int(i * col_w)
+            half = int(col_w / 2)
+
+            # Left half = MUTE
+            mute_bg = sky if mute else definitions.BLACK
+            mute_fg = definitions.BLACK if mute else sky
+
+            ctx.save()
+            ctx.set_source_rgb(*definitions.get_color_rgb_float(mute_bg))
+            ctx.rectangle(x, y, half, header_h)
+            ctx.fill()
+            ctx.restore()
+
+            ctx.save()
+            ctx.set_source_rgb(*definitions.get_color_rgb_float(mute_fg))
+            ctx.select_font_face("Helvetica", 0, 0)
+            ctx.set_font_size(11)
+            label = "MUTE"
+            xb, yb, tw, th, xadv, yadv = ctx.text_extents(label)
+            tx = x + (half - tw) / 2.0 - xb
+            ty = y + (header_h - th) / 2.0 - yb
+            ctx.move_to(tx, ty)
+            ctx.show_text(label)
+            ctx.restore()
+
+            # Right half = SOLO
+            solo_bg = yellow if solo else definitions.BLACK
+            solo_fg = definitions.BLACK if solo else yellow
+
+            ctx.save()
+            ctx.set_source_rgb(*definitions.get_color_rgb_float(solo_bg))
+            ctx.rectangle(x + half, y, half, header_h)
+            ctx.fill()
+            ctx.restore()
+
+            ctx.save()
+            ctx.set_source_rgb(*definitions.get_color_rgb_float(solo_fg))
+            ctx.select_font_face("Helvetica", 0, 0)
+            ctx.set_font_size(11)
+            label = "SOLO"
+            xb, yb, tw, th, xadv, yadv = ctx.text_extents(label)
+            tx = x + half + (half - tw) / 2.0 - xb
+            ty = y + (header_h - th) / 2.0 - yb
+            ctx.move_to(tx, ty)
+            ctx.show_text(label)
+            ctx.restore()
+
     def _blank_track_row_buttons(self):
         for btn in self.buttons_used:
             self.push.buttons.set_button_color(btn, definitions.OFF_BTN_COLOR)
@@ -267,6 +339,53 @@ class MackieControlMode(definitions.LogicMode):
     ]
 
     # ---------------------------------------------------------------- helpers
+    def _draw_bottom_mode_labels(self, ctx, w, h):
+        # Mirror track_selection_mode.py proportions
+        display_w = w
+        display_h = h
+        col_w = display_w / 8.0
+
+        bar_h = 22          # match TS look
+        bar_y = display_h - bar_h - 2
+        corner = 6
+
+        for i, mode in enumerate(LOWER_ROW_MODES):
+            x = int(i * col_w) + 1
+            width = int(col_w) - 2
+
+            selected = (mode == self.active_mode)
+            fill_col = MODE_COLORS.get(mode, definitions.GRAY_DARK) if selected else definitions.GRAY_DARK
+            text_col = definitions.BLACK if selected else MODE_COLORS.get(mode, definitions.GRAY_LIGHT)
+
+            # rounded rect
+            ctx.save()
+            ctx.set_source_rgb(*definitions.get_color_rgb_float(fill_col))
+            # draw rounded rect
+            ctx.new_sub_path()
+            ctx.arc(x + width - corner, bar_y + corner, corner, math.radians(-90), math.radians(0))
+            ctx.arc(x + width - corner, bar_y + bar_h - corner, corner, math.radians(0), math.radians(90))
+            ctx.arc(x + corner, bar_y + bar_h - corner, corner, math.radians(90), math.radians(180))
+            ctx.arc(x + corner, bar_y + corner, corner, math.radians(180), math.radians(270))
+            ctx.close_path()
+            ctx.fill()
+            ctx.restore()
+
+            # label centered
+            label = MODE_LABELS.get(mode, mode.upper())
+            ctx.save()
+            ctx.set_source_rgb(*definitions.get_color_rgb_float(text_col))
+            ctx.select_font_face("Helvetica", 0, 0)
+            ctx.set_font_size(12)
+
+            # Cairo returns (x_bearing, y_bearing, width, height, x_advance, y_advance)
+            xb, yb, tw, th, xadv, yadv = ctx.text_extents(label)
+
+            tx = x + (width - tw) / 2.0 - xb
+            ty = bar_y + (bar_h - th) / 2.0 - yb
+            ctx.move_to(tx, ty)
+            ctx.show_text(label)
+            ctx.restore()
+
     def _blank_track_row_buttons(self):
         for btn in self.buttons_used:
             self.push.buttons.set_button_color(btn, definitions.OFF_BTN_COLOR)
@@ -607,6 +726,7 @@ class MackieControlMode(definitions.LogicMode):
         ctx.set_source_rgb(0, 0, 0)
         ctx.fill()
 
+
         start = self.current_page * self.tracks_per_page
         selected_idx = getattr(self.app.mcu_manager, "selected_track_idx", None)
 
@@ -616,6 +736,10 @@ class MackieControlMode(definitions.LogicMode):
                 self.track_strips[strip_idx].draw(
                     ctx, i, selected=(strip_idx == selected_idx)
                 )
+        # TOP header (per-track MUTE/SOLO halves)
+        self._draw_top_mute_solo_header(ctx, w, h)
+        # Bottom mode labels
+        self._draw_bottom_mode_labels(ctx, w, h)
         self.update_buttons()
 
     def current_page(self) -> int:
@@ -629,15 +753,24 @@ class MackieControlMode(definitions.LogicMode):
 
     def _send_mcu_pan_delta(self, channel: int, delta: int):
         """
-        Send a V-Pot delta.  delta ∈ [-63 … +63], 1 step ≈ 1 Logic pan tick.
+        Send MCU V‑Pot relative for PAN on CC 16–23.
+        Positive delta => 1..63, Negative delta => 65..127 (65 == -1).
         """
         if delta == 0:
             return
+        # clamp magnitude to 63 to avoid huge jumps
+        mag = min(63, abs(int(delta)))
+
+        if delta > 0:
+            value = mag                      # 1..63 (CW)
+        else:
+            value = 64 + mag                 # 65..127 (CCW, 65 == -1)
+
         cc_num = 16 + channel
-        value = delta & 0x7F  # wrap to 7-bit signed
         port = self.app.mcu_manager.output_port or getattr(self.app, "midi_out", None)
         if port:
             port.send(mido.Message('control_change', control=cc_num, value=value, channel=0))
+
 
     def update_strip_values(self):
         self.app.display_dirty = True
@@ -799,26 +932,24 @@ class MackieControlMode(definitions.LogicMode):
         if strip_idx >= len(self.track_strips):
             return False
 
-        # MODED BEHAVIOR
-        if self.active_mode == MODE_VOLUME:
-            # Existing fader emulation (touch, pitchbend, release)
+        # Encoders always control VOLUME in VOL/SOLO/MUTE modes
+        if self.active_mode in (MODE_VOLUME, MODE_SOLO, MODE_MUTE):
             self.track_strips[strip_idx].update_value(increment)
             level = self.app.mcu_manager.fader_levels[local_idx]
             self._send_mcu_fader_move(local_idx, level)
 
         elif self.active_mode == MODE_PAN:
-            self._send_mcu_pan_step(local_idx, +1 if increment > 0 else -1)
+            self._send_mcu_pan_delta(local_idx, +1 if increment > 0 else -1)
 
         elif self.active_mode == MODE_VPOT:
-            # Raw V-Pot delta to Logic (plugin params / device under focus)
             self._send_mcu_vpot_delta(local_idx, increment)
 
         else:
-            # Other modes ignore encoders for now
             return True
 
         self.app.buttons_need_update = True
         return True
+
 
 
     # ---------------------------------------------------------------- misc

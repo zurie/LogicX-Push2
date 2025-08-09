@@ -32,6 +32,7 @@ NOTIFICATION_TIME = 3
 HELP_TIME = 30
 
 BLACK_RGB = [5, 5, 5]
+OFF_BLACK_RGB = [10, 10, 10]
 GRAY_DARK_RGB = [30, 30, 30]
 GRAY_LIGHT_RGB = [180, 180, 180]
 WHITE_RGB = [255, 255, 255]
@@ -61,6 +62,7 @@ XV_RGB = [118, 101, 50]
 EM1_RGB = [61, 57, 46]
 
 BLACK = 'black'
+OFF_BLACK = 'off_black'
 GRAY_DARK = 'gray_dark'
 GRAY_LIGHT = 'gray_light'
 WHITE = 'white'
@@ -113,6 +115,7 @@ COLORS_NAMES = [ROYALBLUE,
                 WHITE,
                 GRAY_LIGHT,
                 GRAY_DARK,
+                OFF_BLACK,
                 BLACK]
 MIXER_PALETTE = [
     ORANGE,
