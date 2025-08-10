@@ -199,7 +199,8 @@ class LogicMCUManager:
                 self.handle_sysex(payload)
 
             elif msg.type in ("note_on", "note_off"):
-                pressed = msg.type == "note_on" and msg.velocity > 0
+                # Treat NOTE 0–23 (REC/SOLO/MUTE) + 24–31 (SELECT) as authoritative LED/state from Logic.
+                pressed = (msg.type == "note_on" and msg.velocity > 0)
                 handled = self.handle_button(msg.note, pressed)
                 if handled is False and hasattr(self.app, "on_push2_midi_message"):
                     self.app.on_push2_midi_message(msg)
@@ -267,18 +268,14 @@ class LogicMCUManager:
                     print("[MCU] Ignoring non-Mackie sysex:", data[:8], "…")
                 return
 
-            cmd = data[4]
+            cmd = data[5]
 
             # --- Selection notification: 0x0E <index> 0x03
             if len(data) >= 7 and cmd == 0x0E and data[6] == 0x03:
-                track_index = data[5]
+                track_index = data[6]
                 self.selected_track_idx = track_index
                 if self.debug_mcu:
                     print("*** Bank/selection → selected_track_idx:", track_index)
-
-                # reset caches for current bank
-                self.solo_states = [False] * 8
-                self.mute_states = [False] * 8
                 self.pending_update = True
 
                 # request LEDs for bank (throttled)
@@ -288,7 +285,7 @@ class LogicMCUManager:
                     self.app.mc_mode.update_strip_values()
                 # fall through; there may be more content in this SysEx
 
-            payload = data[4:]
+            payload = data[5:]
 
             # Host keepalive / ping (0x00): ACK with 0x13 00
             if cmd == 0x00:
@@ -307,9 +304,6 @@ class LogicMCUManager:
                 return
             if cmd == 0x12:                                 # scribble-strip text
                 self._handle_display_text(payload)
-                return
-            if cmd == 0x20:                                 # channel LED state
-                self._handle_channel_led(payload[1:])
                 return
             if cmd == 0x21:                                 # transport bits
                 self._handle_transport(payload[1:])
@@ -431,8 +425,9 @@ class LogicMCUManager:
             self.solo_states.extend([False] * grow)
             self.rec_states.extend([False] * grow)
 
-        self.rec_states[ch]  = bool(bits & 0x04)
-        self.mute_states[ch] = bool(bits & 0x10)
+        self.rec_states[ch]  = bool(bits & 0x04)  # record-arm
+        self.solo_states[ch] = bool(bits & 0x02)  # solo
+        self.mute_states[ch] = bool(bits & 0x10)  # mute
 
         # broadcast
         self._fire("track_state", channel_idx=ch,
@@ -543,22 +538,50 @@ class LogicMCUManager:
             if label.startswith("REC["):
                 idx = int(label[4:-1]) - 1
                 self.rec_states[idx] = pressed
+                # NEW:
+                if self.selected_track_idx is None:
+                    self.selected_track_idx = idx
+                self._fire("track_state", channel_idx=idx,
+                           rec=self.rec_states[idx],
+                           solo=self.solo_states[idx],
+                           mute=self.mute_states[idx])
+                self.app.buttons_need_update = True
+                self.pending_update = True
                 if idx == self.selected_track_idx and hasattr(self.app, "update_push2_mute_solo"):
                     self.app.update_push2_mute_solo(track_idx=idx)
 
             elif label.startswith("SOLO["):
                 idx = int(label[5:-1]) - 1
                 self.solo_states[idx] = pressed
+                # NEW:
+                if self.selected_track_idx is None:
+                    self.selected_track_idx = idx
+                self._fire("track_state", channel_idx=idx,
+                           rec=self.rec_states[idx],
+                           solo=self.solo_states[idx],
+                           mute=self.mute_states[idx])
+                self.app.buttons_need_update = True
+                self.pending_update = True
                 if idx == self.selected_track_idx:
                     self.app.update_push2_mute_solo(track_idx=idx)
 
             elif label.startswith("MUTE["):
                 idx = int(label[5:-1]) - 1
                 self.mute_states[idx] = pressed
+                # NEW:
+                if self.selected_track_idx is None:
+                    self.selected_track_idx = idx
+                self._fire("track_state", channel_idx=idx,
+                           rec=self.rec_states[idx],
+                           solo=self.solo_states[idx],
+                           mute=self.mute_states[idx])
+                self.app.buttons_need_update = True
+                self.pending_update = True
                 if idx == self.selected_track_idx:
                     self.app.update_push2_mute_solo(track_idx=idx)
 
-            # --- Track SELECT buttons ---
+
+    # --- Track SELECT buttons ---
             if label.startswith("SELECT[") and pressed:
                 try:
                     self.selected_track_idx = int(label.split("[")[1].strip("]")) - 1

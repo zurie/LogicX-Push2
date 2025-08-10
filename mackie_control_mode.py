@@ -230,8 +230,9 @@ class MackieControlMode(definitions.LogicMode):
 
         for i in range(8):
             strip_idx = self.current_page * self.tracks_per_page + i
-            mute = bool(mm.mute_states[strip_idx % 8])
-            solo = bool(mm.solo_states[strip_idx % 8])
+            mute = bool(mm.mute_states[strip_idx]) if strip_idx < len(mm.mute_states) else False
+            solo = bool(mm.solo_states[strip_idx]) if strip_idx < len(mm.solo_states) else False
+
 
             x = int(i * col_w)
             half = int(col_w / 2)
@@ -791,8 +792,8 @@ class MackieControlMode(definitions.LogicMode):
         if mm:
             for i in range(8):
                 strip_idx = self.current_page * self.tracks_per_page + i
-                solo = mm.solo_states[strip_idx % 8]
-                mute = mm.mute_states[strip_idx % 8]
+                solo = bool(mm.solo_states[strip_idx]) if strip_idx < len(mm.solo_states) else False
+                mute = bool(mm.mute_states[strip_idx]) if strip_idx < len(mm.mute_states) else False
 
                 upper = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
                 lower = getattr(push2_python.constants, f"BUTTON_LOWER_ROW_{i + 1}")
@@ -832,14 +833,18 @@ class MackieControlMode(definitions.LogicMode):
 
             if btn == upper_btn:
                 if self.active_mode == MODE_SOLO:
-                    self._tap_mcu_button(8 + i)     # SOLO notes 8–15
+                    mm = self.app.mcu_manager
+                    if mm and mm.selected_track_idx is None:
+                        mm.selected_track_idx = self.current_page * self.tracks_per_page + i
+                    self._tap_mcu_button(8 + i)     # SOLO
                     self.app.buttons_need_update = True
                     return True
                 elif self.active_mode == MODE_MUTE:
-                    self._tap_mcu_button(16 + i)    # MUTE notes 16–23
+                    mm = self.app.mcu_manager
+                    if mm and mm.selected_track_idx is None:
+                        mm.selected_track_idx = self.current_page * self.tracks_per_page + i
+                    self._tap_mcu_button(16 + i)    # MUTE
                     self.app.buttons_need_update = True
-                    return True
-                else:
                     return True
 
         return btn in self.buttons_used
