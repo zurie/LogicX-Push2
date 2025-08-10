@@ -1,9 +1,9 @@
+import re
 import mido
 import threading
 import time
 import definitions
-
-
+_PAN_RE = re.compile(r'^[\+\-]?\d{1,3}$')  # e.g. "+40", "-12", "0"
 class LogicMCUManager:
     BUTTON_MAP = {
         # --- Channel strip buttons ---
@@ -44,12 +44,17 @@ class LogicMCUManager:
     }
 
     def __init__(self, app, port_name="IAC Driver LogicMCU_In", enabled=True, update_interval=0.05):
-        self.button_press_times = None
+        self.input_port = None
+        self.output_port = None
+        self.button_press_times = {}
+        self.modifiers = {"shift": False, "select": False}
         self.app = app
         self.enabled = enabled
         self.port_name = port_name
         self.update_interval = update_interval  # Minimum time between display updates (50ms default)
-
+        self.lcd = [bytearray(b' ' * 56), bytearray(b' ' * 56)]  # 2×56
+        self._lcd_top = bytearray(b' ' * 56)
+        self._lcd_bot = bytearray(b' ' * 56)
         self.debug_mcu = getattr(app, "debug_mcu", False)
         self._listeners = {"track_state": [], "pan": [], "transport": []}
         self.transport = {"play": False, "stop": True, "record": False, "ffwd": False, "rew": False}
@@ -61,25 +66,29 @@ class LogicMCUManager:
         self.on_track_state = None
         self.listener_thread = None
         self.running = False
-
+        self._last_led_req = 0.0
+        self._led_req_interval = 0.3  # seconds between LED refresh requests
+        self._led_req_bank = None
         # State cache for throttling
         self.last_update_time = 0
         self.pending_update = False
         # Simple MCU track‑type colours (8‑color rotating palette)
-
         self.track_colors = [definitions.MIXER_PALETTE[i % len(definitions.MIXER_PALETTE)] for i in range(8)]
         # Track/LED state caches
         self.track_names = [""] * 8
-        self.mute_states = [False] * 8
-        self.solo_states = [False] * 8
-        self.rec_states = [False] * 8
-        self.meter_levels = [0] * 64        # instead of 8
+        self.mute_states = [False] * 64
+        self.solo_states = [False] * 64
+        self.rec_states  = [False] * 64
+        self.meter_levels = [0] * 64  # instead of 8
         self.select_states = [False] * 8
         self.fader_levels = [0] * 8
         self.pan_levels = [0] * 8
         self.vpot_rings = [0] * 9
         self.selected_track_idx = None
         self.playhead = 0.0
+        self.pan_text = [None] * 8  # real pan numbers from LCD text
+        if not hasattr(self.app, "mcu"): self.app.mcu = self
+        if not hasattr(self.app, "mcu_manager"): self.app.mcu_manager = self
 
     def start(self):
         if not self.enabled:
@@ -90,17 +99,14 @@ class LogicMCUManager:
             self.input_port = mido.open_input(self.port_name)
             mcu_out_name = self.port_name.replace("_In", "_Out")
             self.output_port = mido.open_output(mcu_out_name)
+            self.output_port.send(mido.Message('sysex', data=definitions.MCU_DEVICE_INQUIRY))
             self.running = True
             self.listener_thread = threading.Thread(target=self.listen_loop, daemon=True)
             self.listener_thread.start()
-            print("[MCU] Listening on", self.port_name)
-            print("[MCU] Sending on", mcu_out_name)
-            # right after self.output_port = mido.open_output(...)
-            # tell Logic “hey, who are you?” (Device Inquiry)
-            #   F0 00 00 66 06 01 F7  → data = [0x00,0x00,0x66,0x06,0x01]
-            self.output_port.send(
-                mido.Message('sysex', data=definitions.MCU_DEVICE_INQUIRY)
-            )
+
+            # print("[MCU] Listening on", self.port_name)
+            # print("[MCU] Sending on", mcu_out_name)
+
         except Exception as e:
             print("[MCU] Could not open port:", e)
 
@@ -109,10 +115,14 @@ class LogicMCUManager:
         if self.input_port:
             self.input_port.close()
             self.input_port = None
-            # optionally re-inquire on shutdown
-            self.output_port.send(
-                mido.Message('sysex', data=[0x7E, 0x7F, 0x06, 0x01])
-            )
+            if self.debug_mcu:
+                print("[MCU] Input port closed")
+        if self.output_port:
+            self.output_port.close()
+            self.output_port = None
+            if self.debug_mcu:
+                print("[MCU] Output port closed")
+
             if self.debug_mcu:
                 print("[MCU] Input port closed")
 
@@ -182,7 +192,7 @@ class LogicMCUManager:
                 #print(f"[MCU] RAW SYSEX (msg.bytes): {' '.join(f'{b:02X}' for b in raw)}")
 
                 # 2) the underlying 'data' buffer, as seen by mido
-                data_buf = msg.data     # already stripped of F0/F7 by mido
+                data_buf = msg.data  # already stripped of F0/F7 by mido
                 #print(f"[MCU]   msg.data      : {' '.join(f'{b:02X}' for b in data_buf)}")
 
                 # 3) convert to bytes() and dispatch
@@ -224,122 +234,191 @@ class LogicMCUManager:
         if hasattr(self.app, "update_record_button_color"):
             self.app.update_record_button_color(self.transport.get("record", False))
 
+    def request_bank_led_states(self, selected_idx: int):
+        """Ask Logic for LED state for the 8 strips in the current bank, throttled."""
+        try:
+            port = self.output_port or getattr(self.app, "midi_out", None)
+            if not port:
+                return
+            bank_start = (selected_idx // 8) * 8
+            now = time.time()
+            if self._led_req_bank == bank_start and (now - self._last_led_req) < self._led_req_interval:
+                return  # throttle duplicate requests
+
+            self._led_req_bank = bank_start
+            self._last_led_req = now
+
+            # Logic responds to: F0 00 00 66 14 20 <channel> 07 F7 (your logs show the trailing 07)
+            for ch in range(bank_start, bank_start + 8):
+                msg = mido.Message('sysex', data=definitions.MCU_SYSEX_PREFIX[:4] + [0x20, ch, 0x07])
+                port.send(msg)
+
+            if self.debug_mcu:
+                print(f"[MCU] Requested LED states for bank {bank_start + 1}-{bank_start + 8}")
+        except Exception as e:
+            if self.debug_mcu:
+                print(f"[MCU] Failed to request bank LED states: {e}")
+
     # ---------------- SysEx Handlers ----------------
     def handle_sysex(self, data):
-
         try:
-            # --- Track selection via GUI/Arrow ---
-            if (
-                    len(data) >= 8
-                    and list(data[:5]) == definitions.MCU_SYSEX_PREFIX
-                    and data[5] == 0x0E
-                    and data[7] == 0x03
-            ):
-                print("*** Bank changed -> selected_track_idx:",
-                      self.selected_track_idx, "(waiting for LED dump)")
-                track_index = data[6]  # 0-based in visible bank
-                self.selected_track_idx = track_index
-                bank_start = (track_index // 8) * 8
-                bank_tracks = list(range(bank_start, bank_start + 8))
-                self._fire("selected_track", idx=track_index)
+            # Validate Mackie header (first 3 bytes manufacturer; 4th is model 0x12/0x14)
+            if not (len(data) >= 5 and list(data[:3]) == definitions.MCU_SYSEX_PREFIX_ANY and data[3] in definitions.ACCEPTED_MCU_MODEL_IDS):
                 if self.debug_mcu:
-                    print(
-                        f"[MCU] (GUI/Arrow) Selected track index set to {track_index + 1} (Bank {bank_start + 1}-{bank_start + 8})"
-                    )
-                # --- NEW: wipe the old colours so Push won’t show them ---
+                    print("[MCU] Ignoring non-Mackie sysex:", data[:8], "…")
+                return
+
+            cmd = data[4]
+
+            # --- Special case: bank/selection notifications come as 0x0E <index> 0x03
+            if len(data) >= 7 and cmd == 0x0E and data[6] == 0x03:
+                track_index = data[5]  # 0-based within visible bank
+                self.selected_track_idx = track_index
+                if self.debug_mcu:
+                    print("*** Bank/selection → selected_track_idx:", track_index)
+                # wipe LED caches to avoid stale UI
                 self.solo_states = [False] * 8
                 self.mute_states = [False] * 8
-                self.pending_update = True  # repaint ASAP
-                if hasattr(self.app, "update_push2_mute_solo"):
-                    for ch in bank_tracks:
-                        self.app.update_push2_mute_solo(track_idx=ch)
-                for ch in bank_tracks:
-                    self.request_channel_led_state(ch)
-
-            # --- Standard MCU SysEx Handling ---
-            if not self.enabled:
-                print("[DEBUG] MCU is not enabled; skipping SysEx")
-                return
-            # print(f"[DEBUG] handle_sysex raw data: {data!r}")
-
+                self.pending_update = True
+                # ask Logic to dump LEDs for the whole bank (throttled)
+                self.request_bank_led_states(track_index)
+                # fall through; there may be more to parse in this packet
+                # (but Logic typically sends these as standalone)
+                if getattr(self.app, "mc_mode", None):
+                    self.app.mc_mode.update_strip_values()
+            # Thru-payload (strip the 4-byte header we just checked)
             payload = data[4:]
-            if not payload:
-                print("[DEBUG] SysEx: No payload after header!")
+
+            # Host keepalive / ping (0x00): ACK with 0x13 00 so Logic streams updates
+            if cmd == 0x00:
+                try:
+                    self.output_port.send(mido.Message('sysex', data=definitions.MCU_SYSEX_PREFIX[:4] + [0x13, 0x00]))
+                    if self.debug_mcu:
+                        print("[MCU] → ACK 0x13 00")
+                except Exception as e:
+                    if self.debug_mcu:
+                        print("[MCU] Failed to send ACK:", e)
                 return
 
-            cmd = payload[0]
-            if 0x10 <= cmd <= 0x17 and len(payload) == 9:       # level meters
+            # Standard Mackie blocks
+            if 0x10 <= cmd <= 0x17 and len(payload) == 9:   # meters
                 self._handle_meter_dump(payload)
                 return
-            if cmd == 0x12:
+            if cmd == 0x12:                                 # scribble-strip text
                 self._handle_display_text(payload)
-            elif cmd == 0x20:
+                return
+            if cmd == 0x20:                                 # channel LED state
                 self._handle_channel_led(payload[1:])
-            elif cmd == 0x21:
+                return
+            if cmd == 0x21:                                 # transport bits
                 self._handle_transport(payload[1:])
-            elif cmd == 0x0E:
+                return
+            if cmd == 0x0E and len(payload) >= 2:           # V-Pot ring LED
                 self._handle_vpot(payload[1:])
-            elif cmd == 0x72:
+                return
+            if cmd == 0x72:                                 # time
                 self._handle_time(payload[1:])
-            else:
-                if self.debug_mcu:
-                    print(f"[MCU] Unhandled SysEx cmd: 0x{cmd:02X}, payload: {payload}")
+                return
+
+            if self.debug_mcu:
+                print(f"[MCU] Unhandled SysEx cmd 0x{cmd:02X}, payload={payload}")
 
         except Exception as e:
             if self.debug_mcu:
                 print("[MCU] Failed to parse SysEx:", e)
 
+
     def request_channel_led_state(self, track_idx):
         try:
-            if self.input_port and self.input_port.closed is False:
-                # MCU LED request: F0 00 00 66 14 20 <channel> F7
-                # <channel> is 0-based
-                msg = mido.Message('sysex', data=[0x00, 0x00, 0x66, 0x14, 0x20, track_idx])
-                if self.app and getattr(self.app, 'midi_out', None):
-                    self.app.midi_out.send(msg)
-                    if self.debug_mcu:
-                        print(f"[MCU] Requested LED state for channel {track_idx + 1}")
+            port = self.output_port or getattr(self.app, "midi_out", None)
+            if port:
+                # F0 00 00 66 14 20 <channel> F7
+                msg = mido.Message('sysex', data=definitions.MCU_SYSEX_PREFIX[:4] + [0x20, track_idx, 0x07])
+                port.send(msg)
+                if self.debug_mcu:
+                    print(f"[MCU] Requested LED state for channel {track_idx + 1}")
         except Exception as e:
             if self.debug_mcu:
                 print(f"[MCU] Failed to request channel LED state: {e}")
 
+
+    def current_bank_start(self):
+        return 0 if self.selected_track_idx is None else (self.selected_track_idx // 8) * 8
+
+    def get_visible_track_names(self):
+        start = self.current_bank_start()
+        names = (self.track_names + [""] * 8)
+        return names[start:start+8]
+
+    def get_visible_pan_values(self):
+        start = self.current_bank_start()
+        pans = (self.pan_levels + [0.0] * 8)
+        return pans[start:start+8]
+
     def _handle_display_text(self, payload):
-        # print("[DEBUG] Entered _handle_display_text")
-        # print(f"[DEBUG] RAW DISPLAY TEXT PAYLOAD: {payload}")
+        if len(payload) < 2:
+            return
+        pos = payload[1]
+        data = bytes(payload[2:])
 
-        if len(payload) >= 2:
-            offset = payload[1]
-            text_bytes = payload[2:]
-            text_bytes = text_bytes + b' ' * (56 - len(text_bytes))
-            text_bytes = text_bytes[:56]  # Always 56 bytes
-            text = text_bytes.decode("ascii", errors="ignore")
-            track_names = [text[i:i + 7].strip() for i in range(0, 56, 7)]
-            # print(f"[MCU] Track names (offset {offset}):", track_names)
-
-            # 1. Ignore all offsets except 0
-            if offset > 0:
-                return
-
-            # 2. Ignore if all names are empty or '-'
-            if all(n.strip() in ['', '-'] for n in track_names):
-                return
-
-            # A ctually apply the names
-            self.track_names = (track_names + [''] * 8)[:8]
-            if self.app.is_mode_active(self.app.mc_mode):
-                self.app.mc_mode.update_strip_values()
-            if hasattr(self.app, "update_push2_mute_solo"):
-                self.app.update_push2_mute_solo()
-            self.pending_update = True
-            if self.app.is_mode_active(self.app.mc_mode):
-                self.app.mc_mode.activate()
+        # merge into top or bottom 56‑byte buffer
+        if pos < 56:
+            n = min(56 - pos, len(data))
+            if n > 0:
+                self._lcd_top[pos:pos+n] = data[:n]
         else:
-            print("[DEBUG] No strips in payload; ignoring.")
+            pos2 = pos - 56
+            if pos2 < 56:
+                n = min(56 - pos2, len(data))
+                if n > 0:
+                    self._lcd_bot[pos2:pos2+n] = data[:n]
+
+        # --- TOP: names
+        top = bytes(self._lcd_top)
+        cells_top = [top[i:i+7].decode('ascii','ignore').strip() for i in range(0,56,7)]
+        names_changed = False
+        for i, cell in enumerate(cells_top[:8]):
+            if not cell:
+                continue
+            if cell.lower() in definitions.OVERLAY_TOKENS:
+                continue
+            if cell != self.track_names[i]:
+                self.track_names[i] = cell
+                names_changed = True
+        if names_changed and getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
+            self.app.mc_mode.set_visible_names(self.track_names)
+
+        # --- BOTTOM: pans
+        bot = bytes(self._lcd_bot)
+        cells_bot = [bot[i:i+7].decode('ascii','ignore').strip() for i in range(0,56,7)]
+        for i, cell in enumerate(cells_bot[:8]):
+            if not cell:
+                continue
+            if _PAN_RE.match(cell):  # "+40", "-12", "0", etc.
+                try:
+                    v = max(-64, min(63, int(cell)))
+                    self.pan_levels[i] = float(v)
+                    self._fire("pan", channel_idx=i, value=self.pan_levels[i])
+                except ValueError:
+                    pass
+
+        if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
+            self.app.mc_mode.update_strip_values()
+        self.pending_update = True
+
+
+
+
 
     def _handle_channel_led(self, payload):
         # print(f"<< LED dump for ch {payload[0]} ({'new' if payload[0] == 0 else ''})")
 
         ch, bits = payload[0], payload[1]
+        if ch >= len(self.mute_states):
+            grow = ch + 1 - len(self.mute_states)
+            self.mute_states.extend([False] * grow)
+            self.solo_states.extend([False] * grow)
+            self.rec_states.extend([False] * grow)
         now = time.time()
 
         # Record arm
@@ -350,8 +429,6 @@ class LogicMCUManager:
                    rec=self.rec_states[ch],
                    solo=self.solo_states[ch],
                    mute=self.mute_states[ch])
-        # Mute LED
-        self.mute_states[ch] = bool(bits & 0x10)
 
         if self.debug_mcu:
             print(f"[MCU] Ch{ch + 1} mute={self.mute_states[ch]} solo={self.solo_states[ch]} rec={self.rec_states[ch]}")
@@ -446,9 +523,9 @@ class LogicMCUManager:
         bank_start = 0
         if self.selected_track_idx is not None:
             bank_start = (self.selected_track_idx // 8) * 8
-        # Always return 8 names, padding with blanks if needed
-        names = (self.track_names + [""] * 8)  # pad in case too short
-        return names[bank_start:bank_start + 8]
+            # Always return 8 names, padding with blanks if needed
+            names = (self.track_names + [""] * 8)  # pad in case too short
+            return names[bank_start:bank_start + 8]
 
     def update_track_names_from_sysex(self, payload):
         """
@@ -472,12 +549,11 @@ class LogicMCUManager:
 
             if label == "MIX":
                 now = time.time()
-
                 if pressed:
                     self.button_press_times["MIX"] = now
                     return True
                 else:
-                    pressed_time = self.button_press_times.get("MIX", 0)
+                    pressed_time = self.button_press_times.get("MIX", now)
                     duration = now - pressed_time
                     long_press = duration >= definitions.BUTTON_LONG_PRESS_TIME
 
@@ -567,54 +643,34 @@ class LogicMCUManager:
             self.handle_sysex(list(msg.data))
 
     def handle_cc(self, control, value):
-        # --- MUTE CC messages ---
+        # --- VPOTs (Pan) 48..55: absolute 0..127 where 64 ≈ center ---
         if 48 <= control <= 55:
-            track_idx = control - 48
+            ch = control - 48
+            pan = max(-64, min(63, int(value) - 64))  # map to -64..+63
+            self.pan_levels[ch] = float(pan)
+            # notify listeners / UI
+            self.emit_event("pan", channel_idx=ch, value=float(pan))
+            if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
+                # if your mc_mode has a setter, use it; otherwise refresh values
+                if hasattr(self.app.mc_mode, "set_strip_pan"):
+                    self.app.mc_mode.set_strip_pan(ch, pan)
+                self.app.mc_mode.update_strip_values()
+            self.pending_update = True
+            return
 
-            if value in (0, 127):
-                # MUTE LED (unchanged)
-                self.mute_states[track_idx] = (value == 127)
-                if track_idx == self.selected_track_idx and hasattr(self.app, "update_push2_mute_solo"):
-                    self.app.update_push2_mute_solo(track_idx=track_idx)
-                if self.debug_mcu:
-                    print(f"[MCU] Mute[{track_idx + 1}] = {self.mute_states[track_idx]}")
-            else:
-                # -------- PAN DETENT TABLE --------
-                # Logic sends only 11 distinct values for pan on MCU:
-                PAN_CC_MAP = {
-                    17: -64,
-                    18: -64,  # sometimes reported at hard‑left too
-                    19: -51,
-                    20: -38,
-                    21: -25,
-                    22: 0,
-                    23: +13,
-                    24: +26,
-                    25: +38,
-                    26: +51,
-                    27: +64,
-                }
-                pan_val = PAN_CC_MAP.get(value, 0)
-                self.pan_levels[track_idx] = pan_val
-
-                if self.debug_mcu:
-                    print(f"[MCU] Pan[{track_idx + 1}] = {pan_val}")
-
-                self.emit_event("pan", channel_idx=track_idx, value=pan_val)
-                if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
-                    self.app.mc_mode.update_strip_values()
-                    self.app.mc_mode.update_buttons()
-
-
-        # --- Faders ---
-        elif 72 <= control <= 79:
+        # --- Faders 72..79 ---
+        if 72 <= control <= 79:
             idx = control - 72
             level = value / 127.0
             self.fader_levels[idx] = level
             self.emit_event("fader", channel_idx=idx, level=level)
-        else:
-            if self.debug_mcu:
-                print(f"[MCU] CC {control} = {value}")
+            return
+
+        if self.debug_mcu:
+            print(f"[MCU] CC {control} = {value}")
+
+
+
 
     def handle_pitchbend(self, channel, pitch):
         """
@@ -647,11 +703,11 @@ class LogicMCUManager:
                        |  |  |  |  +-- 0x1n : n = 0…7 bank number
         """
         bank = payload[0] & 0x0F
-        for i, lvl in enumerate(payload[1:9]):          # eight bytes
+        for i, lvl in enumerate(payload[1:9]):  # eight bytes
             idx = bank * 8 + i
             # grow list if you ever attach extenders
             if idx >= len(self.meter_levels):
-                self.meter_levels.extend([0]* (idx + 1 - len(self.meter_levels)))
+                self.meter_levels.extend([0] * (idx + 1 - len(self.meter_levels)))
             self.meter_levels[idx] = lvl
             self._fire("meter", channel_idx=i, value=lvl)
             # print("[A] meter_dump bank", bank, "levels", payload[1:9])

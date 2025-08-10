@@ -122,7 +122,7 @@ class LogicApp(object):
             # after you create the MCU manager:
             self.mcu_manager = LogicMCUManager(self, port_name=self.settings.get("mcu_port_name"))
             # hook incoming Push encoders (v-pots) into our MackieControlMode
-            # self.mcu_manager.on_vpot = self._on_mcu_vpot
+            self.mcu_manager.on_vpot = self._on_mcu_vpot
 
             # start listening…
             self.mcu_manager.start()
@@ -196,9 +196,19 @@ class LogicApp(object):
     # ───────────────────────────────────────────────────────────
     # MCU SYNC
     def update_push_from_mcu(self):
-        if not (self.use_mcu and self.mcu_manager):
+        mcu = getattr(self, "mcu", None) or getattr(self, "mcu_manager", None)
+        if not mcu:
             return
 
+        sel_idx = getattr(mcu, "selected_track_idx", None)
+        if sel_idx is None:
+            return
+
+        # ensure in-range
+        if not (0 <= sel_idx < len(mcu.solo_states)
+                and 0 <= sel_idx < len(mcu.mute_states)
+                and 0 <= sel_idx < len(mcu.rec_states)):
+            return
         # Only log when transport changed
         if not hasattr(self, "_last_mcu_transport") or self.mcu_manager.transport != self._last_mcu_transport:
             self._last_mcu_transport = self.mcu_manager.transport.copy()
@@ -294,7 +304,7 @@ class LogicApp(object):
             if rotation_finished:
                 self.unset_mode_for_xor_group(self.mc_mode)
         else:
-            # self.mcu_manager.on_vpot = self._on_mcu_vpot
+            self.mcu_manager.on_vpot = self._on_mcu_vpot
             self.set_mode_for_xor_group(self.mc_mode)
 
     def toggle_and_rotate_repeat_mode(self):
@@ -397,18 +407,22 @@ class LogicApp(object):
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN)
 
     def update_push2_mute_solo(self, track_idx=None):
+        # no MCU yet or no selection
+        mcu = getattr(self, "mcu", None)
+        if mcu is None or track_idx is None:
+            return
+        if not (0 <= track_idx < len(mcu.mute_states)):
+            return
         """Update Push2 mute and solo button LEDs based on the specified track's state (or selected track if None)."""
         try:
             mcu = getattr(self, "mcu_manager", None)
             if not mcu:
                 return  # MCU not initialized
-
-            # Use passed index or fallback to selected
-            if track_idx is None:
-                track_idx = mcu.selected_track_idx
-
             if track_idx is None:
                 return  # No track selected yet
+
+            if not (0 <= track_idx < len(self.mcu.mute_states)):
+                return
 
             mute_state = mcu.mute_states[track_idx]
             solo_state = mcu.solo_states[track_idx]
@@ -859,6 +873,10 @@ class LogicApp(object):
 @push2_python.on_encoder_rotated()
 def on_encoder_rotated(_, encoder_name, increment):
     try:
+        # Give Mackie Control mode first dibs when active
+        if hasattr(app, 'mc_mode') and app.is_mode_active(app.mc_mode):
+            if app.mc_mode.on_encoder_rotated(encoder_name, increment):
+                return
         for mode in app.active_modes[::-1]:
             action_performed = mode.on_encoder_rotated(encoder_name, increment)
             if action_performed:
