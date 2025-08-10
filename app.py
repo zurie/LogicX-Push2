@@ -79,8 +79,7 @@ class LogicApp(object):
     # fixing issue with 2 lumis and alternating channel pressure values
     last_cp_value_received = 0
     last_cp_value_received_time = 0
-    _last_tick = 0
-    _channels_this_tick = set()
+
     # interface with logic
     logic_interface = None
 
@@ -91,6 +90,11 @@ class LogicApp(object):
 
         self.main_controls_mode = None
         self._last_mcu_transport = None
+
+        # tick de-dup state for MCU v-pot
+        self._last_tick = 0
+        self._channels_this_tick = set()
+
         if os.path.exists('settings.json'):
             settings = json.load(open('settings.json'))
         else:
@@ -119,12 +123,10 @@ class LogicApp(object):
         self.init_push()
 
         if settings.get("use_mcu", False):
-            # after you create the MCU manager:
+            # after creating the manager
             self.mcu_manager = LogicMCUManager(self, port_name=self.settings.get("mcu_port_name"))
-            # hook incoming Push encoders (v-pots) into our MackieControlMode
-            self.mcu_manager.on_vpot = self._on_mcu_vpot
-
-            # start listening…
+            self.mcu_manager.on_vpot = self._on_mcu_vpot                    # rotation ticks
+            self.mcu_manager.on_vpot_display = self._on_mcu_vpot_display    # ring echo
             self.mcu_manager.start()
 
             # Optional: hook transport changes to update button colors
@@ -147,25 +149,27 @@ class LogicApp(object):
 
         self.init_modes(settings)
 
-    def _on_mcu_vpot(self, idx: int, value: int):
-        global _last_tick, _channels_this_tick
+    def _on_mcu_vpot_display(self, ch: int, pos: int):
+        if hasattr(self, "mc_mode") and self.is_mode_active(self.mc_mode):
+            self.mc_mode.on_mcu_pan_echo(ch, pos)
 
-        # ── 1. ignore LED pattern bytes (b5-4 ≠ 00)
+    def _on_mcu_vpot(self, idx: int, value: int):
+        # 1) Ignore LED pattern bytes (b5-4 ≠ 00)
         if value & 0x30:
             return
 
-        # ── 2. ignore bursts touching several channels in same tick
-        now_tick = int(time.time() * 1000)  # coarse 1 ms resolution
-        if now_tick != _last_tick:
-            _last_tick = now_tick
-            _channels_this_tick.clear()
-        if idx in _channels_this_tick:
+        # 2) Ignore bursts touching several channels in the same ms tick
+        now_tick = int(time.time() * 1000)
+        if now_tick != self._last_tick:
+            self._last_tick = now_tick
+            self._channels_this_tick.clear()
+        if idx in self._channels_this_tick:
             return  # duplicate within same tick
-        _channels_this_tick.add(idx)
-        if len(_channels_this_tick) > 1:
+        self._channels_this_tick.add(idx)
+        if len(self._channels_this_tick) > 1:
             return  # more than one channel updated – treat as refresh
 
-        # ── genuine human turn → translate to ±1 step
+        # Genuine human turn → translate to ±1 step
         direction = -1 if value & 0x40 else +1
         encoder_name = MackieControlMode.encoder_names[idx]
         if self.is_mode_active(self.mc_mode):
@@ -300,11 +304,13 @@ class LogicApp(object):
     def toggle_and_rotate_mackie_control_mode(self):
         if self.is_mode_active(self.mc_mode):
             self.mcu_manager.on_vpot = None
+            self.mcu_manager.on_vpot_display = None
             rotation_finished = self.mc_mode.move_to_next_page()
             if rotation_finished:
                 self.unset_mode_for_xor_group(self.mc_mode)
         else:
             self.mcu_manager.on_vpot = self._on_mcu_vpot
+            self.mcu_manager.on_vpot_display = self._on_mcu_vpot_display
             self.set_mode_for_xor_group(self.mc_mode)
 
     def toggle_and_rotate_repeat_mode(self):
@@ -677,7 +683,7 @@ class LogicApp(object):
         # selected track Then, send message to the melodic/rhythmic active modes so the notes are shown in pads/keys
         if msg.type == 'note_on' or msg.type == 'note_off':
             track_midi_channel = self.track_selection_mode.get_current_track_info()['midi_channel']
-            if msg.channel == track_midi_channel - 1:  # msg.channel is 0-indexed
+            if msg.channel == track_midi_channel - 1:  # msg.channel is 0- indexed
                 for mode in self.active_modes:
                     if mode == self.melodic_mode or mode == self.rhyhtmic_mode:
                         mode.on_midi_in(msg, source=self.notes_midi_in.name)
