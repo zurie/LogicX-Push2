@@ -994,29 +994,37 @@ class MackieControlMode(definitions.LogicMode):
         self.update_strip_values()
 
     def on_encoder_rotated(self, encoder_name, increment):
+        # Guard checks
         if encoder_name not in self.encoder_names:
             return False
 
-        local_idx = self.encoder_names.index(encoder_name)  # 0-7 within page
+        local_idx = self.encoder_names.index(encoder_name)  # 0–7 within page
         strip_idx = self.current_page * self.tracks_per_page + local_idx
         if strip_idx >= len(self.track_strips):
             return False
 
-        # Encoders always control VOLUME in VOL/SOLO/MUTE modes
+        # Encoders control VOLUME in VOL/SOLO/MUTE modes
         if self.active_mode in (MODE_VOLUME, MODE_SOLO, MODE_MUTE):
             self.track_strips[strip_idx].update_value(increment)
             level = self.app.mcu_manager.fader_levels[local_idx]
             self._send_mcu_fader_move(local_idx, level)
+            return True
 
-        elif self.active_mode == MODE_PAN:
-            # 1) Update our 0..127 predictor at full resolution
+        # PAN mode: smooth UI + relative delta to Logic
+        if self.active_mode == MODE_PAN:
             ch = local_idx
+            # optional: ignore null ticks
+            if increment == 0:
+                return True
             self._pan_pred[ch] = max(0.0, min(127.0, self._pan_pred[ch] + increment))
             self._pan_view[ch] = self._raw_to_signed(self._pan_pred[ch])  # −64..+63 (float)
-            self.app.display_dirty = True  # redraw with the smooth number
+            self.app.display_dirty = True
+            self._send_mcu_pan_delta(ch, 1 if increment > 0 else -1)
+            return True
 
-            # 2) Tell Logic using relative MCU delta (it will echo a detent)
-            self._send_mcu_pan_delta(ch, +1 if increment > 0 else -1)
+        # Not handled by this mode
+        return False
+
 
     # ---------------------------------------------------------------- misc
     @property

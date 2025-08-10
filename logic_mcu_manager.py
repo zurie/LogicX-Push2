@@ -3,10 +3,7 @@ import mido
 import threading
 import time
 import definitions
-
 _PAN_RE = re.compile(r'^[\+\-]?\d{1,3}$')  # e.g. "+40", "-12", "0"
-
-
 class LogicMCUManager:
     BUTTON_MAP = {
         # --- Channel strip buttons ---
@@ -81,7 +78,7 @@ class LogicMCUManager:
         self.track_names = [""] * 8
         self.mute_states = [False] * 64
         self.solo_states = [False] * 64
-        self.rec_states = [False] * 64
+        self.rec_states  = [False] * 64
         self.meter_levels = [0] * 64  # instead of 8
         self.select_states = [False] * 8
         self.fader_levels = [0] * 8
@@ -266,8 +263,7 @@ class LogicMCUManager:
     def handle_sysex(self, data):
         try:
             # Validate Mackie header (first 3 bytes manufacturer; 4th is model 0x12/0x14)
-            if not (len(data) >= 5 and list(data[:3]) == definitions.MCU_SYSEX_PREFIX_ANY and data[
-                3] in definitions.ACCEPTED_MCU_MODEL_IDS):
+            if not (len(data) >= 5 and list(data[:3]) == definitions.MCU_SYSEX_PREFIX_ANY and data[3] in definitions.ACCEPTED_MCU_MODEL_IDS):
                 if self.debug_mcu:
                     print("[MCU] Ignoring non-Mackie sysex:", data[:8], "…")
                 return
@@ -305,31 +301,32 @@ class LogicMCUManager:
                 return
 
             # Standard Mackie blocks
-            if 0x10 <= cmd <= 0x17 and len(payload) == 9:  # meters
+            if 0x10 <= cmd <= 0x17 and len(payload) == 9:   # meters
                 self._handle_meter_dump(payload)
                 return
-            if cmd == 0x12:  # scribble-strip text
+            if cmd == 0x12:                                 # scribble-strip text
                 self._handle_display_text(payload)
                 return
-            if cmd == 0x20:  # channel LED state
+            if cmd == 0x20:                                 # channel LED state
                 self._handle_channel_led(payload[1:])
                 return
-            if cmd == 0x21:  # transport bits
+            if cmd == 0x21:                                 # transport bits
                 self._handle_transport(payload[1:])
                 return
-            if cmd == 0x0E and len(payload) >= 2:  # V-Pot ring LED
+            if cmd == 0x0E and len(payload) >= 2:           # V-Pot ring LED
                 self._handle_vpot(payload[1:])
                 return
-            if cmd == 0x72:  # time
+            if cmd == 0x72:                                 # time
                 self._handle_time(payload[1:])
                 return
 
-                if self.debug_mcu:
-                    print(f"[MCU] Unhandled SysEx cmd 0x{cmd:02X}, payload={payload}")
+            if self.debug_mcu:
+                print(f"[MCU] Unhandled SysEx cmd 0x{cmd:02X}, payload={payload}")
 
         except Exception as e:
             if self.debug_mcu:
                 print("[MCU] Failed to parse SysEx:", e)
+
 
     def request_channel_led_state(self, track_idx):
         try:
@@ -344,18 +341,19 @@ class LogicMCUManager:
             if self.debug_mcu:
                 print(f"[MCU] Failed to request channel LED state: {e}")
 
+
     def current_bank_start(self):
         return 0 if self.selected_track_idx is None else (self.selected_track_idx // 8) * 8
 
     def get_visible_track_names(self):
         start = self.current_bank_start()
         names = (self.track_names + [""] * 8)
-        return names[start:start + 8]
+        return names[start:start+8]
 
     def get_visible_pan_values(self):
         start = self.current_bank_start()
         pans = (self.pan_levels + [0.0] * 8)
-        return pans[start:start + 8]
+        return pans[start:start+8]
 
     def _handle_display_text(self, payload):
         if len(payload) < 2:
@@ -367,17 +365,17 @@ class LogicMCUManager:
         if pos < 56:
             n = min(56 - pos, len(data))
             if n > 0:
-                self._lcd_top[pos:pos + n] = data[:n]
+                self._lcd_top[pos:pos+n] = data[:n]
         else:
             pos2 = pos - 56
             if pos2 < 56:
                 n = min(56 - pos2, len(data))
                 if n > 0:
-                    self._lcd_bot[pos2:pos2 + n] = data[:n]
+                    self._lcd_bot[pos2:pos2+n] = data[:n]
 
         # --- TOP: names
         top = bytes(self._lcd_top)
-        cells_top = [top[i:i + 7].decode('ascii', 'ignore').strip() for i in range(0, 56, 7)]
+        cells_top = [top[i:i+7].decode('ascii','ignore').strip() for i in range(0,56,7)]
         names_changed = False
         for i, cell in enumerate(cells_top[:8]):
             if not cell:
@@ -392,7 +390,7 @@ class LogicMCUManager:
 
         # --- BOTTOM: pans
         bot = bytes(self._lcd_bot)
-        cells_bot = [bot[i:i + 7].decode('ascii', 'ignore').strip() for i in range(0, 56, 7)]
+        cells_bot = [bot[i:i+7].decode('ascii','ignore').strip() for i in range(0,56,7)]
         for i, cell in enumerate(cells_bot[:8]):
             if not cell:
                 continue
@@ -406,7 +404,11 @@ class LogicMCUManager:
 
         if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
             self.app.mc_mode.update_strip_values()
-            self.pending_update = True
+        self.pending_update = True
+
+
+
+
 
     def _handle_channel_led(self, payload):
         # print(f"<< LED dump for ch {payload[0]} ({'new' if payload[0] == 0 else ''})")
@@ -521,9 +523,9 @@ class LogicMCUManager:
         bank_start = 0
         if self.selected_track_idx is not None:
             bank_start = (self.selected_track_idx // 8) * 8
-        # Always return 8 names, padding with blanks if needed
-        names = (self.track_names + [""] * 8)  # pad in case too short
-        return names[bank_start:bank_start + 8]
+            # Always return 8 names, padding with blanks if needed
+            names = (self.track_names + [""] * 8)  # pad in case too short
+            return names[bank_start:bank_start + 8]
 
     def update_track_names_from_sysex(self, payload):
         """
@@ -652,8 +654,8 @@ class LogicMCUManager:
                 # if your mc_mode has a setter, use it; otherwise refresh values
                 if hasattr(self.app.mc_mode, "set_strip_pan"):
                     self.app.mc_mode.set_strip_pan(ch, pan)
-                    self.app.mc_mode.update_strip_values()
-                self.pending_update = True
+                self.app.mc_mode.update_strip_values()
+            self.pending_update = True
             return
 
         # --- Faders 72..79 ---
@@ -662,7 +664,13 @@ class LogicMCUManager:
             level = value / 127.0
             self.fader_levels[idx] = level
             self.emit_event("fader", channel_idx=idx, level=level)
-        return
+            return
+
+        if self.debug_mcu:
+            print(f"[MCU] CC {control} = {value}")
+
+
+
 
     def handle_pitchbend(self, channel, pitch):
         """

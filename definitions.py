@@ -15,25 +15,27 @@ isPlaying = 0.0  # instead of False
 isMetronome = 0.0
 isRecording = 0.0
 
-OVERLAY_TOKENS = {
-    "vol","volume","pan","mute","solo",
-    "send","sends","input","output",
-    "gain","eq","vpot","insert","bypass"
-}
 # -----------------------------------------------------------------------------
 # Mackie/MCU Model IDs & SysEx prefixes
 # -----------------------------------------------------------------------------
 # --- Mackie / Logic MCU IDs
-MCU_MODEL_ID = 0x14  # Logic sends 0x14 in your logs; 0x12 also exists
+MCU_MODEL_ID = 0x14  # Logic sends 0x14; some hosts use 0x12
 ACCEPTED_MCU_MODEL_IDS = (0x12, 0x14)
 
 MCU_SYSEX_PREFIX = [0x00, 0x00, 0x66, MCU_MODEL_ID]        # for sending
 MCU_SYSEX_PREFIX_ANY = [0x00, 0x00, 0x66]                  # for matching incoming
 
-# Optional: device inquiry you *send* (comment was misleading before)
-MCU_DEVICE_INQUIRY = [0x7E, 0x7F, 0x06, 0x01]  # Universal Device Inquiry
+# Universal Device Inquiry request; many DAWs answer with their own vendor/model header right after this
+MCU_DEVICE_INQUIRY = [0x7E, 0x7F, 0x06, 0x01]
 MCU_METERS_ON       = MCU_SYSEX_PREFIX + [0x00, 0x00]
 MCU_METERS_OFF      = MCU_SYSEX_PREFIX + [0x00, 0x01]
+
+# Things the DAW writes on the LCD top/bottom rows that are UI overlays, not track names
+OVERLAY_TOKENS = {
+    'vol', 'volume', 'pan', 'mute', 'solo', 'send', 'sends', 'input', 'output', 'gain', 'eq', 'vpot', 'insert',
+    'bypass', 'aux', 'auxes', 'in', 'out', 'read', 'write', 'latch', 'touch', 'trim', 'group', 'smpte', 'beats',
+    'bar', 'bars', 'time', 'min', 'sec', 'msec', 'frames'
+}
 
 LAYOUT_MELODIC = 'lmelodic'
 LAYOUT_RHYTHMIC = 'lrhythmic'
@@ -183,14 +185,14 @@ SCALES = (
 )
 _FADER_TABLE = [
     # pb , dB
-    (60, -100.0),  
+    (60, -100.0),
     (127, -95.0),
     (140, -90.0),
     (153, -85.0),
     (166, -80.0),
-    (172, -77.5),  
+    (172, -77.5),
     (179, -75.0),
-    (185, -72.5),  
+    (185, -72.5),
     (192, -70.0),
     (324, -65.0),
     (457, -60.0),
@@ -198,50 +200,50 @@ _FADER_TABLE = [
     (994, -55.0),
 
     (1090, -50.0),
-    (1183, -48.0),  
+    (1183, -48.0),
     (1276, -47.5),
-    (1361, -46.0),  
+    (1361, -46.0),
     (1446, -45.0),
-    (1568, -44.0),  
-    (1629, -43.0),  
+    (1568, -44.0),
+    (1629, -43.0),
     (1691, -42.5),
-    (1877, -41.0),  
+    (1877, -41.0),
     (2564, -40.0),
 
-    (2680, -39.0),  
-    (2797, -38.0),  
+    (2680, -39.0),
+    (2797, -38.0),
     (2797, -37.5),
-    (2927, -36.5),  
+    (2927, -36.5),
     (3058, -35.0),
-    (3312, -34.0),  
-    (3439, -33.0),  
+    (3312, -34.0),
+    (3439, -33.0),
     (3567, -32.5),
-    (3778, -31.0),  
+    (3778, -31.0),
     (3990, -30.0),
-    (4162, -29.0),  
+    (4162, -29.0),
     (4335, -27.3),
-    (4500, -26.0),  
+    (4500, -26.0),
     (4664, -25.0),
     (4812, -24.0),
     (4950, -23.0),
     (5064, -22.0),
     (5178, -21.0),
     (5293, -20.0),
-    (5533, -19.0),  
+    (5533, -19.0),
     (5772, -18.0),
-    (6025, -17.0),  
-    (6250, -16.0),  
+    (6025, -17.0),
+    (6250, -16.0),
     (6479, -15.0),
-    (6828, -14.0),  
-    (6940, -13.0),  
+    (6828, -14.0),
+    (6940, -13.0),
     (7178, -12.0),
     (7390, -11.0),
     (7603, -10.0),
     (7892, -9.5),
     (8178, -9.0),
     (8460, -8.5),
-    (8739, -8.0),  
-    (9298, -7.0),  
+    (8739, -8.0),
+    (9298, -7.0),
     (9874, -6.0),
     (10451, -5.0),
     (10849, -4.0),
