@@ -71,13 +71,15 @@ class LogicMCUManager:
         self.on_vpot = None            # raw ring from 0x0E (optional legacy)
         self.on_vpot_display = None    # official ring echo: fn(ch:int, pos:int)
         self.on_track_state = None
-
+        self._last_vpot_idx = None                  # 0..7
+        self.vpot_pos = [0]*8                       # 0..7 (tick slots)
         self.listener_thread = None
         self.running = False
         self._last_led_req = 0.0
         self._led_req_interval = 0.3
         self._led_req_bank = None
-
+        self._lcd_pan_ts = [0.0] * 8     # when we last accepted pan from LCD (per strip)
+        self.pan_string  = [""]  * 8
         # State cache for throttling
         self.last_update_time = 0
         self.pending_update = False
@@ -210,14 +212,36 @@ class LogicMCUManager:
             elif msg.type == "pitchwheel":
                 self.handle_pitchbend(msg.channel, msg.pitch)
 
-            elif msg.type in ("aftertouch", "polytouch"):
-                # Channel‑pressure: Logic streams meters 0‑127
-                ch = getattr(msg, "channel", 0)
-                self.meter_levels[ch % 8] = msg.value
-                self._fire("meter", channel_idx=ch % 8, value=msg.value)
-                self.pending_update = True
+            elif msg.type in ("aftertouch", "polytouch", "channel_pressure"):
+                # Ticks disabled for now
+                continue
+                # idx = self._last_vpot_idx
+                # if idx is None or not (0 <= idx <= 7):
+                #     continue
+                #
+                # val  = int(msg.value)                 # 0..127
+                # slot = min(7, max(0, val // 16))      # 8 ticks for your UI
+                # ring = min(11, max(0, int(round(val * 11 / 127.0))))  # 0..11
+                #
+                # self.vpot_pos[idx] = slot
+                # if self.vpot_ring[idx] != ring:
+                #     self.vpot_ring[idx] = ring
+                #     if self.on_vpot_display:
+                #         try: self.on_vpot_display(idx, ring)
+                #         except Exception: pass
+                #
+                # if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
+                #     if hasattr(self.app.mc_mode, "set_pan_tick"):
+                #         try: self.app.mc_mode.set_pan_tick(idx, slot)
+                #         except Exception: pass
+                #     self.app.mc_mode.update_strip_values()
+                #
+                # self.pending_update = True
+                # continue
 
-            # Throttle updates
+
+
+    # Throttle updates
             now = time.time()
             if now - self.last_update_time >= self.update_interval:
                 if self.pending_update:
@@ -305,23 +329,32 @@ class LogicMCUManager:
                 self._handle_display_text(payload)
                 return
             if cmd == 0x20:
-                # payload = [0x20, ch, val]
-                if len(payload) < 3:
-                    return
-                ch  = int(payload[1])
-                val = int(payload[2])
-
-                if 0 <= ch <= 7 and 0 <= val <= 11:
-                    self.vpot_ring[ch] = val
-                    if self.on_vpot_display:
-                        try:
-                            self.on_vpot_display(ch, val)
-                        except Exception:
-                            import logging; logging.exception("on_vpot_display failed")
-                    return
-
-                if ch >= 8:
-                    self._handle_channel_led([ch, val])
+                # # payload = [0x20, ch, val]
+                # if len(payload) < 3:
+                #     return
+                # ch  = int(payload[1])
+                # val = int(payload[2])
+                #
+                # # NEW: 0x07 = selector for which v‑pot the next channel-pressure belongs to
+                # if 0 <= ch <= 7 and val == 0x07:
+                #     self._last_vpot_idx = ch
+                #     if self.debug_mcu:
+                #         print(f"[MCU] VPOT selector → idx {ch}")
+                #     return
+                #
+                # # Ring echo case (some hosts send 0x20 ch pos directly)
+                # if 0 <= ch <= 7 and 0 <= val <= 11:
+                #     self.vpot_ring[ch] = val
+                #     if self.on_vpot_display:
+                #         try:
+                #             self.on_vpot_display(ch, val)
+                #         except Exception:
+                #             import logging; logging.exception("on_vpot_display failed")
+                #     return
+                #
+                # # Channel LED bits for ch >= 8
+                # if ch >= 8:
+                #     self._handle_channel_led([ch, val])
                 return
             if cmd == 0x21:                                 # transport bits
                 self._handle_transport(payload)
@@ -375,39 +408,62 @@ class LogicMCUManager:
     def _handle_display_text(self, payload):
         if len(payload) < 2:
             return
-        pos = payload[1]
+        pos = int(payload[1])
         data = bytes(payload[2:])
 
-        # merge into top or bottom 56‑byte buffer
-        if pos < 56:
-            n = min(56 - pos, len(data))
-            if n > 0:
-                self._lcd_top[pos:pos+n] = data[:n]
-        else:
-            pos2 = pos - 56
-            if pos2 < 56:
-                n = min(56 - pos2, len(data))
-                if n > 0:
-                    self._lcd_bot[pos2:pos2+n] = data[:n]
+        # --- FIX: support cross-line writes (one 0x12 frame can carry TOP+BOTTOM)
+        p = pos
+        remaining = data
 
-        # --- TOP: names (7 chars × 8)
+        # If Logic sends a full 112-byte frame starting at 0, clear old buffers first
+        if p == 0 and len(remaining) >= 112:
+            self._lcd_top[:] = b' ' * 56
+            self._lcd_bot[:] = b' ' * 56
+
+        while remaining:
+            if p < 56:
+                n = min(56 - p, len(remaining))
+                if n > 0:
+                    self._lcd_top[p:p+n] = remaining[:n]
+                p += n
+                remaining = remaining[n:]
+            else:
+                p2 = p - 56
+                if p2 >= 56:
+                    # out of range; drop the rest safely
+                    break
+                n = min(56 - p2, len(remaining))
+                if n > 0:
+                    self._lcd_bot[p2:p2+n] = remaining[:n]
+                p += n
+                remaining = remaining[n:]
+
+        # --- TOP: names (7×8)
         top = bytes(self._lcd_top)
         cells_top = [top[i:i+7].decode('ascii','ignore').strip() for i in range(0,56,7)]
         names_changed = False
-        for i, cell in enumerate(cells_top[:8]):
-            if not cell:
-                continue
-            if cell.lower() in definitions.OVERLAY_TOKENS:
-                continue
-            if cell != self.track_names[i]:
-                self.track_names[i] = cell
-                names_changed = True
-        if names_changed and getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
-            self.app.mc_mode.set_visible_names(self.track_names)
+        has_any_name = any(cells_top[:8])
+        if has_any_name:
+            for i, cell in enumerate(cells_top[:8]):
+                if not cell or cell.lower() in definitions.OVERLAY_TOKENS:
+                    continue
+                if cell != self.track_names[i]:
+                    self.track_names[i] = cell
+                    names_changed = True
+            if names_changed and getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
+                self.app.mc_mode.set_visible_names(self.track_names)
 
-        # --- BOTTOM: pans (exact integers like "+40", "-12", "0" or "C" for center)
+        # --- BOTTOM: pans ("+40", "-12", "0", "C")
         bot = bytes(self._lcd_bot)
         cells_bot = [bot[i:i+7].decode('ascii','ignore').strip() for i in range(0,56,7)]
+
+        # (optional) debug so you can verify we actually caught the 0,10,20,... frame
+        if self.debug_mcu:
+            try:
+                print("[MCU] LCD pans:", " | ".join(cells_bot[:8]))
+            except Exception:
+                pass
+
         for i, cell in enumerate(cells_bot[:8]):
             if not cell:
                 continue
@@ -429,6 +485,7 @@ class LogicMCUManager:
         if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
             self.app.mc_mode.update_strip_values()
         self.pending_update = True
+
 
     def _handle_channel_led(self, payload):
         if len(payload) < 2: return
@@ -648,36 +705,16 @@ class LogicMCUManager:
             self.handle_sysex(list(msg.data))
 
     def handle_cc(self, control, value):
-        # --- VPOTs (Pan) 48..55: absolute 0..127 where 64 ≈ center ---
+        # --- VPOTs (Pan) 48..55: use CC only to refresh the ring (keep numbers from LCD)
         if 48 <= control <= 55:
-            ch  = control - 48
-            val = int(value)                 # 0..127 from Logic
-
-            # 1) Update your –64..+63 pan cache (UI/useful for text, etc.)
-            pan = max(-64, min(63, val - 64))
-            self.pan_levels[ch] = float(pan)
-
-            # 2) Fallback ring calc (0..11). Center (64) -> 6.
-            ring = (val * 12) // 128         # maps 0->0, 64->6, 127->11
-
-            # 3) Only ping UI if the ring really changed
-            if 0 <= ch <= 7:
-                if self.vpot_ring[ch] != ring:
-                    self.vpot_ring[ch] = ring
-                    if self.on_vpot_display:
-                        try:
-                            self.on_vpot_display(ch, ring)
-                        except Exception:
-                            import logging; logging.exception("on_vpot_display failed")
-
-            # 4) Keep your existing notifications for pan
-            self.emit_event("pan", channel_idx=ch, value=float(pan))
-            if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
-                if hasattr(self.app.mc_mode, "set_strip_pan"):
-                    self.app.mc_mode.set_strip_pan(ch, pan)
-                self.app.mc_mode.update_strip_values()
-
-            self.pending_update = True
+            # ch  = control - 48
+            # val = int(value)
+            # ring = (val * 12) // 128
+            # if 0 <= ch <= 7 and self.vpot_ring[ch] != ring:
+            #     self.vpot_ring[ch] = ring
+            #     if self.on_vpot_display:
+            #         try: self.on_vpot_display(ch, ring)
+            #         except Exception: pass
             return
 
         # --- Faders 72..79 ---

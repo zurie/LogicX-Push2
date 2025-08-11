@@ -695,11 +695,24 @@ class MackieControlMode(definitions.LogicMode):
 
         self.set_visible_names(names)
         print("[TrackMode] Setting track names:", names)
+        # Seed green numbers from Logic cache immediately
+        if hasattr(self.app, "mcu_manager"):
+            pans = self.app.mcu_manager.get_visible_pan_values()  # [-64..+63 floats]
+            if hasattr(self, "set_strip_pan"):
+                for i, pan in enumerate(pans):
+                    try:
+                        self.set_strip_pan(i, int(pan))
+                    except Exception:
+                        pass
+            # repaint once
+            if hasattr(self, "update_strip_values"):
+                self.update_strip_values()
+        self._sync_pan_from_logic()   # ← copy cached pan from MCU manager into UI
+        self.update_strip_values()    # ← paint immediately
         self.push.pads.set_all_pads_to_color(color=definitions.BLACK)
         self.update_encoders()
         self._blank_track_row_buttons()
         self.update_buttons()
-        self.update_strip_values()
         self._paint_selector_row()
 
         # seed from Logic's current pan levels
@@ -744,6 +757,7 @@ class MackieControlMode(definitions.LogicMode):
 
         # reflect any external pan changes instantly
         self._sync_pan_from_logic()
+        self.update_strip_values()
         mm = getattr(self.app, "mcu_manager", None)
         if mm and hasattr(mm, "get_visible_track_names"):
             self.set_visible_names(mm.get_visible_track_names())
