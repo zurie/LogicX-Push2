@@ -457,7 +457,7 @@ class MackieControlMode(definitions.LogicMode):
     def initialize(self, settings=None):
         """Build default strips and start meter timer."""
         super().initialize(settings) if hasattr(super(), "initialize") else None
-        self._pad_meter = PadMeter(self.push)
+        # self._pad_meter = PadMeter(self.push)
         self.track_strips = []
         self.current_page = 0
         self.tracks_per_page = 8
@@ -503,19 +503,21 @@ class MackieControlMode(definitions.LogicMode):
             mm.add_listener("meter", self._on_mcu_meter)
             mm.add_listener("pan_text", self._on_mcu_pan_text)
 
+            if hasattr(mm, "on_vpot_display"):
+                mm.on_vpot_display = self.on_mcu_pan_echo
             # current transport state
             self._playing = mm.transport.get("play", False)
             self._on_mcu_transport(state=mm.transport)
             self._on_mcu_meter()
 
-            self.pad_meter = PadMeter(self.push)
+            # self.pad_meter = PadMeter(self.push)
             self._listeners_added = True
 
     # ─── transport callback ───────────────────────────────────────────
     def _on_mcu_transport(self, *, state, **_):
         self._playing = bool(state.get("play", False))
         if not self._playing and self.app.is_mode_active(self):
-            self._pad_meter.update([0] * 8)
+            # self._pad_meter.update([0] * 8)
             self.push.pads.set_all_pads_to_color(definitions.BLACK)
 
     def _on_mcu_pan_text(self, *, channel_idx: int, value, **_):
@@ -547,14 +549,18 @@ class MackieControlMode(definitions.LogicMode):
             return
 
         mm = self.app.mcu_manager
-        num_banks = len(mm.meter_levels) // 8
+        if not mm or len(mm.meter_levels) < 8:  # <-- guard
+            return
+        num_banks = max(1, len(mm.meter_levels) // 8)
         raw = []
         for i in range(8):
-            levels = [
-                (mm.meter_levels[bank * 8 + i] & 0x0F)
-                for bank in range(num_banks)
-            ]
-            raw.append(max(levels))
+            levels = [(mm.meter_levels[bank * 8 + i] & 0x0F)
+                      for bank in range(num_banks)
+                      if (bank * 8 + i) < len(mm.meter_levels)]
+            if not levels:
+                raw.append(0)
+            else:
+                raw.append(max(levels))
         MIN_RAW = 4
         MAX_RAW = 12
 
@@ -568,7 +574,7 @@ class MackieControlMode(definitions.LogicMode):
                 s = max(1, min(127, s))
             scaled.append(s)
 
-        self._pad_meter.update(scaled)
+        # self._pad_meter.update(scaled)
 
     # ---------------------------------------------------------------- ring helper
     def _set_ring(self, idx: int, value: int):
@@ -694,12 +700,12 @@ class MackieControlMode(definitions.LogicMode):
                 self._last_pan[i] = v
                 self._set_ring(i, int((v + 64) * 127 / 128))
 
-        if mm and mm.transport.get("play", False):
-            self._pad_meter.update(
-                mm.meter_levels[self.current_page * 8: self.current_page * 8 + 8]
-            )
-        else:
-            self._pad_meter.update([0] * 8)
+        # if mm and mm.transport.get("play", False):
+        #     self._pad_meter.update(
+        #         mm.meter_levels[self.current_page * 8: self.current_page * 8 + 8]
+        #     )
+        # else:
+        #     self._pad_meter.update([0] * 8)
 
     def deactivate(self):
         super().deactivate()
@@ -745,7 +751,7 @@ class MackieControlMode(definitions.LogicMode):
         self._draw_bottom_mode_labels(ctx, w, h)
         self.update_buttons()
 
-    def current_page(self) -> int:
+    def get_current_page(self) -> int:
         mm = getattr(self.app, "mcu_manager", None)
         sel = mm.selected_track_idx if mm else 0
         return (sel or 0) // 8
