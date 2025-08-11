@@ -140,31 +140,45 @@ class TrackStrip:
         ctx.stroke()
         ctx.restore()
 
-        # ── 11-tick pan ring (visual on the OLED) ─────────────────────────────
-        pan_f = float(self.get_pan_func(self.index))  # −64..+63 (from Logic)
+        # --- always compute the numeric pan for the center label ---
+        pan_f = float(self.get_pan_func(self.index))         # −64..+63 from Logic
         pan_clamped = max(-64.0, min(64.0, pan_f))
-        pan_steps = [-64, -51, -38, -25, -13, 0, 13, 26, 38, 51, 64]
-        cur_idx = min(range(len(pan_steps)), key=lambda i: abs(pan_steps[i] - pan_clamped))
+        # ----- 11-tick pan ring (OLED) -----
+        # Prefer Logic’s ring echo
+        ring_idx = None
+        mc_mode = getattr(self.app, "mc_mode", None)
+        if mc_mode is not None and hasattr(mc_mode, "_pan_ring"):
+            try:
+                ring_idx = int(mc_mode._pan_ring[_bank(self.index)])
+            except Exception:
+                ring_idx = None
+
+        if ring_idx is None:
+            # Fallback: derive ticks from pan value
+            pan_steps = [-64, -51, -38, -25, -13, 0, 13, 26, 38, 51, 64]
+            cur_idx = min(range(len(pan_steps)), key=lambda i: abs(pan_steps[i] - pan_clamped))
+        else:
+            # Map 0..11 (Logic) → 0..10 (11 OLED ticks)
+            cur_idx = max(0, min(10, int(round(ring_idx * 10 / 11.0))))
 
         inner_r = radius - 6
         tick_len = 6
-        for i, _ in enumerate(pan_steps):
-            ang = start_rad + math.radians(280) * i / (len(pan_steps) - 1)
+        for i in range(11):
+            ang = start_rad + math.radians(280) * i / 10.0
             x1 = xc + inner_r * math.cos(ang)
             y1 = yc + inner_r * math.sin(ang)
             x2 = xc + (inner_r - tick_len) * math.cos(ang)
             y2 = yc + (inner_r - tick_len) * math.sin(ang)
-            lit = ((cur_idx == 5 and i == 5) or
-                   (cur_idx < 5 and i <= 5 and i >= cur_idx) or
-                   (cur_idx > 5 and i >= 5 and i <= cur_idx))
+            center = 5
+            lit = ((cur_idx == center and i == center) or
+                   (cur_idx < center and center >= i >= cur_idx) or
+                   (cur_idx > center and center <= i <= cur_idx))
             col = definitions.GREEN if lit else definitions.GRAY_DARK
             ctx.set_source_rgb(*definitions.get_color_rgb_float(col))
             ctx.set_line_width(2)
-            ctx.move_to(x1, y1)
-            ctx.line_to(x2, y2)
-            ctx.stroke()
+            ctx.move_to(x1, y1); ctx.line_to(x2, y2); ctx.stroke()
 
-        # ----- Centered green pan value (from Logic) --------------------------
+        # ----- Centered green pan value (from Logic) -----
         pan_text = f"{int(pan_clamped):+d}" if pan_clamped.is_integer() else f"{pan_clamped:+.1f}"
         ctx.save()
         ctx.set_source_rgb(*definitions.get_color_rgb_float(definitions.GREEN))
@@ -502,9 +516,6 @@ class MackieControlMode(definitions.LogicMode):
             mm.add_listener("mute", self._on_mcu_track_state)
             mm.add_listener("meter", self._on_mcu_meter)
             mm.add_listener("pan_text", self._on_mcu_pan_text)
-
-            if hasattr(mm, "on_vpot_display"):
-                mm.on_vpot_display = self.on_mcu_pan_echo
             # current transport state
             self._playing = mm.transport.get("play", False)
             self._on_mcu_transport(state=mm.transport)

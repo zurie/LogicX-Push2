@@ -149,27 +149,15 @@ class LogicApp(object):
         self.init_modes(settings)
 
     def _on_mcu_vpot_display(self, ch: int, pos: int):
+        """Forward Logic’s official V-Pot ring echo (0..11) to the UI."""
+        try:
+            idx = int(ch) & 0x07                  # 0..7
+            ring = max(0, min(11, int(pos)))      # clamp 0..11
+        except Exception:
+            return
+
         if hasattr(self, "mc_mode") and self.is_mode_active(self.mc_mode):
-            self.mc_mode.on_mcu_pan_echo(ch, pos)
-
-
-
-        # 2) Ignore bursts touching several channels in the same ms tick
-        now_tick = int(time.time() * 1000)
-        if now_tick != self._last_tick:
-            self._last_tick = now_tick
-            self._channels_this_tick.clear()
-        if idx in self._channels_this_tick:
-            return  # duplicate within same tick
-        self._channels_this_tick.add(idx)
-        if len(self._channels_this_tick) > 1:
-            return  # more than one channel updated – treat as refresh
-
-        # Genuine human turn → translate to ±1 step
-        direction = -1 if value & 0x40 else +1
-        encoder_name = MackieControlMode.encoder_names[idx]
-        if self.is_mode_active(self.mc_mode):
-            self.mc_mode.on_encoder_rotated(encoder_name, direction)
+            self.mc_mode.on_mcu_pan_echo(idx, ring)
 
     # ───────────────────────────────────────────────────────────
     # MODE INIT

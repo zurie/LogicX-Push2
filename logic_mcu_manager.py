@@ -327,29 +327,35 @@ class LogicMCUManager:
                     self._handle_channel_led([ch, val])
                 return
             if cmd == 0x21:                                 # transport bits
-                self._handle_transport(payload[1:])
+                self._handle_transport(payload)
                 return
             if cmd == 0x72:                                 # time
                 self._handle_time(payload[1:])
                 return
 
-            # Official Mackie V-Pot RING echo (your logs showed this path too)
-            # F0 00 00 66 14 20 <ch> <pos> F7
-            if len(data) == 9 and data[0] == 0xF0 and data[1:4] == b'\x00\x00\x66' and data[4] == 0x14 and data[5] == 0x20:
-                ch  = data[6] & 0x07
-                pos = int(data[7])
-                pos = 0 if pos < 0 else 11 if pos > 11 else pos
+            # Official 9-byte ring echo
+            if len(data) == 9 and data[1:4] == b'\x00\x00\x66' and data[4] == 0x14 and data[5] == 0x20:
+                ch  = int(data[6]) & 0x07
+                pos = max(0, min(11, int(data[7])))
                 self.vpot_ring[ch] = pos
-                cb = self.on_vpot_display
-                if cb:
-                    try:
-                        cb(ch, pos)
-                    except Exception:
-                        import logging; logging.exception("on_vpot_display failed")
+                if self.on_vpot_display:
+                    try: self.on_vpot_display(ch, pos)
+                    except Exception: import logging; logging.exception("on_vpot_display failed")
                 return
 
-            if self.debug_mcu:
-                print(f"[MCU] Unhandled SysEx cmd 0x{cmd:02X}, payload={payload}")
+            # Compact block: cmd == 0x20 and payload looks like [0x20, ch, pos]
+            if cmd == 0x20 and len(payload) >= 3:
+                ch  = int(payload[1])
+                pos = int(payload[2])
+                if 0 <= ch <= 7 and 0 <= pos <= 11:
+                    self.vpot_ring[ch] = pos
+                    if self.on_vpot_display:
+                        try: self.on_vpot_display(ch, pos)
+                        except Exception: import logging; logging.exception("on_vpot_display failed")
+                    return
+                # else it's a channel LED bit dump:
+                self._handle_channel_led([ch, pos])
+                return
 
         except Exception as e:
             if self.debug_mcu:
@@ -416,25 +422,26 @@ class LogicMCUManager:
         if names_changed and getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
             self.app.mc_mode.set_visible_names(self.track_names)
 
-        # --- BOTTOM: pans (exact integers like "+40", "-12", "0")
+        # --- BOTTOM: pans (exact integers like "+40", "-12", "0" or "C" for center)
         bot = bytes(self._lcd_bot)
         cells_bot = [bot[i:i+7].decode('ascii','ignore').strip() for i in range(0,56,7)]
         for i, cell in enumerate(cells_bot[:8]):
             if not cell:
                 continue
-            val = None
             if cell == "C":
-                val = 0
+                v = 0
             elif _PAN_RE.match(cell):
                 try:
-                    val = max(-64, min(63, int(cell)))
+                    v = max(-64, min(63, int(cell)))
                 except ValueError:
-                    val = None
-            if val is not None:
-                self.pan_text[i] = val
-                self.pan_levels[i] = float(val)
-                self._fire("pan_text", channel_idx=i, value=float(val))
-                self._fire("pan", channel_idx=i, value=float(val))
+                    continue
+            else:
+                continue
+
+            self.pan_text[i]   = v
+            self.pan_levels[i] = float(v)
+            self._fire("pan_text", channel_idx=i, value=float(v))
+            self._fire("pan",      channel_idx=i, value=float(v))
 
         if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
             self.app.mc_mode.update_strip_values()
