@@ -149,13 +149,8 @@ class LogicApp(object):
         self.init_modes(settings)
 
     def _on_mcu_vpot_display(self, ch: int, pos: int):
-        """Forward Logic’s official V-Pot ring echo (0..11) to the UI."""
-        try:
-            idx = int(ch) & 0x07                  # 0..7
-            ring = max(0, min(11, int(pos)))      # clamp 0..11
-        except Exception:
-            return
-
+        idx  = int(ch) & 0x07
+        ring = max(0, min(11, int(pos)))
         if hasattr(self, "mc_mode") and self.is_mode_active(self.mc_mode):
             self.mc_mode.on_mcu_pan_echo(idx, ring)
 

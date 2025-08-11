@@ -95,7 +95,6 @@ class LogicMCUManager:
         self.fader_levels   = [0] * 8
         self.pan_levels     = [0.0] * 8        # −64..+63 (float)
         self.pan_text       = [None] * 8       # what the LCD shows (int)
-        self.vpot_rings     = [0] * 9
         self.vpot_ring      = [6] * 8          # 0..11, 6 = detent
 
         self.selected_track_idx = None
@@ -312,18 +311,16 @@ class LogicMCUManager:
                 ch  = int(payload[1])
                 val = int(payload[2])
 
-                # Ring echo looks like: ch in 0..7 and pos in 0..11
-                # LED dump can be any ch (often >=8) and val is a bitmask
                 if 0 <= ch <= 7 and 0 <= val <= 11:
-                    # treat as V-Pot ring echo
                     self.vpot_ring[ch] = val
                     if self.on_vpot_display:
                         try:
                             self.on_vpot_display(ch, val)
                         except Exception:
                             import logging; logging.exception("on_vpot_display failed")
-                else:
-                    # treat as channel LED state
+                    return
+
+                if ch >= 8:
                     self._handle_channel_led([ch, val])
                 return
             if cmd == 0x21:                                 # transport bits
@@ -341,20 +338,6 @@ class LogicMCUManager:
                 if self.on_vpot_display:
                     try: self.on_vpot_display(ch, pos)
                     except Exception: import logging; logging.exception("on_vpot_display failed")
-                return
-
-            # Compact block: cmd == 0x20 and payload looks like [0x20, ch, pos]
-            if cmd == 0x20 and len(payload) >= 3:
-                ch  = int(payload[1])
-                pos = int(payload[2])
-                if 0 <= ch <= 7 and 0 <= pos <= 11:
-                    self.vpot_ring[ch] = pos
-                    if self.on_vpot_display:
-                        try: self.on_vpot_display(ch, pos)
-                        except Exception: import logging; logging.exception("on_vpot_display failed")
-                    return
-                # else it's a channel LED bit dump:
-                self._handle_channel_led([ch, pos])
                 return
 
         except Exception as e:
@@ -667,15 +650,33 @@ class LogicMCUManager:
     def handle_cc(self, control, value):
         # --- VPOTs (Pan) 48..55: absolute 0..127 where 64 ≈ center ---
         if 48 <= control <= 55:
-            ch = control - 48
-            pan = max(-64, min(63, int(value) - 64))  # map to -64..+63
+            ch  = control - 48
+            val = int(value)                 # 0..127 from Logic
+
+            # 1) Update your –64..+63 pan cache (UI/useful for text, etc.)
+            pan = max(-64, min(63, val - 64))
             self.pan_levels[ch] = float(pan)
-            # notify listeners / UI
+
+            # 2) Fallback ring calc (0..11). Center (64) -> 6.
+            ring = (val * 12) // 128         # maps 0->0, 64->6, 127->11
+
+            # 3) Only ping UI if the ring really changed
+            if 0 <= ch <= 7:
+                if self.vpot_ring[ch] != ring:
+                    self.vpot_ring[ch] = ring
+                    if self.on_vpot_display:
+                        try:
+                            self.on_vpot_display(ch, ring)
+                        except Exception:
+                            import logging; logging.exception("on_vpot_display failed")
+
+            # 4) Keep your existing notifications for pan
             self.emit_event("pan", channel_idx=ch, value=float(pan))
             if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
                 if hasattr(self.app.mc_mode, "set_strip_pan"):
                     self.app.mc_mode.set_strip_pan(ch, pan)
                 self.app.mc_mode.update_strip_values()
+
             self.pending_update = True
             return
 
