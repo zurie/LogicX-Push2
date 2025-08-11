@@ -64,7 +64,8 @@ class LogicMCUManager:
         self._listeners = {"track_state": [], "pan": [], "pan_text": [], "transport": [], "meter": []}
 
         self.transport = {"play": False, "stop": True, "record": False, "ffwd": False, "rew": False}
-
+        self._transport_dirty = True
+        self._transport_seen = False
         # Callback hooks (legacy single-slot style)
         self.on_transport_change = None
         self.on_button = None
@@ -124,6 +125,7 @@ class LogicMCUManager:
             self.running = True
             self.listener_thread = threading.Thread(target=self.listen_loop, daemon=True)
             self.listener_thread.start()
+            self.pending_update = True
         except Exception as e:
             print("[MCU] Could not open port:", e)
 
@@ -259,11 +261,13 @@ class LogicMCUManager:
                 self.app.update_push2_mute_solo(track_idx=self.selected_track_idx)
             self.app.buttons_need_update = False
 
-        # Transport colors can stay unconditional or you can gate them like above if you want
-        if hasattr(self.app, "update_play_button_color"):
-            self.app.update_play_button_color(self.transport.get("play", False))
-        if hasattr(self.app, "update_record_button_color"):
-            self.app.update_record_button_color(self.transport.get("record", False))
+        # Paint Play/Record only when state changed
+        if getattr(self, "_transport_dirty", False):
+            if hasattr(self.app, "update_play_button_color"):
+                self.app.update_play_button_color(self.transport.get("play", False))
+            if hasattr(self.app, "update_record_button_color"):
+                self.app.update_record_button_color(self.transport.get("record", False))
+            self._transport_dirty = False
 
     def request_bank_led_states(self, selected_idx: int):
         """Ask Logic for LED state for the 8 strips in the current bank, throttled."""
@@ -293,8 +297,7 @@ class LogicMCUManager:
     def handle_sysex(self, data: bytes):
         try:
             # Validate Mackie header
-            if not (len(data) >= 5 and list(data[:3]) == definitions.MCU_SYSEX_PREFIX_ANY and data[
-                3] in definitions.ACCEPTED_MCU_MODEL_IDS):
+            if not (len(data) >= 5 and list(data[:3]) == definitions.MCU_SYSEX_PREFIX_ANY and data[3] in definitions.ACCEPTED_MCU_MODEL_IDS):
                 if self.debug_mcu:
                     print("[MCU] Ignoring non-Mackie sysex:", data[:8], "…")
                 return
@@ -380,7 +383,8 @@ class LogicMCUManager:
                     try:
                         self.on_vpot_display(ch, pos)
                     except Exception:
-                        import logging; logging.exception("on_vpot_display failed")
+                        import logging;
+                        logging.exception("on_vpot_display failed")
                 return
 
         except Exception as e:
@@ -425,8 +429,7 @@ class LogicMCUManager:
         p = pos
         remaining = data
 
-        # If Logic sends a full 112-byte frame starting at 0, clear old buffers first
-        if p == 0 and len(remaining) >= 112:
+        if pos == 0:
             self._lcd_top[:] = b' ' * 56
             self._lcd_bot[:] = b' ' * 56
 
@@ -539,22 +542,43 @@ class LogicMCUManager:
     def _handle_transport(self, payload):
         if len(payload) < 2:
             return
-        bits = payload[1]
+
+        bits = int(payload[1])
+
+        # Logic MCU 0x21 bitfield: 0x01=STOP, 0x02=PLAY, 0x04=RECORD, 0x10=FFWD, 0x20=REW
+        play   = bool(bits & 0x02)
+        stop   = bool(bits & 0x01)
+        record = bool(bits & 0x04)
+        ffwd   = bool(bits & 0x10)
+        rew    = bool(bits & 0x20)
+
+        # If both happen to be set, prefer 'play'
+        if play and stop:
+            stop = False
+
         new_transport = {
-            "play": bool(bits & 0x01),
-            "stop": bool(bits & 0x02),
-            "record": bool(bits & 0x04),
-            "ffwd": bool(bits & 0x10),
-            "rew": bool(bits & 0x20),
+            "play":   play,
+            "stop":   stop,
+            "record": record,
+            "ffwd":   ffwd,
+            "rew":    rew,
         }
+
         if new_transport != self.transport:
             self.transport = new_transport
+            self._transport_dirty = True  # mark for UI paint
             if self.debug_mcu:
                 print("[MCU] Transport update:", self.transport)
             if self.on_transport_change:
                 self.on_transport_change(self.transport)
             self.emit_event("transport", state=self.transport)
-            self.pending_update = True
+        else:
+            # even if no change, note we've seen transport
+            self._transport_dirty = True
+
+        if self.debug_mcu:
+            print(f"[MCU] 0x21 bits=0x{bits:02X} → play={play} stop={stop} rec={record} ffwd={ffwd} rew={rew}")
+
 
     def _handle_time(self, payload):
         self.playhead = payload
@@ -680,6 +704,8 @@ class LogicMCUManager:
             # --- Transport buttons ---
             if label in ["play", "stop", "record", "ffwd", "rew"]:
                 self.transport[label] = pressed
+                self._transport_seen = True
+                self._transport_dirty = True
                 if self.on_transport_change:
                     self.on_transport_change(self.transport)
                 self.emit_event("transport", state=self.transport)

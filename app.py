@@ -367,27 +367,18 @@ class LogicApp(object):
             self.select_held = False
 
     # ───────────────────────────────────────────────────────────
-    # CALLBACKS (dual-mode)
     def update_play_button_color(self, is_playing):
-        if self.use_mcu and self.mcu_manager:
-            # MCU owns LEDs
-            self.mcu_manager.transport["play"] = is_playing
+        if is_playing:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
         else:
-            # Fallback to old method
-            if is_playing:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.GREEN)
-            else:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.LIME)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PLAY, definitions.LIME)
 
     def update_record_button_color(self, is_recording):
-        if self.use_mcu and self.mcu_manager:
-            # MCU owns LEDs
-            self.mcu_manager.transport["record"] = is_recording
-        else:
-            if is_recording:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.RED)
-            else:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_RECORD, definitions.GREEN)
+        # Color the Push 2 Record button directly; don't mutate MCU state here
+        self.push.buttons.set_button_color(
+            push2_python.constants.BUTTON_RECORD,
+            definitions.RED if is_recording else definitions.GREEN
+        )
 
     def update_push2_mute_solo(self, track_idx=None):
         # no MCU yet or no selection
