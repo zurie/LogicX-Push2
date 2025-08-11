@@ -141,7 +141,7 @@ class TrackStrip:
         ctx.restore()
 
         # --- always compute the numeric pan for the center label ---
-        pan_f = float(self.get_pan_func(self.index))         # −64..+63 from Logic
+        pan_f = float(self.get_pan_func(self.index))  # −64..+63 from Logic
         pan_clamped = max(-64.0, min(64.0, pan_f))
         # ----- 11-tick pan ring (OLED) -----
         # Prefer Logic’s ring echo
@@ -176,7 +176,9 @@ class TrackStrip:
             col = definitions.GREEN if lit else definitions.GRAY_DARK
             ctx.set_source_rgb(*definitions.get_color_rgb_float(col))
             ctx.set_line_width(2)
-            ctx.move_to(x1, y1); ctx.line_to(x2, y2); ctx.stroke()
+            ctx.move_to(x1, y1);
+            ctx.line_to(x2, y2);
+            ctx.stroke()
 
         # ----- Centered green pan value (from Logic) -----
         pan_text = f"{int(pan_clamped):+d}" if pan_clamped.is_integer() else f"{pan_clamped:+.1f}"
@@ -246,7 +248,6 @@ class MackieControlMode(definitions.LogicMode):
             strip_idx = self.current_page * self.tracks_per_page + i
             mute = bool(mm.mute_states[strip_idx]) if strip_idx < len(mm.mute_states) else False
             solo = bool(mm.solo_states[strip_idx]) if strip_idx < len(mm.solo_states) else False
-
 
             x = int(i * col_w)
             half = int(col_w / 2)
@@ -537,7 +538,7 @@ class MackieControlMode(definitions.LogicMode):
             return
         bi = channel_idx % 8
         if value is not None:
-            self._pan_view[bi] = float(value)   # −64..+63 from Logic
+            self._pan_view[bi] = float(value)  # −64..+63 from Logic
             self.app.display_dirty = True
             self.update_strip_values()
 
@@ -597,13 +598,17 @@ class MackieControlMode(definitions.LogicMode):
         value = max(0, min(127, int(value)))
 
         if hasattr(enc, "set_ring_value"):
-            enc.set_ring_value(name, value); return
+            enc.set_ring_value(name, value);
+            return
         if hasattr(enc, "set_encoder_ring_value"):
-            enc.set_encoder_ring_value(name, value); return
+            enc.set_encoder_ring_value(name, value);
+            return
         if hasattr(enc, "set_encoder_value"):
-            enc.set_encoder_value(name, value); return
+            enc.set_encoder_value(name, value);
+            return
         if hasattr(enc, "set_value"):
-            enc.set_value(name, value); return
+            enc.set_value(name, value);
+            return
 
     def _on_mcu_pan(self, *, channel_idx: int, value: int, **_):
         """
@@ -620,7 +625,7 @@ class MackieControlMode(definitions.LogicMode):
 
         if mm and hasattr(mm, "pan_levels"):
             try:
-                val = float(mm.pan_levels[bi])   # −64..+63 (float)
+                val = float(mm.pan_levels[bi])  # −64..+63 (float)
             except Exception:
                 val = float(value)
         else:
@@ -683,7 +688,6 @@ class MackieControlMode(definitions.LogicMode):
             return True
         return False
 
-
     def activate(self):
         self.initialize()
         self.current_page = 0
@@ -707,8 +711,8 @@ class MackieControlMode(definitions.LogicMode):
             # repaint once
             if hasattr(self, "update_strip_values"):
                 self.update_strip_values()
-        self._sync_pan_from_logic()   # ← copy cached pan from MCU manager into UI
-        self.update_strip_values()    # ← paint immediately
+        self._sync_pan_from_logic()  # ← copy cached pan from MCU manager into UI
+        self.update_strip_values()  # ← paint immediately
         self.push.pads.set_all_pads_to_color(color=definitions.BLACK)
         self.update_encoders()
         self._blank_track_row_buttons()
@@ -867,14 +871,14 @@ class MackieControlMode(definitions.LogicMode):
                     mm = self.app.mcu_manager
                     if mm and mm.selected_track_idx is None:
                         mm.selected_track_idx = self.current_page * self.tracks_per_page + i
-                    self._tap_mcu_button(8 + i)     # SOLO
+                    self._tap_mcu_button(8 + i)  # SOLO
                     self.app.buttons_need_update = True
                     return True
                 elif self.active_mode == MODE_MUTE:
                     mm = self.app.mcu_manager
                     if mm and mm.selected_track_idx is None:
                         mm.selected_track_idx = self.current_page * self.tracks_per_page + i
-                    self._tap_mcu_button(16 + i)    # MUTE
+                    self._tap_mcu_button(16 + i)  # MUTE
                     self.app.buttons_need_update = True
                     return True
 
@@ -901,7 +905,6 @@ class MackieControlMode(definitions.LogicMode):
         level = max(0.0, min(1.0, float(level)))
         pb_value = int(level * 16383) - 8192  # −8192..+8191
         port.send(mido.Message('pitchwheel', pitch=pb_value, channel=channel))
-
 
     def set_bank_levels(self, levels):
         """levels = iterable of ≤8 linear floats.  Writes them to Logic and refreshes Push rings."""
@@ -962,7 +965,6 @@ class MackieControlMode(definitions.LogicMode):
             port.send(mido.Message('note_on', note=touch_note, velocity=127, channel=0))
             self._touch_state[ch] = True
         return True
-
 
     def on_encoder_released(self, encoder_name):
         """Send MCU fader touch OFF immediately, no timers."""

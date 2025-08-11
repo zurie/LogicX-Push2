@@ -6,6 +6,7 @@ import definitions
 
 _PAN_RE = re.compile(r'^(?:[+\-]?\d{1,3}|C)$')
 
+
 class LogicMCUManager:
     BUTTON_MAP = {
         # --- Channel strip buttons ---
@@ -41,7 +42,7 @@ class LogicMCUManager:
         100: "LOOP_ON_OFF", 101: "PUNCH",
         113: "MARKER_PREV", 114: "MARKER_NEXT", 115: "MARKER_SET",
         118: "SETUP",  # Push 2 Setup button
-        119: "USER",   # Push 2 User button
+        119: "USER",  # Push 2 User button
         120: "MIX"
     }
 
@@ -68,18 +69,18 @@ class LogicMCUManager:
         self.on_transport_change = None
         self.on_button = None
         self.on_fader = None
-        self.on_vpot = None            # raw ring from 0x0E (optional legacy)
-        self.on_vpot_display = None    # official ring echo: fn(ch:int, pos:int)
+        self.on_vpot = None  # raw ring from 0x0E (optional legacy)
+        self.on_vpot_display = None  # official ring echo: fn(ch:int, pos:int)
         self.on_track_state = None
-        self._last_vpot_idx = None                  # 0..7
-        self.vpot_pos = [0]*8                       # 0..7 (tick slots)
+        self._last_vpot_idx = None  # 0..7
+        self.vpot_pos = [0] * 8  # 0..7 (tick slots)
         self.listener_thread = None
         self.running = False
         self._last_led_req = 0.0
         self._led_req_interval = 0.3
         self._led_req_bank = None
-        self._lcd_pan_ts = [0.0] * 8     # when we last accepted pan from LCD (per strip)
-        self.pan_string  = [""]  * 8
+        self._lcd_pan_ts = [0.0] * 8  # when we last accepted pan from LCD (per strip)
+        self.pan_string = [""] * 8
         # State cache for throttling
         self.last_update_time = 0
         self.pending_update = False
@@ -88,16 +89,16 @@ class LogicMCUManager:
         self.track_colors = [definitions.MIXER_PALETTE[i % len(definitions.MIXER_PALETTE)] for i in range(8)]
 
         # Track/LED state caches
-        self.track_names    = [""] * 8
-        self.mute_states    = [False] * 64
-        self.solo_states    = [False] * 64
-        self.rec_states     = [False] * 64
-        self.meter_levels   = [0] * 64
-        self.select_states  = [False] * 8
-        self.fader_levels   = [0] * 8
-        self.pan_levels     = [0.0] * 8        # −64..+63 (float)
-        self.pan_text       = [None] * 8       # what the LCD shows (int)
-        self.vpot_ring      = [6] * 8          # 0..11, 6 = detent
+        self.track_names = [""] * 8
+        self.mute_states = [False] * 64
+        self.solo_states = [False] * 64
+        self.rec_states = [False] * 64
+        self.meter_levels = [0] * 64
+        self.select_states = [False] * 8
+        self.fader_levels = [0] * 8
+        self.pan_levels = [0.0] * 8  # −64..+63 (float)
+        self.pan_text = [None] * 8  # what the LCD shows (int)
+        self.vpot_ring = [6] * 8  # 0..11, 6 = detent
 
         self.selected_track_idx = None
         self.playhead = 0.0
@@ -106,6 +107,9 @@ class LogicMCUManager:
             self.app.mcu = self
         if not hasattr(self.app, "mcu_manager"):
             self.app.mcu_manager = self
+        # track/LED update flag used by flush_updates
+        if not hasattr(self.app, "buttons_need_update"):
+            self.app.buttons_need_update = False
 
     def start(self):
         if not self.enabled:
@@ -239,9 +243,7 @@ class LogicMCUManager:
                 # self.pending_update = True
                 # continue
 
-
-
-    # Throttle updates
+            # Throttle updates
             now = time.time()
             if now - self.last_update_time >= self.update_interval:
                 if self.pending_update:
@@ -251,8 +253,13 @@ class LogicMCUManager:
 
     def flush_updates(self):
         """Push all pending updates to Push 2 display in one go."""
-        if hasattr(self.app, "update_push2_mute_solo") and self.selected_track_idx is not None:
-            self.app.update_push2_mute_solo(track_idx=self.selected_track_idx)
+        # Only repaint Mute/Solo LEDs if someone marked them dirty
+        if getattr(self.app, "buttons_need_update", False) and self.selected_track_idx is not None:
+            if hasattr(self.app, "update_push2_mute_solo"):
+                self.app.update_push2_mute_solo(track_idx=self.selected_track_idx)
+            self.app.buttons_need_update = False
+
+        # Transport colors can stay unconditional or you can gate them like above if you want
         if hasattr(self.app, "update_play_button_color"):
             self.app.update_play_button_color(self.transport.get("play", False))
         if hasattr(self.app, "update_record_button_color"):
@@ -286,7 +293,8 @@ class LogicMCUManager:
     def handle_sysex(self, data: bytes):
         try:
             # Validate Mackie header
-            if not (len(data) >= 5 and list(data[:3]) == definitions.MCU_SYSEX_PREFIX_ANY and data[3] in definitions.ACCEPTED_MCU_MODEL_IDS):
+            if not (len(data) >= 5 and list(data[:3]) == definitions.MCU_SYSEX_PREFIX_ANY and data[
+                3] in definitions.ACCEPTED_MCU_MODEL_IDS):
                 if self.debug_mcu:
                     print("[MCU] Ignoring non-Mackie sysex:", data[:8], "…")
                 return
@@ -322,10 +330,10 @@ class LogicMCUManager:
                 return
 
             # Standard Mackie blocks
-            if 0x10 <= cmd <= 0x17 and len(payload) == 9:   # meters
+            if 0x10 <= cmd <= 0x17 and len(payload) == 9:  # meters
                 self._handle_meter_dump(payload)
                 return
-            if cmd == 0x12:                                 # scribble-strip text
+            if cmd == 0x12:  # scribble-strip text
                 self._handle_display_text(payload)
                 return
             if cmd == 0x20:
@@ -356,21 +364,23 @@ class LogicMCUManager:
                 # if ch >= 8:
                 #     self._handle_channel_led([ch, val])
                 return
-            if cmd == 0x21:                                 # transport bits
+            if cmd == 0x21:  # transport bits
                 self._handle_transport(payload)
                 return
-            if cmd == 0x72:                                 # time
+            if cmd == 0x72:  # time
                 self._handle_time(payload[1:])
                 return
 
             # Official 9-byte ring echo
             if len(data) == 9 and data[1:4] == b'\x00\x00\x66' and data[4] == 0x14 and data[5] == 0x20:
-                ch  = int(data[6]) & 0x07
+                ch = int(data[6]) & 0x07
                 pos = max(0, min(11, int(data[7])))
                 self.vpot_ring[ch] = pos
                 if self.on_vpot_display:
-                    try: self.on_vpot_display(ch, pos)
-                    except Exception: import logging; logging.exception("on_vpot_display failed")
+                    try:
+                        self.on_vpot_display(ch, pos)
+                    except Exception:
+                        import logging; logging.exception("on_vpot_display failed")
                 return
 
         except Exception as e:
@@ -424,7 +434,7 @@ class LogicMCUManager:
             if p < 56:
                 n = min(56 - p, len(remaining))
                 if n > 0:
-                    self._lcd_top[p:p+n] = remaining[:n]
+                    self._lcd_top[p:p + n] = remaining[:n]
                 p += n
                 remaining = remaining[n:]
             else:
@@ -434,13 +444,13 @@ class LogicMCUManager:
                     break
                 n = min(56 - p2, len(remaining))
                 if n > 0:
-                    self._lcd_bot[p2:p2+n] = remaining[:n]
+                    self._lcd_bot[p2:p2 + n] = remaining[:n]
                 p += n
                 remaining = remaining[n:]
 
         # --- TOP: names (7×8)
         top = bytes(self._lcd_top)
-        cells_top = [top[i:i+7].decode('ascii','ignore').strip() for i in range(0,56,7)]
+        cells_top = [top[i:i + 7].decode('ascii', 'ignore').strip() for i in range(0, 56, 7)]
         names_changed = False
         has_any_name = any(cells_top[:8])
         if has_any_name:
@@ -455,7 +465,7 @@ class LogicMCUManager:
 
         # --- BOTTOM: pans ("+40", "-12", "0", "C")
         bot = bytes(self._lcd_bot)
-        cells_bot = [bot[i:i+7].decode('ascii','ignore').strip() for i in range(0,56,7)]
+        cells_bot = [bot[i:i + 7].decode('ascii', 'ignore').strip() for i in range(0, 56, 7)]
 
         # (optional) debug so you can verify we actually caught the 0,10,20,... frame
         if self.debug_mcu:
@@ -477,18 +487,18 @@ class LogicMCUManager:
             else:
                 continue
 
-            self.pan_text[i]   = v
+            self.pan_text[i] = v
             self.pan_levels[i] = float(v)
             self._fire("pan_text", channel_idx=i, value=float(v))
-            self._fire("pan",      channel_idx=i, value=float(v))
+            self._fire("pan", channel_idx=i, value=float(v))
 
         if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
             self.app.mc_mode.update_strip_values()
         self.pending_update = True
 
-
     def _handle_channel_led(self, payload):
-        if len(payload) < 2: return
+        if len(payload) < 2:
+            return
         ch, bits = int(payload[0]), int(payload[1])
         if ch < 0:
             return
@@ -498,31 +508,31 @@ class LogicMCUManager:
             self.solo_states.extend([False] * grow)
             self.rec_states.extend([False] * grow)
 
-        self.rec_states[ch]  = bool(bits & 0x04)  # record-arm
-        self.solo_states[ch] = bool(bits & 0x02)  # solo
-        self.mute_states[ch] = bool(bits & 0x10)  # mute
+        # prev -> new
+        prev_rec, prev_solo, prev_mute = self.rec_states[ch], self.solo_states[ch], self.mute_states[ch]
+        new_rec = bool(bits & 0x04)  # record-arm
+        new_solo = bool(bits & 0x02)  # solo
+        new_mute = bool(bits & 0x10)  # mute
+
+        self.rec_states[ch] = new_rec
+        self.solo_states[ch] = new_solo
+        self.mute_states[ch] = new_mute
+
+        changed = (prev_rec != new_rec) or (prev_solo != new_solo) or (prev_mute != new_mute)
 
         # broadcast
-        self._fire("track_state", channel_idx=ch,
-                   rec=self.rec_states[ch],
-                   solo=self.solo_states[ch],
-                   mute=self.mute_states[ch])
-
+        self._fire("track_state", channel_idx=ch, rec=new_rec, solo=new_solo, mute=new_mute)
         if self.debug_mcu:
-            print(f"[MCU] Ch{ch + 1} mute={self.mute_states[ch]} solo={self.solo_states[ch]} rec={self.rec_states[ch]}")
+            print(f"[MCU] Ch{ch + 1} mute={new_mute} solo={new_solo} rec={new_rec}")
+        if self.on_track_state:
+            self.on_track_state(ch, new_rec, new_solo, new_mute)
 
-        if hasattr(self, "on_track_state") and self.on_track_state:
-            self.on_track_state(ch, self.rec_states[ch], self.solo_states[ch], self.mute_states[ch])
-
-        self.app.buttons_need_update = True
-        self.pending_update = True
-
-        if ch == self.selected_track_idx:
+        # Only update LEDs if something actually changed
+        if changed and ch == self.selected_track_idx and hasattr(self.app, "update_push2_mute_solo"):
             self.app.update_push2_mute_solo(track_idx=ch)
-            if hasattr(self.app, "update_play_button_color"):
-                self.app.update_play_button_color(self.transport["play"])
-            if hasattr(self.app, "update_record_button_color"):
-                self.app.update_record_button_color(self.transport["record"])
+            self.app.buttons_need_update = False  # just repainted it
+        elif changed:
+            self.app.buttons_need_update = True
 
         self.pending_update = True
 
@@ -531,11 +541,11 @@ class LogicMCUManager:
             return
         bits = payload[1]
         new_transport = {
-            "play":   bool(bits & 0x01),
-            "stop":   bool(bits & 0x02),
+            "play": bool(bits & 0x01),
+            "stop": bool(bits & 0x02),
             "record": bool(bits & 0x04),
-            "ffwd":   bool(bits & 0x10),
-            "rew":    bool(bits & 0x20),
+            "ffwd": bool(bits & 0x10),
+            "rew": bool(bits & 0x20),
         }
         if new_transport != self.transport:
             self.transport = new_transport
@@ -545,7 +555,6 @@ class LogicMCUManager:
                 self.on_transport_change(self.transport)
             self.emit_event("transport", state=self.transport)
             self.pending_update = True
-
 
     def _handle_time(self, payload):
         self.playhead = payload
@@ -650,7 +659,6 @@ class LogicMCUManager:
                 if idx == self.selected_track_idx:
                     self.app.update_push2_mute_solo(track_idx=idx)
 
-
             # --- Track SELECT buttons ---
             if label.startswith("SELECT[") and pressed:
                 try:
@@ -725,8 +733,8 @@ class LogicMCUManager:
             self.emit_event("fader", channel_idx=idx, level=level)
             return
 
-        if self.debug_mcu:
-            print(f"[MCU] CC {control} = {value}")
+        # if self.debug_mcu:
+        #     print(f"[MCU] CC {control} = {value}")
 
     def handle_pitchbend(self, channel, pitch):
         """
