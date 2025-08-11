@@ -304,6 +304,19 @@ class LogicMCUManager:
 
             cmd = data[4]
 
+            if cmd == 0x1A and len(data) >= 6 and data[5] == 0x00:
+                if self.debug_mcu:
+                    print("[MCU] Serial request seen (1A 00). Replying with", getattr(definitions, "SERIAL_BYTES", []))
+                try:
+                    model = data[3]  # 0x14 or 0x15
+                    reply = mido.Message('sysex', data=[0x00,0x00,0x66, model, 0x1B, *definitions.SERIAL_BYTES])
+                    if self.output_port:
+                        self.output_port.send(reply)
+                except Exception as e:
+                    if self.debug_mcu:
+                        print("[MCU] Failed to send serial reply:", e)
+                return
+
             # --- Selection notification: 0x0E <index> 0x03
             if len(data) >= 7 and cmd == 0x0E and data[6] == 0x03:
                 track_index = data[5]

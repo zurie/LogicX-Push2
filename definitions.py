@@ -29,6 +29,7 @@ MCU_SYSEX_PREFIX_ANY = [0x00, 0x00, 0x66]                  # for matching incomi
 MCU_DEVICE_INQUIRY = [0x7E, 0x7F, 0x06, 0x01]
 MCU_METERS_ON       = MCU_SYSEX_PREFIX + [0x00, 0x00]
 MCU_METERS_OFF      = MCU_SYSEX_PREFIX + [0x00, 0x01]
+SERIAL_BYTES = [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x00, 0x01]  # 7 bytes total
 
 # Things the DAW writes on the LCD top/bottom rows that are UI overlays, not track names
 OVERLAY_TOKENS = {
