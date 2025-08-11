@@ -824,35 +824,46 @@ class MackieControlMode(definitions.LogicMode):
         mm = getattr(self.app, "mcu_manager", None)
         self._blank_track_row_buttons()
 
-        if mm:
-            for i in range(8):
-                strip_idx = self.current_page * self.tracks_per_page + i
-                solo = bool(mm.solo_states[strip_idx]) if strip_idx < len(mm.solo_states) else False
-                mute = bool(mm.mute_states[strip_idx]) if strip_idx < len(mm.mute_states) else False
+        if not mm:
+            return
 
-                upper = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
-                lower = getattr(push2_python.constants, f"BUTTON_LOWER_ROW_{i + 1}")
+        for i in range(8):
+            strip_idx = self.current_page * self.tracks_per_page + i
 
-                if self.active_mode == MODE_SOLO:
-                    self.push.buttons.set_button_color(
-                        upper,
-                        definitions.YELLOW if solo else definitions.OFF_BTN_COLOR
-                    )
-                elif self.active_mode == MODE_MUTE:
-                    sky = getattr(definitions, "SKYBLUE", getattr(definitions, "CYAN", definitions.BLUE))
-                    self.push.buttons.set_button_color(
-                        upper,
-                        sky if mute else definitions.OFF_BTN_COLOR
-                    )
-                else:
-                    self.push.buttons.set_button_color(upper, definitions.OFF_BTN_COLOR)
+            # Defensive lookups (arrays can be longer than visible bank)
+            solo = bool(mm.solo_states[strip_idx]) if strip_idx < len(mm.solo_states) else False
+            mute = bool(mm.mute_states[strip_idx]) if strip_idx < len(mm.mute_states) else False
 
-                mode = LOWER_ROW_MODES[i]
-                col = MODE_COLORS.get(mode, definitions.GRAY_DARK)
+            upper = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
+            lower = getattr(push2_python.constants, f"BUTTON_LOWER_ROW_{i + 1}")
+
+            # UPPER ROW: per-mode actions/state
+            if self.active_mode == MODE_SOLO:
                 self.push.buttons.set_button_color(
-                    lower,
-                    col if mode == self.active_mode else definitions.GRAY_DARK
+                    upper,
+                    definitions.YELLOW if solo else definitions.OFF_BTN_COLOR
                 )
+            elif self.active_mode == MODE_MUTE:
+                self.push.buttons.set_button_color(
+                    upper,
+                    definitions.SKYBLUE if mute else definitions.OFF_BTN_COLOR
+                )
+            elif self.active_mode in (MODE_VOLUME, MODE_PAN, MODE_VPOT):
+                selected_idx = getattr(mm, "selected_track_idx", None)
+                self.push.buttons.set_button_color(
+                    upper,
+                    definitions.GRAY_LIGHT if selected_idx == strip_idx else definitions.OFF_BTN_COLOR
+                )
+            else:
+                self.push.buttons.set_button_color(upper, definitions.OFF_BTN_COLOR)
+
+            # LOWER ROW: mode selectors
+            mode = LOWER_ROW_MODES[i]
+            col = MODE_COLORS.get(mode, definitions.GRAY_DARK)
+            self.push.buttons.set_button_color(
+                lower,
+                col if mode == self.active_mode else definitions.GRAY_DARK
+            )
 
     def on_button_pressed_raw(self, btn):
         # LOWER ROW = MODE SELECTORS
@@ -862,23 +873,33 @@ class MackieControlMode(definitions.LogicMode):
                 self._set_mode(LOWER_ROW_MODES[i])
                 return True
 
-        # UPPER ROW = TRACK ACTIONS (only when mode requires)
+        # UPPER ROW = TRACK ACTIONS (mode-dependent)
         for i in range(8):
             upper_btn = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
-
             if btn == upper_btn:
                 if self.active_mode == MODE_SOLO:
                     mm = self.app.mcu_manager
                     if mm and mm.selected_track_idx is None:
                         mm.selected_track_idx = self.current_page * self.tracks_per_page + i
-                    self._tap_mcu_button(8 + i)  # SOLO
+                    self._tap_mcu_button(8 + i)  # MCU SOLO notes 8..15
                     self.app.buttons_need_update = True
                     return True
+
                 elif self.active_mode == MODE_MUTE:
                     mm = self.app.mcu_manager
                     if mm and mm.selected_track_idx is None:
                         mm.selected_track_idx = self.current_page * self.tracks_per_page + i
-                    self._tap_mcu_button(16 + i)  # MUTE
+                    self._tap_mcu_button(16 + i)  # MCU MUTE notes 16..23
+                    self.app.buttons_need_update = True
+                    return True
+
+                elif self.active_mode in (MODE_VOLUME, MODE_PAN, MODE_VPOT):
+                    # In these modes, upper row = SELECT for that strip
+                    mm = self.app.mcu_manager
+                    if mm:
+                        abs_idx = self.current_page * self.tracks_per_page + i  # bank-aware
+                        mm.selected_track_idx = abs_idx
+                    self._tap_mcu_button(24 + i)  # MCU SELECT notes 24..31
                     self.app.buttons_need_update = True
                     return True
 
