@@ -745,6 +745,61 @@ class LogicMCUManager:
             self.emit_event("button_unknown", note=note, pressed=pressed)
             return False
 
+    # ──────────────────────────────────────────────────────────────
+    # Scribble-strip helpers (top/bottom per visible bank, 8×7 each)
+    # ──────────────────────────────────────────────────────────────
+    def get_visible_lcd_lines(self):
+        """
+        Read-only view of current 8-channel LCD cells.
+        Returns (top, bottom) as two lists of 8 strings (<=7 chars each).
+        Never mutates state; does not emit events.
+        """
+        # Ensure buffers exist
+        if not hasattr(self, "_lcd_top"):
+            self._lcd_top = bytearray(b" " * 56)
+        if not hasattr(self, "_lcd_bot"):
+            self._lcd_bot = bytearray(b" " * 56)
+
+        top = bytes(self._lcd_top)
+        bot = bytes(self._lcd_bot)
+
+        def cells(b):
+            return [b[i:i+7].decode("ascii", "ignore").rstrip()
+                    for i in range(0, 56, 7)][:8]
+
+        return cells(top), cells(bot)
+
+    # ──────────────────────────────────────────────────────────────
+    # Master fader helpers (MCU “Master” is on MIDI channel 9 ⇒ idx 8)
+    # ──────────────────────────────────────────────────────────────
+    def _ensure_fader_slots(self, n):
+        if len(self.fader_levels) < n:
+            self.fader_levels.extend([0.0] * (n - len(self.fader_levels)))
+
+    def get_master_level(self) -> float:
+        """Linear 0..1."""
+        self._ensure_fader_slots(9)
+        return float(self.fader_levels[8])
+
+    def set_master_level(self, level: float):
+        """Linear 0..1. Sends MCU pitchbend on channel 9."""
+        self._ensure_fader_slots(9)
+        level = max(0.0, min(1.0, float(level)))
+        self.fader_levels[8] = level
+        if self.output_port:
+            pb = int(level * 16383) - 8192  # −8192..+8191
+            # Channel 8 == “9th” channel = Master fader on MCU
+            self.output_port.send(mido.Message("pitchwheel", pitch=pb, channel=8))
+
+    def nudge_master_level(self, steps: int, step_size: float = 1/200.0):
+        """
+        Relative master change in small steps; positive raises, negative lowers.
+        Default ~0.5% per detent (tweak step_size to taste).
+        """
+        cur = self.get_master_level()
+        self.set_master_level(cur + steps * step_size)
+
+
     def handle_midi_message(self, msg):
         if msg.type in ("note_on", "note_off"):
             self.handle_button(msg.note, msg.velocity > 0)
@@ -784,10 +839,46 @@ class LogicMCUManager:
 
         if channel >= len(self.fader_levels):
             self.fader_levels.extend([0.0] * (channel + 1 - len(self.fader_levels)))
+        prev = self.fader_levels[channel]
         self.fader_levels[channel] = level
 
         if self.on_fader:
             self.on_fader(channel, level)
+
+        # --- Master: channel 8 → toast unconditionally
+        if channel == 8:
+            try:
+                import math
+                # dB from your existing helper if present
+                def _db_from_level(lv):
+                    if hasattr(definitions, "pb_to_db"):
+                        return definitions.pb_to_db(int(lv * 16383))
+                    # fallback label if pb_to_db is unavailable
+                    return None
+
+                new_db = _db_from_level(level)
+                old_db = _db_from_level(prev)
+
+                # only toast on ~0.1 dB moves (or if we have no dB helper, toast on ~0.5% moves)
+                should_toast = False
+                label = None
+                if new_db is not None and old_db is not None:
+                    def _safe(v): return -90.0 if math.isinf(v) else v
+                    if abs(_safe(new_db) - _safe(old_db)) >= 0.1:
+                        label = "-∞ dB" if new_db == float("-inf") else f"{new_db:+.1f} dB"
+                        should_toast = True
+                else:
+                    if abs(level - prev) >= 0.005:
+                        pct = round(level * 100.0, 1)
+                        label = f"{pct:.1f}%"
+                        should_toast = True
+
+                if should_toast and hasattr(self.app, "add_display_notification"):
+                    self.app.add_display_notification(f"MASTER {label}")
+            except Exception:
+                pass
+
+
 
         if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
             self.app.mc_mode.update_encoders()

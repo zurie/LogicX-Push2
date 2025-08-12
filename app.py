@@ -715,15 +715,6 @@ class LogicApp(object):
                 mode.update_display(ctx, w, h)
 
             # Show any notifications that should be shown
-            if self.notification_text is not None:
-                time_since_notification_started = time.time() - self.notification_time
-                if time_since_notification_started < definitions.NOTIFICATION_TIME:
-                    show_notification(ctx, self.notification_text,
-                                      opacity=1 - time_since_notification_started / definitions.NOTIFICATION_TIME)
-                else:
-                    self.notification_text = None
-
-            # Show any notifications that should be shown
             if self.help_title is not None:
                 time_since_help_started = time.time() - self.help_time
                 if time_since_help_started < definitions.HELP_TIME:
@@ -732,6 +723,14 @@ class LogicApp(object):
                 else:
                     self.help_title = self.help_hotkey = self.help_path = self.help_description = self.help_color = None
 
+            # Show any notifications that should be shown
+            if self.notification_text is not None:
+                time_since_notification_started = time.time() - self.notification_time
+                if time_since_notification_started < definitions.NOTIFICATION_TIME:
+                    show_notification(ctx, self.notification_text,
+                                      opacity=1 - time_since_notification_started / definitions.NOTIFICATION_TIME)
+                else:
+                    self.notification_text = None
             # Convert cairo data to numpy array and send to push
             buf = surface.get_data()
             frame = numpy.ndarray(shape=(h, w), dtype=numpy.uint16, buffer=buf).transpose()
@@ -794,6 +793,26 @@ class LogicApp(object):
                 self.mcu_manager.stop()
             self.push.f_stop.set()
 
+    def on_master_encoder(self, increment: int) -> bool:
+        """Handle Push master encoder: nudge MCU master and show toast."""
+        mm = getattr(self, "mcu_manager", None)
+        if not mm:
+            return False
+        steps = 1 if increment > 0 else -1
+        mm.nudge_master_level(steps, step_size=1/200.0)  # ~0.5% per detent
+        lvl = mm.get_master_level()
+        try:
+            if hasattr(definitions, "pb_to_db"):
+                db = definitions.pb_to_db(int(lvl * 16383))
+                label = "-∞ dB" if db == float("-inf") else f"{db:+.1f} dB"
+            else:
+                label = f"{(lvl*100):.1f}%"
+            self.add_display_notification(f"MASTER {label}")
+        except Exception:
+            pass
+        return True
+
+
     def on_midi_push_connection_established(self):
         # Do initial configuration of Push
         print('Doing initial Push config...')
@@ -843,21 +862,31 @@ class LogicApp(object):
             buttons_should_ignore_next_release_action[button_name] = True
 
 
-# Bind push action handlers with class methods
 @push2_python.on_encoder_rotated()
 def on_encoder_rotated(_, encoder_name, increment):
     try:
-        # Give Mackie Control mode first dibs when active
+        # Master encoder: route to a single handler (no mc_mode requirement)
+        from push2_python import constants as C
+        MASTER_NAMES = [n for n in (
+            "ENCODER_MASTER", "ENCODER_MASTER_ENCODER", "ENCODER_MAIN", "ENCODER_MASTER_VOLUME"
+        ) if hasattr(C, n)]
+        if encoder_name in [getattr(C, n) for n in MASTER_NAMES]:
+            if app.on_master_encoder(increment):
+                return
+
+        # Mackie Control mode gets first dibs
         if hasattr(app, 'mc_mode') and app.is_mode_active(app.mc_mode):
             if app.mc_mode.on_encoder_rotated(encoder_name, increment):
                 return
+
         for mode in app.active_modes[::-1]:
             action_performed = mode.on_encoder_rotated(encoder_name, increment)
             if action_performed:
-                break  # If mode took action, stop event propagation
+                break
     except NameError as e:
         print('Error:  {}'.format(str(e)))
         traceback.print_exc()
+
 
 
 pads_pressing_log = defaultdict(list)
