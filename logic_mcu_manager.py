@@ -839,10 +839,46 @@ class LogicMCUManager:
 
         if channel >= len(self.fader_levels):
             self.fader_levels.extend([0.0] * (channel + 1 - len(self.fader_levels)))
+        prev = self.fader_levels[channel]
         self.fader_levels[channel] = level
 
         if self.on_fader:
             self.on_fader(channel, level)
+
+        # --- Master: channel 8 → toast unconditionally
+        if channel == 8:
+            try:
+                import math
+                # dB from your existing helper if present
+                def _db_from_level(lv):
+                    if hasattr(definitions, "pb_to_db"):
+                        return definitions.pb_to_db(int(lv * 16383))
+                    # fallback label if pb_to_db is unavailable
+                    return None
+
+                new_db = _db_from_level(level)
+                old_db = _db_from_level(prev)
+
+                # only toast on ~0.1 dB moves (or if we have no dB helper, toast on ~0.5% moves)
+                should_toast = False
+                label = None
+                if new_db is not None and old_db is not None:
+                    def _safe(v): return -90.0 if math.isinf(v) else v
+                    if abs(_safe(new_db) - _safe(old_db)) >= 0.1:
+                        label = "-∞ dB" if new_db == float("-inf") else f"{new_db:+.1f} dB"
+                        should_toast = True
+                else:
+                    if abs(level - prev) >= 0.005:
+                        pct = round(level * 100.0, 1)
+                        label = f"{pct:.1f}%"
+                        should_toast = True
+
+                if should_toast and hasattr(self.app, "add_display_notification"):
+                    self.app.add_display_notification(f"MASTER {label}")
+            except Exception:
+                pass
+
+
 
         if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
             self.app.mc_mode.update_encoders()
