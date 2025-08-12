@@ -843,21 +843,36 @@ class LogicApp(object):
             buttons_should_ignore_next_release_action[button_name] = True
 
 
-# Bind push action handlers with class methods
 @push2_python.on_encoder_rotated()
 def on_encoder_rotated(_, encoder_name, increment):
     try:
-        # Give Mackie Control mode first dibs when active
+        # === Global: Master Volume encoder ===
+        try:
+            consts = push2_python.constants
+            MASTER_CANDIDATES = [
+                "ENCODER_MASTER", "ENCODER_MASTER_ENCODER",
+                "ENCODER_MAIN", "ENCODER_MASTER_VOLUME"
+            ]
+            if encoder_name in [getattr(consts, c) for c in MASTER_CANDIDATES if hasattr(consts, c)]:
+                if hasattr(app, 'mc_mode') and app.mc_mode:
+                    if app.mc_mode.on_master_encoder_rotated(increment):
+                        return
+        except Exception:
+            pass
+
+        # Mackie Control mode gets first dibs
         if hasattr(app, 'mc_mode') and app.is_mode_active(app.mc_mode):
             if app.mc_mode.on_encoder_rotated(encoder_name, increment):
                 return
+
         for mode in app.active_modes[::-1]:
             action_performed = mode.on_encoder_rotated(encoder_name, increment)
             if action_performed:
-                break  # If mode took action, stop event propagation
+                break
     except NameError as e:
         print('Error:  {}'.format(str(e)))
         traceback.print_exc()
+
 
 
 pads_pressing_log = defaultdict(list)

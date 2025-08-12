@@ -815,6 +815,25 @@ class MackieControlMode(definitions.LogicMode):
             elif hasattr(encoders, "set_value"):
                 encoders.set_value(encoder_name, led_val)
 
+    def on_master_encoder_rotated(self, increment: int):
+        """Global Master volume (MCU channel 9). Shift = fine, Shift+Select = super-fine."""
+        if not increment:
+            return True
+        mm = getattr(self.app, "mcu_manager", None)
+        if not mm:
+            return True
+
+        # Coarse/fine granularity
+        step = 1/200.0         # ~0.5% per detent
+        if getattr(self.app, "shift_held", False):
+            step = 1/1000.0    # fine
+            if getattr(self.app, "select_held", False):
+                step = 1/2000.0  # super-fine
+
+        mm.nudge_master_level(1 if increment > 0 else -1, step_size=step)
+        return True
+    
+
     # ---------------------------------------------------------------- inputs
     def update_buttons(self):
         mm = getattr(self.app, "mcu_manager", None)
@@ -963,6 +982,12 @@ class MackieControlMode(definitions.LogicMode):
             return True
 
         return False
+
+    def _pull_lcd_labels_for_visible_bank(self):
+        mm = getattr(self.app, "mcu_manager", None)
+        if not mm or not hasattr(mm, "get_visible_lcd_lines"):
+            return [""] * 8, [""] * 8
+        return mm.get_visible_lcd_lines()
 
     def on_encoder_touched(self, encoder_name):
         """Send MCU fader touch ON immediately, no timers."""
