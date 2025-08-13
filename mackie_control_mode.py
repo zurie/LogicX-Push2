@@ -7,7 +7,7 @@ from typing import Optional  # put this at the top with imports
 from push2_python.constants import ANIMATION_STATIC
 
 # Color helpers (choose safe fallbacks if a name isn't defined in your palette)
-_SKY = getattr(definitions, "SKY_BLUE", getattr(definitions, "SKYBLUE", getattr(definitions, "CYAN", "cyan")))
+_SKY = getattr(definitions, "SKYBLUE", getattr(definitions, "skyblue", getattr(definitions, "CYAN", "cyan")))
 _CYAN = _SKY
 _YELLOW = getattr(definitions, "YELLOW", "yellow")
 _RED = getattr(definitions, "RED", "red")
@@ -331,6 +331,56 @@ class MackieControlMode(definitions.LogicMode):
             label = "SOLO"
             xb, yb, tw, th, xadv, yadv = ctx.text_extents(label)
             tx = x + half + (half - tw) / 2.0 - xb
+            ty = y + (header_h - th) / 2.0 - yb
+            ctx.move_to(tx, ty)
+            ctx.show_text(label)
+            ctx.restore()
+
+    def _upper_row_label_and_color(self):
+        """Returns (label, color) for the 8 upper per-channel buttons, based on active_mode."""
+        if self.active_mode == MODE_SOLO:
+            return ("SOLO", definitions.YELLOW)
+        if self.active_mode == MODE_MUTE:
+            return ("MUTE", getattr(definitions, "SKYBLUE", getattr(definitions, "CYAN", definitions.SKYBLUE)))
+        # In VOL / PAN / VPOT (and others), upper buttons act as SELECT
+        return ("SELECT", definitions.GRAY_LIGHT)
+
+    def _draw_top_button_labels(self, ctx, w, h):
+        """
+        Draw a compact bar at the very top labeling what the *upper row buttons* do,
+        mirroring the style of the bottom mode bar. It shows the same label over each column
+        (e.g., SELECT, MUTE, or SOLO), with action color.
+        """
+        label, col = self._upper_row_label_and_color()
+
+        header_h = 18
+        y = 0
+        col_w = w / 8.0
+        corner = 5
+
+        for i in range(8):
+            x = int(i * col_w) + 1
+            width = int(col_w) - 2
+
+            # pill
+            ctx.save()
+            ctx.set_source_rgb(*definitions.get_color_rgb_float(col))
+            ctx.new_sub_path()
+            ctx.arc(x + width - corner, y + corner,             corner, math.radians(-90), math.radians(0))
+            ctx.arc(x + width - corner, y + header_h - corner,  corner, math.radians(0),   math.radians(90))
+            ctx.arc(x + corner,          y + header_h - corner, corner, math.radians(90),  math.radians(180))
+            ctx.arc(x + corner,          y + corner,            corner, math.radians(180), math.radians(270))
+            ctx.close_path()
+            ctx.fill()
+            ctx.restore()
+
+            # text
+            ctx.save()
+            ctx.set_source_rgb(*definitions.get_color_rgb_float(definitions.BLACK))
+            ctx.select_font_face("Helvetica", 0, 0)
+            ctx.set_font_size(11)
+            xb, yb, tw, th, xadv, yadv = ctx.text_extents(label)
+            tx = x + (width - tw) / 2.0 - xb
             ty = y + (header_h - th) / 2.0 - yb
             ctx.move_to(tx, ty)
             ctx.show_text(label)
@@ -950,7 +1000,7 @@ class MackieControlMode(definitions.LogicMode):
                     ctx, i, selected=(strip_idx == selected_idx)
                 )
 
-        self._draw_top_mute_solo_header(ctx, w, h)
+        self._draw_top_button_labels(ctx, w, h)
         self._draw_bottom_mode_labels(ctx, w, h)
         self.update_buttons()
         #self._render_mix_grid("update display")
@@ -1039,28 +1089,30 @@ class MackieControlMode(definitions.LogicMode):
                 lower,
                 col if mode == self.active_mode else definitions.GRAY_DARK
             )
-            try:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_LEFT,  definitions.GRAY_LIGHT)
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_RIGHT, definitions.GRAY_LIGHT)
-            except Exception:
-                pass
+        try:
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_LEFT,  definitions.GRAY_LIGHT)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_RIGHT, definitions.GRAY_LIGHT)
+        except Exception:
+            pass
 
     def on_button_pressed_raw(self, btn):
-        # Map Push PAGE < / > to MCU assignment "Page <" (44) / "Page >" (45)
-        if btn == push2_python.constants.BUTTON_PAGE_LEFT:
-            self._tap_mcu_button(MCU_ASSIGN_PAGE_LEFT)   # note 44
-            return True
-        if btn == push2_python.constants.BUTTON_PAGE_RIGHT:
-            self._tap_mcu_button(MCU_ASSIGN_PAGE_RIGHT)  # note 45
+        # Map Push PAGE < / > (with optional Shift) to MCU assignment Page/Bank notes
+        if btn in (push2_python.constants.BUTTON_PAGE_LEFT, push2_python.constants.BUTTON_PAGE_RIGHT):
+            shift = bool(getattr(self.app, "shift_held", False))
+
+            if shift:
+                if btn == push2_python.constants.BUTTON_PAGE_LEFT:
+                    self._tap_mcu_button(MCU_ASSIGN_BANK_LEFT)    # 46
+                else:
+                    self._tap_mcu_button(MCU_ASSIGN_BANK_RIGHT)   # 47
+            else:
+                if btn == push2_python.constants.BUTTON_PAGE_LEFT:
+                    self._tap_mcu_button(MCU_ASSIGN_PAGE_LEFT)    # 44
+                else:
+                    self._tap_mcu_button(MCU_ASSIGN_PAGE_RIGHT)   # 45
             return True
 
-        if btn == push2_python.constants.BUTTON_PAGE_LEFT and getattr(self.app, "shift_held", False):
-            self._tap_mcu_button(MCU_ASSIGN_BANK_LEFT)   # note 46
-            return True
-        if btn == push2_python.constants.BUTTON_PAGE_RIGHT and getattr(self.app, "shift_held", False):
-            self._tap_mcu_button(MCU_ASSIGN_BANK_RIGHT)  # note 47
-            return True
-        # LOWER ROW = MODE SELECTORS
+    # LOWER ROW = MODE SELECTORS
         for i in range(8):
             lower_btn = getattr(push2_python.constants, f"BUTTON_LOWER_ROW_{i + 1}")
             if btn == lower_btn:
