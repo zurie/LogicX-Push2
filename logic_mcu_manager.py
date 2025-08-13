@@ -8,43 +8,92 @@ _PAN_RE = re.compile(r'^(?:[+\-]?\d{1,3}|C)$')
 
 
 class LogicMCUManager:
+    # === Full Mackie Control Button Map (with VPOT push and custom codes) ===
     BUTTON_MAP = {
         # --- Channel strip buttons ---
-        **{i: f"REC[{i + 1}]" for i in range(0, 8)},
-        **{i: f"SOLO[{i - 7}]" for i in range(8, 16)},
-        **{i: f"MUTE[{i - 15}]" for i in range(16, 24)},
-        **{i: f"SELECT[{i - 23}]" for i in range(24, 32)},
+        **{i: f"REC[{i + 1}]" for i in range(0, 8)},            # 0–7  (Record Arm)
+        **{i: f"SOLO[{i - 7}]" for i in range(8, 16)},          # 8–15 (Solo)
+        **{i: f"MUTE[{i - 15}]" for i in range(16, 24)},        # 16–23 (Mute)
+        **{i: f"SELECT[{i - 23}]" for i in range(24, 32)},      # 24–31 (Track Select)
 
-        # --- Function keys ---
-        32: "F1", 33: "F2", 34: "F3", 35: "F4",
-        36: "F5", 37: "F6", 38: "F7", 39: "F8",
+        # --- VPOT push (encoders as buttons) ---
+        **{i + 32: f"VPOT_PUSH[{i + 1}]" for i in range(0, 8)}, # 32–39
 
-        # --- Modifier keys / edit block ---
-        40: "SHIFT", 41: "OPTION", 42: "CONTROL", 43: "COMMAND",
-        44: "ALT", 45: "UNDO",
+        # --- Function keys (F1–F8) ---
+        40: "F1",
+        41: "F2",
+        42: "F3",
+        43: "F4",
+        44: "F5",
+        45: "F6",
+        46: "F7",
+        47: "F8",
+
+        # --- Assign / Edit block ---
+        48: "ASSIGN_TRACK",
+        49: "ASSIGN_SEND",
+        50: "ASSIGN_PAN",
+        51: "ASSIGN_PLUGIN",
+        52: "ASSIGN_EQ",
+        53: "ASSIGN_INSTRUMENT",
 
         # --- Automation ---
-        46: "READ", 47: "WRITE", 48: "TRIM", 49: "TOUCH",
-        50: "LATCH", 51: "GROUP",
+        54: "AUTO_READ_OFF",
+        55: "AUTO_WRITE",
+        56: "AUTO_TRIM",
+        57: "AUTO_TOUCH",
+        58: "AUTO_LATCH",
+        59: "AUTO_GROUP",
 
-        # --- Marker & Nudge ---
-        52: "MARKER", 53: "NUDGE", 54: "CYCLE", 55: "DROP",
-        56: "REPLACE", 57: "CLICK", 58: "SOLO", 59: "SCRUB",
+        # --- Marker / Transport Control Block ---
+        60: "MARKER",
+        61: "NUDGE",
+        62: "CYCLE",
+        63: "DROP",
+        64: "REPLACE",
+        65: "CLICK",
+        66: "SOLO_CLEAR",
+        67: "SCRUB",
+
+        # --- Bank / Channel Navigation ---
+        68: "BANK_LEFT",
+        69: "BANK_RIGHT",
+        70: "CHANNEL_LEFT",
+        71: "CHANNEL_RIGHT",
+
+        # --- Zoom & Navigation ---
+        72: "ZOOM",
+        73: "SCRUB_MODE",
+
+        # --- Cursor Keys ---
+        96: "ARROW_UP",
+        97: "ARROW_DOWN",
+        98: "ARROW_LEFT",
+        99: "ARROW_RIGHT",
 
         # --- Transport ---
-        93: "stop",
-        94: "play",
-        95: "record",
-        91: "rew",
-        92: "ffwd",
+        91: "REW",
+        92: "FFWD",
+        93: "STOP",
+        94: "PLAY",
+        95: "RECORD",
 
-        # --- Extra / Logic mappings ---
-        100: "LOOP_ON_OFF", 101: "PUNCH",
-        113: "MARKER_PREV", 114: "MARKER_NEXT", 115: "MARKER_SET",
-        118: "SETUP",  # Push 2 Setup button
-        119: "USER",  # Push 2 User button
-        120: "MIX"
+        # --- Logic / Push 2 Custom Extensions ---
+        100: "LOOP_ON_OFF",
+        101: "PUNCH",
+        113: "MARKER_PREV",
+        114: "MARKER_NEXT",
+        115: "MARKER_SET",
+        118: "SETUP",       # Push 2 Setup button
+        119: "USER",        # Push 2 User button
+        120: "MIX"          # Custom
     }
+
+    # === Reverse lookup: Name → MIDI code ===
+    BUTTON_CODE = {name: code for code, name in BUTTON_MAP.items()}
+
+
+
 
     def __init__(self, app, port_name="IAC Driver LogicMCU_In", enabled=True, update_interval=0.05):
         self.input_port = None
