@@ -5,29 +5,28 @@ import time
 import definitions
 
 _PAN_RE = re.compile(r'^(?:[+\-]?\d{1,3}|C)$')
+_TAP_OFF_DELAY = 0.001  # 1 ms tap
 
 
 class LogicMCUManager:
+    MCU_NOTE_CURSOR_UP = 96
+    MCU_NOTE_CURSOR_DOWN = 97
+    MCU_NOTE_CURSOR_LEFT = 98
+    MCU_NOTE_CURSOR_RIGHT = 99
     # === Full Mackie Control Button Map (with VPOT push and custom codes) ===
     BUTTON_MAP = {
         # --- Channel strip buttons ---
-        **{i: f"REC[{i + 1}]" for i in range(0, 8)},            # 0–7  (Record Arm)
-        **{i: f"SOLO[{i - 7}]" for i in range(8, 16)},          # 8–15 (Solo)
-        **{i: f"MUTE[{i - 15}]" for i in range(16, 24)},        # 16–23 (Mute)
-        **{i: f"SELECT[{i - 23}]" for i in range(24, 32)},      # 24–31 (Track Select)
+        **{i: f"REC[{i + 1}]"    for i in range(0, 8)},    # 0–7
+        **{i: f"SOLO[{i - 7}]"   for i in range(8, 16)},   # 8–15
+        **{i: f"MUTE[{i - 15}]"  for i in range(16, 24)},  # 16–23
+        **{i: f"SELECT[{i - 23}]"for i in range(24, 32)},  # 24–31
 
         # --- VPOT push (encoders as buttons) ---
-        **{i + 32: f"VPOT_PUSH[{i + 1}]" for i in range(0, 8)}, # 32–39
+        **{i + 32: f"VPOT_PUSH[{i + 1}]" for i in range(0, 8)},  # 32–39
 
         # --- Function keys (F1–F8) ---
-        40: "F1",
-        41: "F2",
-        42: "F3",
-        43: "F4",
-        44: "F5",
-        45: "F6",
-        46: "F7",
-        47: "F8",
+        40: "F1", 41: "F2", 42: "F3", 43: "F4",
+        44: "F5", 45: "F6", 46: "F7", 47: "F8",
 
         # --- Assign / Edit block ---
         48: "ASSIGN_TRACK",
@@ -45,7 +44,7 @@ class LogicMCUManager:
         58: "AUTO_LATCH",
         59: "AUTO_GROUP",
 
-        # --- Marker / Transport Control Block ---
+        # --- Marker / Edit block ---
         60: "MARKER",
         61: "NUDGE",
         62: "CYCLE",
@@ -61,15 +60,9 @@ class LogicMCUManager:
         70: "CHANNEL_LEFT",
         71: "CHANNEL_RIGHT",
 
-        # --- Zoom & Navigation ---
+        # --- Zoom & Scrub mode ---
         72: "ZOOM",
         73: "SCRUB_MODE",
-
-        # --- Cursor Keys ---
-        96: "ARROW_UP",
-        97: "ARROW_DOWN",
-        98: "ARROW_LEFT",
-        99: "ARROW_RIGHT",
 
         # --- Transport ---
         91: "REW",
@@ -78,16 +71,23 @@ class LogicMCUManager:
         94: "PLAY",
         95: "RECORD",
 
-        # --- Logic / Push 2 Custom Extensions ---
-        100: "LOOP_ON_OFF",
-        101: "PUNCH",
+        # --- Cursor Keys ---
+        96: "ARROW_UP",
+        97: "ARROW_DOWN",
+        98: "ARROW_LEFT",
+        99: "ARROW_RIGHT",
+
+        # --- Logic / Push 2 Custom Extensions (keep only what you use) ---
+        100: "LOOP_ON_OFF",   # if you actually send this
+        101: "PUNCH",           # keep if you use it; otherwise delete
         113: "MARKER_PREV",
         114: "MARKER_NEXT",
         115: "MARKER_SET",
-        118: "SETUP",       # Push 2 Setup button
-        119: "USER",        # Push 2 User button
-        120: "MIX"          # Custom
+        118: "SETUP",           # Push 2 Setup
+        119: "USER",            # Push 2 User
+        120: "MIX",             # Custom
     }
+
 
     # === Reverse lookup: Name → MIDI code ===
     BUTTON_CODE = {name: code for code, name in BUTTON_MAP.items()}
@@ -769,15 +769,17 @@ class LogicMCUManager:
                         print("[MCU] Failed to parse selected track:", e)
 
             # --- Transport buttons ---
-            if label in ["play", "stop", "record", "ffwd", "rew"]:
-                self.transport[label] = pressed
+            if label in ["PLAY", "STOP", "RECORD", "FFWD", "REW"]:
+                key = label.lower()
+                self.transport[key] = pressed
                 self._transport_seen = True
                 self._transport_dirty = True
                 if self.on_transport_change:
                     self.on_transport_change(self.transport)
                 self.emit_event("transport", state=self.transport)
 
-            # Fire generic button event
+
+    # Fire generic button event
             if self.on_button:
                 self.on_button(label, pressed)
             self.emit_event("button", label=label, pressed=pressed)
@@ -940,7 +942,28 @@ class LogicMCUManager:
 
         self.pending_update = True
 
-    # --- Meter -----------------------------------------------------------------
+    # === Inside class LogicMCUManager ===
+    # Place near the top of the class (constants)
+
+    def _send_note(self, note: int, vel: int = 127):
+        """Low-level: send a Note On/Off (vel 0) on channel 1 to MCU Out."""
+        if not self.output_port:
+            return
+        self.output_port.send(mido.Message('note_on', channel=0, note=note, velocity=vel))
+
+    def _tap_note(self, note: int):
+        """Momentary press for MCU-style buttons (Note On then Note Off)."""
+        self._send_note(note, 127)
+        time.sleep(_TAP_OFF_DELAY)
+        self._send_note(note, 0)
+
+    def cursor_up(self):    self._tap_note(self.MCU_NOTE_CURSOR_UP)
+    def cursor_down(self):  self._tap_note(self.MCU_NOTE_CURSOR_DOWN)
+    def cursor_left(self):  self._tap_note(self.MCU_NOTE_CURSOR_LEFT)
+    def cursor_right(self): self._tap_note(self.MCU_NOTE_CURSOR_RIGHT)
+
+
+# --- Meter -----------------------------------------------------------------
     def _handle_meter_dump(self, payload):
         """
         Logic sends:  F0 00 00 66 14 1n v1 v2 v3 v4 v5 v6 v7 v8 F7
