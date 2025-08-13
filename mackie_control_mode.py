@@ -4,6 +4,7 @@ from display_utils import show_text
 from definitions import pb_to_db, db_to_pb, MCU_SYSEX_PREFIX, MCU_MODEL_ID, MCU_METERS_ON, MCU_METERS_OFF
 from push2_python import constants as P2
 from typing import Optional  # put this at the top with imports
+from push2_python.constants import ANIMATION_STATIC
 
 # Color helpers (choose safe fallbacks if a name isn't defined in your palette)
 _SKY = getattr(definitions, "SKY_BLUE", getattr(definitions, "SKYBLUE", getattr(definitions, "CYAN", "cyan")))
@@ -260,7 +261,7 @@ class MackieControlMode(definitions.LogicMode):
 
     _name_cache = [""] * 8
     _last_names_print = 0  # throttle debug printing
-
+    _last_grid_snapshot = None
     # ---------------------------------------------------------------- helpers
     def _draw_top_mute_solo_header(self, ctx, w, h):
         mm = getattr(self.app, "mcu_manager", None)
@@ -402,12 +403,15 @@ class MackieControlMode(definitions.LogicMode):
                 self._set_ring(i, led)
                 self.app.display_dirty = True
 
-    def _set_pad_color(self, pad_id, color, brightness=1.0):
-        # pad_id: (row, col)
-        try:
-            self.push.pads.set_pad_color(pad_id, color, brightness)
-        except TypeError:
-            self.push.pads.set_pad_color(pad_id, color)
+    def _set_pad_color(self, pad_id, color):
+        # pad_id = (row, col)
+        # STATIC avoids the pre-black frame
+        self.push.pads.set_pad_color(
+            pad_id,
+            color,
+            animation=ANIMATION_STATIC,
+            optimize_num_messages=True
+        )
 
     def _draw_bottom_mode_labels(self, ctx, w, h):
         # Mirror track_selection_mode.py proportions
@@ -510,17 +514,18 @@ class MackieControlMode(definitions.LogicMode):
         self._render_mix_grid("activate_mix_mode")
 
         # === Rendering ===
-
-    def _render_mix_grid(self, msg=''):
+    def _render_mix_grid(self, msg: str = ""):
         """
         Paint rows 0..3 as a bank of 8:
-          base = GRAY_DARK (dim) everywhere,
-          row 0: active column = GREEN (full),
-          row 1: MUTE = SKY (full),
-          row 2: SOLO = YELLOW (full),
-          row 3: REC  = RED (full).
+          base  = GRAY_DARK everywhere,
+          row 0 = active track GREEN,
+          row 1 = MUTE  -> SKY,
+          row 2 = SOLO  -> YELLOW,
+          row 3 = REC   -> RED.
+        Skips repaint if nothing changed (snapshot).
         """
-        print(f"[MCP RENDERMIX] From: {msg}")
+
+
         mcu = getattr(self.app, "mcu_manager", None)
         if not mcu:
             return
@@ -528,13 +533,7 @@ class MackieControlMode(definitions.LogicMode):
         base = (getattr(self, "current_page", 0) or 0) * 8
         top  = base + 8
 
-        sel_abs = getattr(mcu, "selected_track_idx", None)
-        sel_idx = None
-        if isinstance(sel_abs, (int, float)):
-            sel_abs = int(sel_abs)
-            if base <= sel_abs < top:
-                sel_idx = sel_abs - base
-
+        # Defensive arrays
         mute_states = getattr(mcu, "mute_states", []) or []
         solo_states = getattr(mcu, "solo_states", []) or []
         rec_states  = getattr(mcu, "recarm_states", []) or []
@@ -545,36 +544,60 @@ class MackieControlMode(definitions.LogicMode):
             except Exception:
                 return False
 
+        # Selected track (relative within visible bank)
+        sel_rel = -1
+        sel_abs = getattr(mcu, "selected_track_idx", None)
+        if isinstance(sel_abs, (int, float)):
+            sel_abs = int(sel_abs)
+            if base <= sel_abs < top:
+                sel_rel = sel_abs - base
+
+        # --- build snapshot of visible state (for no-op early return) ---
+        m_row = tuple(_state(mute_states, base + i) for i in range(8))
+        s_row = tuple(_state(solo_states, base + i) for i in range(8))
+        r_row = tuple(_state(rec_states,  base + i) for i in range(8))
+        snapshot = (base, sel_rel, m_row, s_row, r_row)
+
+        if snapshot == getattr(self, "_last_grid_snapshot", None):
+            return  # nothing changed; skip writes
+        if msg:
+            print(f"[MCP RENDERMIX] From: {msg}")
+        self._last_grid_snapshot = snapshot
+
+        # Row pad IDs
         row_select = _row_buttons(0)
         row_mute   = _row_buttons(1)
         row_solo   = _row_buttons(2)
         row_rec    = _row_buttons(3)
 
+        # Build paint list (pairs: ((row,col), color))
         to_set = []
 
-        # 1) Base = OFF (dim gray) everywhere on rows 0..3
+        # 1) Base layer: dim gray everywhere on rows 0..3
         for row in (row_select, row_mute, row_solo, row_rec):
             for pad_id in row:
-                to_set.append((pad_id, self._PAD_OFF_COLOR, self._PAD_OFF_BRIGHT))
+                to_set.append((pad_id, _DARK))
 
-        # 2) Active track: row 0 GREEN full
-        if sel_idx is not None and 0 <= sel_idx < 8:
-            to_set.append((row_select[sel_idx], _GREEN, self._PAD_ON_BRIGHT))
+        # 2) Selected track (row 0)
+        if 0 <= sel_rel < 8:
+            to_set.append((row_select[sel_rel], _GREEN))
 
-        # 3) Per-track overlays full bright
+        # 3) Per-track overlays (rows 1..3)
         for i in range(8):
             abs_idx = base + i
             if _state(mute_states, abs_idx):
-                to_set.append((row_mute[i], _SKY, self._PAD_ON_BRIGHT))
+                to_set.append((row_mute[i], _SKY))
             if _state(solo_states, abs_idx):
-                to_set.append((row_solo[i], _YELLOW, self._PAD_ON_BRIGHT))
-            if _state(rec_states,  abs_idx):
-                to_set.append((row_rec[i], _RED, self._PAD_ON_BRIGHT))
+                to_set.append((row_solo[i], _YELLOW))
+            if _state(rec_states, abs_idx):
+                to_set.append((row_rec[i], _RED))
 
+        # Apply in order (later writes override base)
         self._apply_pad_colors(to_set)
+        self.app.pads_need_update = True
 
 
-    # Call this whenever MCU state changes (bank switch, external updates, etc.)
+# Call this whenever MCU state changes (bank switch, external updates, etc.)
     def on_mcu_state_changed(self):
         self._render_mix_grid("mcu state changed")
 
@@ -635,24 +658,10 @@ class MackieControlMode(definitions.LogicMode):
             # self.pad_meter = PadMeter(self.push)
             self._listeners_added = True
 
-    def _apply_pad_colors(self, triplets):
-        """
-        triplets: [((row, col), color, brightness), ...]
-        Applies as a single update if the backend supports it; otherwise loops.
-        """
-        pads = self.push.pads
-        # Some forks expose a batch API; if not, fall back to per-pad.
-        if hasattr(pads, "set_multiple_pads_to_color"):
-            try:
-                pads.set_multiple_pads_to_color(triplets)
-                return
-            except TypeError:
-                pass  # fall through to per-pad
-        for pad_id, color, br in triplets:
-            try:
-                pads.set_pad_color(pad_id, color, br)
-            except TypeError:
-                pads.set_pad_color(pad_id, color)
+    def _apply_pad_colors(self, pairs):
+        # pairs: [((row, col), color), ...]
+        for pad_id, col in pairs:
+            self._set_pad_color(pad_id, col)
 
     def _on_mcu_transport(self, *, state, **_):
         self._playing = bool(state.get("play", False))
@@ -815,13 +824,16 @@ class MackieControlMode(definitions.LogicMode):
         self.current_page += 1
         if self.current_page >= self.n_pages:
             self.current_page = 0
-            return True
-        return False
+            # fallthrough
+        self._last_grid_snapshot = None
+        self._render_mix_grid("page change")
+        return True
 
     def activate(self):
         self.initialize()
         self.current_page = 0
-
+        self._last_grid_snapshot = None
+        self.push.pads.reset_current_pads_state()
         if hasattr(self.app.mcu_manager, "get_visible_track_names"):
             names = self.app.mcu_manager.get_visible_track_names()
         else:
@@ -843,7 +855,11 @@ class MackieControlMode(definitions.LogicMode):
                 self.update_strip_values()
         self._sync_pan_from_logic()  # ← copy cached pan from MCU manager into UI
         self.update_strip_values()  # ← paint immediately
-        self.push.pads.set_all_pads_to_color(color=definitions.BLACK)
+        self.push.pads.set_all_pads_to_color(
+            color=definitions.BLACK,
+            animation=ANIMATION_STATIC,
+            animation_end_color='black'
+        )
         self.update_encoders()
         self._blank_track_row_buttons()
         self.update_buttons()
@@ -867,7 +883,11 @@ class MackieControlMode(definitions.LogicMode):
 
     def deactivate(self):
         super().deactivate()
-        self.push.pads.set_all_pads_to_color(definitions.BLACK)
+        self.push.pads.set_all_pads_to_color(
+            color=definitions.BLACK,
+            animation=ANIMATION_STATIC,
+            animation_end_color='black'
+        )
         self._blank_track_row_buttons()
         self.app.pads_need_update = True
 
@@ -1118,15 +1138,15 @@ class MackieControlMode(definitions.LogicMode):
             if mcu:
                 mcu.selected_track_idx = base + col  # instant local select for pads
             self._render_mix_grid("on pad pressed")                  # show green immediately
-            self._set_pad_color((row, col), _GREEN, 1.0)  # pressed highlight
+            self._set_pad_color((row, col), _GREEN)  # pressed highlight
 
         # --- MUTE / SOLO / REC: pressed highlight only (state lands on release) ---
         elif row == 1:
-            self._set_pad_color((row, col), _CYAN, 1.0)
+            self._set_pad_color((row, col), _CYAN)
         elif row == 2:
-            self._set_pad_color((row, col), _YELLOW, 1.0)
+            self._set_pad_color((row, col), _YELLOW)
         elif row == 3:
-            self._set_pad_color((row, col), _RED, 1.0)
+            self._set_pad_color((row, col), _RED)
 
         # Send MCU tap
         if mcu:
