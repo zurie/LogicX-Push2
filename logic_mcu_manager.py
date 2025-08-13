@@ -759,6 +759,11 @@ class LogicMCUManager:
                         print(f"[MCU] Selected track index set to {self.selected_track_idx + 1}")
                     if hasattr(self.app, "update_push2_mute_solo"):
                         self.app.update_push2_mute_solo(track_idx=self.selected_track_idx)
+                    try:
+                        self._fire("track_state", channel_idx=self.selected_track_idx)
+                    except Exception as _e:
+                        if self.debug_mcu:
+                            print("[MCU] (debug) failed to fire track_state on SELECT:", _e)
                 except Exception as e:
                     if self.debug_mcu:
                         print("[MCU] Failed to parse selected track:", e)

@@ -12,28 +12,29 @@ _YELLOW = getattr(definitions, "YELLOW", "yellow")
 _RED = getattr(definitions, "RED", "red")
 _ORANGE = getattr(definitions, "ORANGE", "orange")
 _GREEN = getattr(definitions, "GREEN", "green")
-_OFF = getattr(definitions, "GRAY_DARK", "gray_dark")
+_OFF = getattr(definitions, "BLACK", "black")
 _DARK = getattr(definitions, "GRAY_DARK", "gray")
+
 
 def _row_buttons(row_index: int):
     # Return pad IDs as (row, col) tuples for pads.set_pad_color
     return [(row_index, c) for c in range(8)]
 
 
-
 def _mcu_note_for(row: int, col: int) -> Optional[int]:
     """Rows 0..3 map to SELECT / MUTE / SOLO / REC (MCU notes)."""
     if not (0 <= col < 8):
         return None
-    if row == 0:   # SELECT
+    if row == 0:  # SELECT
         return 24 + col
-    if row == 1:   # MUTE
+    if row == 1:  # MUTE
         return 16 + col
-    if row == 2:   # SOLO
+    if row == 2:  # SOLO
         return 8 + col
-    if row == 3:   # REC
+    if row == 3:  # REC
         return 0 + col
     return None
+
 
 # === Mode constants ===
 MODE_VOLUME = "volume"
@@ -248,7 +249,10 @@ class MackieControlMode(definitions.LogicMode):
     # === NEW: mode state ======================================================
     active_mode = MODE_VOLUME  # default
     _polling_active = False
-
+    # Pad brightness policy: OFF = dimmed gray, ON = full
+    _PAD_OFF_COLOR = _DARK                 # GRAY_DARK from your palette
+    _PAD_OFF_BRIGHT = 1.0                # tweak: 0.35..0.6 depending on taste
+    _PAD_ON_BRIGHT = 1.0
     # Pan state: view is the green number (−64..+63), ring is 0..11 from Logic echo
     _pan_view = [0.0] * 8
     _pan_ring = [6] * 8
@@ -405,7 +409,6 @@ class MackieControlMode(definitions.LogicMode):
         except TypeError:
             self.push.pads.set_pad_color(pad_id, color)
 
-
     def _draw_bottom_mode_labels(self, ctx, w, h):
         # Mirror track_selection_mode.py proportions
         display_w = w
@@ -504,18 +507,20 @@ class MackieControlMode(definitions.LogicMode):
 
     def activate_mix_mode(self):
         """Call this when entering Mix mode."""
-        self._render_mix_grid()
+        self._render_mix_grid("activate_mix_mode")
 
         # === Rendering ===
-    def _render_mix_grid(self):
+
+    def _render_mix_grid(self, msg=''):
         """
-        Paint rows 0..3 as a 'bank of 8' summary for the current visible tracks:
-          - base = DARK for all pads
-          - row 0 (top): active track column = GREEN
-          - row 1: MUTE state = SKY
-          - row 2: SOLO state = YELLOW
-          - row 3: REC-ARM state = RED (optional – keep/remove as you like)
+        Paint rows 0..3 as a bank of 8:
+          base = GRAY_DARK (dim) everywhere,
+          row 0: active column = GREEN (full),
+          row 1: MUTE = SKY (full),
+          row 2: SOLO = YELLOW (full),
+          row 3: REC  = RED (full).
         """
+        print(f"[MCP RENDERMIX] From: {msg}")
         mcu = getattr(self.app, "mcu_manager", None)
         if not mcu:
             return
@@ -523,7 +528,6 @@ class MackieControlMode(definitions.LogicMode):
         base = (getattr(self, "current_page", 0) or 0) * 8
         top  = base + 8
 
-        # Selected track index within the visible bank (or None if off-bank / None)
         sel_abs = getattr(mcu, "selected_track_idx", None)
         sel_idx = None
         if isinstance(sel_abs, (int, float)):
@@ -531,7 +535,6 @@ class MackieControlMode(definitions.LogicMode):
             if base <= sel_abs < top:
                 sel_idx = sel_abs - base
 
-        # Defensive arrays
         mute_states = getattr(mcu, "mute_states", []) or []
         solo_states = getattr(mcu, "solo_states", []) or []
         rec_states  = getattr(mcu, "recarm_states", []) or []
@@ -542,81 +545,39 @@ class MackieControlMode(definitions.LogicMode):
             except Exception:
                 return False
 
-        # Row IDs
         row_select = _row_buttons(0)
         row_mute   = _row_buttons(1)
         row_solo   = _row_buttons(2)
         row_rec    = _row_buttons(3)
 
-        # 1) Base: all four rows dark
+        to_set = []
+
+        # 1) Base = OFF (dim gray) everywhere on rows 0..3
         for row in (row_select, row_mute, row_solo, row_rec):
             for pad_id in row:
-                self._set_pad_color(pad_id, _DARK)
+                to_set.append((pad_id, self._PAD_OFF_COLOR, self._PAD_OFF_BRIGHT))
 
-        # 2) Active track: row 0 green (only one column)
+        # 2) Active track: row 0 GREEN full
         if sel_idx is not None and 0 <= sel_idx < 8:
-            self._set_pad_color(row_select[sel_idx], _GREEN)
+            to_set.append((row_select[sel_idx], _GREEN, self._PAD_ON_BRIGHT))
 
-        # 3) Per-track states: row 1 = mute, row 2 = solo, row 3 = rec
+        # 3) Per-track overlays full bright
         for i in range(8):
             abs_idx = base + i
-
             if _state(mute_states, abs_idx):
-                self._set_pad_color(row_mute[i], _CYAN)
-
+                to_set.append((row_mute[i], _SKY, self._PAD_ON_BRIGHT))
             if _state(solo_states, abs_idx):
-                self._set_pad_color(row_solo[i], _YELLOW)
+                to_set.append((row_solo[i], _YELLOW, self._PAD_ON_BRIGHT))
+            if _state(rec_states,  abs_idx):
+                to_set.append((row_rec[i], _RED, self._PAD_ON_BRIGHT))
 
-            # optional rec-arm – comment out if you don't want it lit
-            if _state(rec_states, abs_idx):
-                self._set_pad_color(row_rec[i], _RED)
-
-
-
-
-    def on_pad_pressed(self, pad_n, pad_ij, velocity, loop=False, quantize=False, shift=False, select=False,
-                       long_press=False, double_press=False):
-        row, col = pad_ij
-
-        # bottom row = mode selectors
-        if row == 7 and 0 <= col < 8:
-            mode = LOWER_ROW_MODES[col]
-            self._set_mode(mode)
-            return True
-
-        # top 4 rows = MCU actions
-        note_num = _mcu_note_for(row, col)
-        if note_num is not None:
-            # give a momentary highlight *only while held* (no timers)
-            if row == 0:   self._set_pad_color((row, col), _GREEN, 1.0)
-            elif row == 1: self._set_pad_color((row, col), _CYAN, 1.0)
-            elif row == 2: self._set_pad_color((row, col), _YELLOW, 1.0)
-            elif row == 3: self._set_pad_color((row, col), _RED, 1.0)
-
-            mcu = getattr(self.app, "mcu_manager", None)
-            if mcu:
-                port = mcu.output_port or getattr(self.app, "midi_out", None)
-                if port:
-                    port.send(mido.Message('note_on', note=note_num, velocity=127, channel=0))
-                    port.send(mido.Message('note_on', note=note_num, velocity=0, channel=0))
-            return True
-
-        return True
-
-    def on_pad_released(self, pad_n, pad_ij, **_):
-        row, col = pad_ij
-        if 0 <= row <= 3 and 0 <= col < 8:
-            self._render_mix_grid()                 # repaint from true MCU state
-            self.app.pads_need_update = True
-            self.app.buttons_need_update = True
-        return True
-
-
+        self._apply_pad_colors(to_set)
 
 
     # Call this whenever MCU state changes (bank switch, external updates, etc.)
     def on_mcu_state_changed(self):
-        self._render_mix_grid()
+        self._render_mix_grid("mcu state changed")
+
     # ---------------------------------------------------------------- init/up
     def initialize(self, settings=None):
         """Build default strips and start meter timer."""
@@ -674,12 +635,30 @@ class MackieControlMode(definitions.LogicMode):
             # self.pad_meter = PadMeter(self.push)
             self._listeners_added = True
 
+    def _apply_pad_colors(self, triplets):
+        """
+        triplets: [((row, col), color, brightness), ...]
+        Applies as a single update if the backend supports it; otherwise loops.
+        """
+        pads = self.push.pads
+        # Some forks expose a batch API; if not, fall back to per-pad.
+        if hasattr(pads, "set_multiple_pads_to_color"):
+            try:
+                pads.set_multiple_pads_to_color(triplets)
+                return
+            except TypeError:
+                pass  # fall through to per-pad
+        for pad_id, color, br in triplets:
+            try:
+                pads.set_pad_color(pad_id, color, br)
+            except TypeError:
+                pads.set_pad_color(pad_id, color)
+
     def _on_mcu_transport(self, *, state, **_):
         self._playing = bool(state.get("play", False))
         if self.app.is_mode_active(self):
-            # Always repaint the grid so mute/solo/rec colors persist
-            self._render_mix_grid()
-
+            self._render_mix_grid("on transport")             # render LAST
+            self.app.pads_need_update = True
 
     def _on_mcu_pan_text(self, *, channel_idx: int, value, **_):
         # Use the precise value typed in Logic for the green number
@@ -787,8 +766,9 @@ class MackieControlMode(definitions.LogicMode):
         self._last_pan[bi] = val
 
         self.app.display_dirty = True
-        self._render_mix_grid()
         self.update_strip_values()
+        self._render_mix_grid("on pan")
+        self.app.pads_need_update = True
 
     def set_visible_names(self, names):
         """
@@ -868,7 +848,7 @@ class MackieControlMode(definitions.LogicMode):
         self._blank_track_row_buttons()
         self.update_buttons()
         self._paint_selector_row()
-        self._render_mix_grid()
+        self._render_mix_grid("activate")
         # seed from Logic's current pan levels
         mm = getattr(self.app, "mcu_manager", None)
         if mm and hasattr(mm, "pan_levels"):
@@ -891,39 +871,8 @@ class MackieControlMode(definitions.LogicMode):
         self._blank_track_row_buttons()
         self.app.pads_need_update = True
 
-    def on_pad_pressed(self, pad_n, pad_ij, velocity, loop=False, quantize=False, shift=False, select=False,
-                       long_press=False, double_press=False):
-        row, col = pad_ij
-
-        # Bottom row = mode selectors (unchanged)
-        if row == 7 and 0 <= col < 8:
-            mode = LOWER_ROW_MODES[col]
-            self._set_mode(mode)
-            return True
-
-        # Mix-grid actions on rows 0..3
-        note_num = _mcu_note_for(row, col)
-        if note_num is not None:
-            mcu = getattr(self.app, "mcu_manager", None)
-            if mcu:
-                port = mcu.output_port or getattr(self.app, "midi_out", None)
-                if port:
-                    port.send(mido.Message('note_on', note=note_num, velocity=127, channel=0))
-                    port.send(mido.Message('note_on', note=note_num, velocity=0, channel=0))
-
-            # Repaint the grid so colors reflect the new state
-            self._render_mix_grid()
-            self.app.pads_need_update = True
-            self.app.buttons_need_update = True
-            return True
-
-        # Not handled
-        self.app.pads_need_update = True
-        return True
 
 
-    def on_pad_released(self, pad_n, pad_ij, **_):
-        return True
 
     def update_display(self, ctx, w, h):
         ctx.rectangle(0, 0, w, h)
@@ -950,6 +899,7 @@ class MackieControlMode(definitions.LogicMode):
         self._draw_top_mute_solo_header(ctx, w, h)
         self._draw_bottom_mode_labels(ctx, w, h)
         self.update_buttons()
+        #self._render_mix_grid("update display")
 
     def get_current_page(self) -> int:
         mm = getattr(self.app, "mcu_manager", None)
@@ -989,8 +939,6 @@ class MackieControlMode(definitions.LogicMode):
                 encoders.set_encoder_ring_value(encoder_name, led_val)
             elif hasattr(encoders, "set_value"):
                 encoders.set_value(encoder_name, led_val)
-
-
 
     # ---------------------------------------------------------------- inputs
     def update_buttons(self):
@@ -1073,6 +1021,7 @@ class MackieControlMode(definitions.LogicMode):
                         abs_idx = self.current_page * self.tracks_per_page + i  # bank-aware
                         mm.selected_track_idx = abs_idx
                     self._tap_mcu_button(24 + i)  # MCU SELECT notes 24..31
+                    self._render_mix_grid("on button pressed raw")       # <-- add this so pads snap immediately
                     self.app.buttons_need_update = True
                     return True
 
@@ -1114,8 +1063,10 @@ class MackieControlMode(definitions.LogicMode):
     def _on_mcu_track_state(self, **_):
         if not self.app.is_mode_active(self): return
         self.update_buttons()
-        self._render_mix_grid()
         self.update_strip_values()
+        self._render_mix_grid("on mcu track state")                 # render LAST
+        self.app.pads_need_update = True
+        self.app.buttons_need_update = True
 
     def on_encoder_rotated(self, encoder_name, increment):
         # Guard checks
@@ -1141,6 +1092,60 @@ class MackieControlMode(definitions.LogicMode):
             return True
 
         return False
+
+    def _visible_base(self) -> int:
+        return (getattr(self, "current_page", 0) or 0) * 8
+
+    def on_pad_pressed(self, pad_n, pad_ij, velocity, loop=False, quantize=False, shift=False, select=False,
+                       long_press=False, double_press=False):
+        row, col = pad_ij
+
+        # Bottom row = mode selectors
+        if row == 7 and 0 <= col < 8:
+            mode = LOWER_ROW_MODES[col]
+            self._set_mode(mode)
+            return True
+
+        note_num = _mcu_note_for(row, col)
+        if note_num is None:
+            return True
+
+        mcu = getattr(self.app, "mcu_manager", None)
+
+        # --- SELECT (row 0): optimistic local update so it’s instant ---
+        if row == 0:
+            base = self._visible_base()
+            if mcu:
+                mcu.selected_track_idx = base + col  # instant local select for pads
+            self._render_mix_grid("on pad pressed")                  # show green immediately
+            self._set_pad_color((row, col), _GREEN, 1.0)  # pressed highlight
+
+        # --- MUTE / SOLO / REC: pressed highlight only (state lands on release) ---
+        elif row == 1:
+            self._set_pad_color((row, col), _CYAN, 1.0)
+        elif row == 2:
+            self._set_pad_color((row, col), _YELLOW, 1.0)
+        elif row == 3:
+            self._set_pad_color((row, col), _RED, 1.0)
+
+        # Send MCU tap
+        if mcu:
+            port = mcu.output_port or getattr(self.app, "midi_out", None)
+            if port:
+                port.send(mido.Message('note_on', note=note_num, velocity=127, channel=0))
+                port.send(mido.Message('note_on', note=note_num, velocity=0, channel=0))
+        return True
+
+
+    def on_pad_released(self, pad_n, pad_ij, **_):
+        row, col = pad_ij
+        # Repaint from actual MCU state the moment the finger lifts (no timers)
+        if 0 <= row <= 3 and 0 <= col < 8:
+            self._render_mix_grid("on_pad_released")
+            self.app.pads_need_update = True
+            self.app.buttons_need_update = True
+        return True
+
 
     def _pull_lcd_labels_for_visible_bank(self):
         mm = getattr(self.app, "mcu_manager", None)
