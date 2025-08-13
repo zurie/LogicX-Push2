@@ -73,6 +73,15 @@ MODE_COLORS = {
     "extra2": getattr(definitions, "GREEN_LIGHT", getattr(definitions, "GREEN", "green")),
     "extra3": getattr(definitions, "RED_LIGHT", getattr(definitions, "RED", "red")),
 }
+# MCU Assignment / Function keys (notes)
+MCU_ASSIGN_INOUT      = 40
+MCU_ASSIGN_SENDS      = 41
+MCU_ASSIGN_PAN        = 42
+MCU_ASSIGN_PLUGINS    = 43
+MCU_ASSIGN_PAGE_LEFT  = 44
+MCU_ASSIGN_PAGE_RIGHT = 45
+MCU_ASSIGN_BANK_LEFT  = 46
+MCU_ASSIGN_BANK_RIGHT = 47
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -361,6 +370,9 @@ class MackieControlMode(definitions.LogicMode):
         push2_python.constants.BUTTON_LOWER_ROW_6,
         push2_python.constants.BUTTON_LOWER_ROW_7,
         push2_python.constants.BUTTON_LOWER_ROW_8,
+        # page keys
+        push2_python.constants.BUTTON_PAGE_LEFT,
+        push2_python.constants.BUTTON_PAGE_RIGHT,
     ]
     # current_page = 0
     n_pages = 1
@@ -467,6 +479,10 @@ class MackieControlMode(definitions.LogicMode):
         if mode not in MODE_LABELS:
             return
         self.active_mode = mode
+
+        # Tell MCU we're in PAN assignment when entering PAN mode
+        if mode == MODE_PAN:
+            self._send_assignment(MCU_ASSIGN_PAN)
         self.update_buttons()
         self.update_encoders()
         self._paint_selector_row()
@@ -657,6 +673,22 @@ class MackieControlMode(definitions.LogicMode):
 
             # self.pad_meter = PadMeter(self.push)
             self._listeners_added = True
+
+    # --- near your helpers ---
+    def _send_assignment(self, note: int):
+        """Tap an MCU assignment key (Pan/Sends/etc.) every time and log the port."""
+        port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
+        if not port:
+            print("[MCU OUT] No output_port/midi_out; cannot send assignment", note)
+            return
+        try:
+            pname = getattr(port, "name", str(port))
+        except Exception:
+            pname = str(port)
+        print(f"[MCU OUT] ASSIGN note {note} → {pname}")
+        port.send(mido.Message('note_on', note=note, velocity=127, channel=0))
+        port.send(mido.Message('note_on', note=note, velocity=0,   channel=0))
+
 
     def _apply_pad_colors(self, pairs):
         # pairs: [((row, col), color), ...]
@@ -865,6 +897,8 @@ class MackieControlMode(definitions.LogicMode):
         self.update_buttons()
         self._paint_selector_row()
         self._render_mix_grid("activate")
+        if self.active_mode == MODE_PAN:
+            self._send_assignment(MCU_ASSIGN_PAN)
         # seed from Logic's current pan levels
         mm = getattr(self.app, "mcu_manager", None)
         if mm and hasattr(mm, "pan_levels"):
@@ -1005,8 +1039,27 @@ class MackieControlMode(definitions.LogicMode):
                 lower,
                 col if mode == self.active_mode else definitions.GRAY_DARK
             )
+            try:
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_LEFT,  definitions.GRAY_LIGHT)
+                self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_RIGHT, definitions.GRAY_LIGHT)
+            except Exception:
+                pass
 
     def on_button_pressed_raw(self, btn):
+        # Map Push PAGE < / > to MCU assignment "Page <" (44) / "Page >" (45)
+        if btn == push2_python.constants.BUTTON_PAGE_LEFT:
+            self._tap_mcu_button(MCU_ASSIGN_PAGE_LEFT)   # note 44
+            return True
+        if btn == push2_python.constants.BUTTON_PAGE_RIGHT:
+            self._tap_mcu_button(MCU_ASSIGN_PAGE_RIGHT)  # note 45
+            return True
+
+        if btn == push2_python.constants.BUTTON_PAGE_LEFT and getattr(self.app, "shift_held", False):
+            self._tap_mcu_button(MCU_ASSIGN_BANK_LEFT)   # note 46
+            return True
+        if btn == push2_python.constants.BUTTON_PAGE_RIGHT and getattr(self.app, "shift_held", False):
+            self._tap_mcu_button(MCU_ASSIGN_BANK_RIGHT)  # note 47
+            return True
         # LOWER ROW = MODE SELECTORS
         for i in range(8):
             lower_btn = getattr(push2_python.constants, f"BUTTON_LOWER_ROW_{i + 1}")
