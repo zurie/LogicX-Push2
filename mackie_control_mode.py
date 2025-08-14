@@ -60,21 +60,20 @@ _MCU_OFFICIAL = {
     "INSTRUMENT": 53,
 }
 
-# Adjust IDs below to match your Maschine template if needed
 _MASCHINE_LOGIC = {
-    "TRACK": 40,
-    "INSTRUMENT": 41,  # change if your template uses another ID
+    "TRACK": 40,   # Maschine “In/Out”
+    "SEND":  41,   # Maschine “Sends”
     "PAN": 42,
     "PLUGIN": 43,
-    "EQ": 44,  # conflicts with official PAGE_LEFT
-    "DYNAMICS": 45,  # conflicts with official PAGE_RIGHT (often labeled "DYN")
+    "EQ": 44,        # conflicts with official PAGE_LEFT
+    "DYNAMICS": 45,  # conflicts with official PAGE_RIGHT (often “DYN”)
     "BANK_LEFT": 46,
     "BANK_RIGHT": 47,
 }
 
 _ASSIGN_ALIAS = {
     "TRACK": {_MCU_OFFICIAL["TRACK"], _MASCHINE_LOGIC.get("TRACK", -1)},
-    "SEND": {_MCU_OFFICIAL["SEND"]},
+    "SEND":       {_MCU_OFFICIAL["SEND"], _MASCHINE_LOGIC.get("SEND", -1)},
     "PAN": {_MCU_OFFICIAL["PAN"], _MASCHINE_LOGIC.get("PAN", -1)},
     "PLUGIN": {_MCU_OFFICIAL["PLUGIN"], _MASCHINE_LOGIC.get("PLUGIN", -1)},
     "EQ": {_MCU_OFFICIAL["EQ"], _MASCHINE_LOGIC.get("EQ", -1)},
@@ -731,17 +730,16 @@ class MackieControlMode(definitions.LogicMode):
 
         self.active_mode = mode
 
-        # Send correct MCU assignment
+        # Send correct MCU assignment (isolate Volume vs Pan)
         if mode == MODE_PAN:
+            # PAN mode always = PAN assignment (8 encoders = pan), never jump to TRACK
             self._send_assignment("PAN")
 
         elif mode == MODE_VOLUME:
-            if self._substate.get(MODE_VOLUME) == SUB_SINGLE:
-                # Single-channel strip mode → second encoder does Pan
-                self._send_assignment("PAN")
-            else:
-                # Normal multi-channel volume mode
-                self._send_assignment("TRACK")  # NI/Logic alias
+            # VOLUME mode always = TRACK assignment
+            # SUB_SINGLE still uses enc1=Vol, enc2=Pan (handled by your encoder mapping),
+            # but we do NOT flip the MCU assign to PAN here.
+            self._send_assignment("TRACK")
 
         elif mode == MODE_EQ:
             self._send_assignment("EQ")
@@ -758,6 +756,7 @@ class MackieControlMode(definitions.LogicMode):
         self._paint_selector_row()
         self.app.pads_need_update = True
         self.app.buttons_need_update = True
+
 
     def _detect_pan_submode_from_lcd(self) -> Optional[str]:
         """
