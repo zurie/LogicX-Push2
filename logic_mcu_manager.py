@@ -1,8 +1,9 @@
-import re
-import mido
-import threading
-import time
+# logic_mcu_manager.py
+# LogicMCUManager with Assign translation normalization at input
+
+import re, mido, threading, time
 import definitions
+from typing import Optional
 
 _PAN_RE = re.compile(r'^(?:[+\-]?\d{1,3}|C)$')
 _TAP_OFF_DELAY = 0.001  # 1 ms tap
@@ -16,10 +17,10 @@ class LogicMCUManager:
     # === Full Mackie Control Button Map (with VPOT push and custom codes) ===
     BUTTON_MAP = {
         # --- Channel strip buttons ---
-        **{i: f"REC[{i + 1}]"    for i in range(0, 8)},    # 0–7
-        **{i: f"SOLO[{i - 7}]"   for i in range(8, 16)},   # 8–15
-        **{i: f"MUTE[{i - 15}]"  for i in range(16, 24)},  # 16–23
-        **{i: f"SELECT[{i - 23}]"for i in range(24, 32)},  # 24–31
+        **{i: f"REC[{i + 1}]" for i in range(0, 8)},  # 0–7
+        **{i: f"SOLO[{i - 7}]" for i in range(8, 16)},  # 8–15
+        **{i: f"MUTE[{i - 15}]" for i in range(16, 24)},  # 16–23
+        **{i: f"SELECT[{i - 23}]" for i in range(24, 32)},  # 24–31
 
         # --- VPOT push (encoders as buttons) ---
         **{i + 32: f"VPOT_PUSH[{i + 1}]" for i in range(0, 8)},  # 32–39
@@ -77,24 +78,101 @@ class LogicMCUManager:
         98: "ARROW_LEFT",
         99: "ARROW_RIGHT",
 
-        # --- Logic / Push 2 Custom Extensions (keep only what you use) ---
-        100: "LOOP_ON_OFF",   # if you actually send this
-        101: "PUNCH",           # keep if you use it; otherwise delete
+        # Custom extensions (optional in your rig)
+        100: "LOOP_ON_OFF",
+        101: "PUNCH",
         113: "MARKER_PREV",
         114: "MARKER_NEXT",
         115: "MARKER_SET",
-        118: "SETUP",           # Push 2 Setup
-        119: "USER",            # Push 2 User
-        120: "MIX",             # Custom
+        118: "SETUP",
+        119: "USER",
+        120: "MIX",
     }
 
+    # preferred reverse lookup
+    PREFERRED = {"ZOOM": 72, "SCRUB": 67, "SCRUB_MODE": 73}
+    BUTTON_CODE = {}
+    for code, name in BUTTON_MAP.items():
+        if name not in BUTTON_CODE or PREFERRED.get(name) == code:
+            BUTTON_CODE[name] = code
 
-    # === Reverse lookup: Name → MIDI code ===
-    BUTTON_CODE = {name: code for code, name in BUTTON_MAP.items()}
+    # ──────────────────────────────────────────────────────────────────────────
+    # Assign translation tables (keep in sync with mackie_control_mode)
+    # ──────────────────────────────────────────────────────────────────────────
+    _MCU_OFFICIAL = {
+        "PAGE_LEFT":   44,
+        "PAGE_RIGHT":  45,
+        "BANK_LEFT":   46,
+        "BANK_RIGHT":  47,
+        "TRACK":       48,
+        "SEND":        49,
+        "PAN":         50,
+        "PLUGIN":      51,
+        "EQ":          52,
+        "INSTRUMENT":  53,
+    }
+    _MASCHINE_LOGIC = {
+        "TRACK":      40,
+        "INSTRUMENT": 41,
+        "PAN":        42,
+        "PLUGIN":     43,
+        "EQ":         44,
+        "DYNAMICS":   45,
+        "BANK_LEFT":  46,
+        "BANK_RIGHT": 47,
+    }
+    _ASSIGN_ALIAS = {
+        "TRACK":      {_MCU_OFFICIAL["TRACK"],      _MASCHINE_LOGIC.get("TRACK", -1)},
+        "SEND":       {_MCU_OFFICIAL["SEND"]},
+        "PAN":        {_MCU_OFFICIAL["PAN"],        _MASCHINE_LOGIC.get("PAN", -1)},
+        "PLUGIN":     {_MCU_OFFICIAL["PLUGIN"],     _MASCHINE_LOGIC.get("PLUGIN", -1)},
+        "EQ":         {_MCU_OFFICIAL["EQ"],         _MASCHINE_LOGIC.get("EQ", -1)},
+        "INSTRUMENT": {_MCU_OFFICIAL["INSTRUMENT"], _MASCHINE_LOGIC.get("INSTRUMENT", -1)},
+        "BANK_LEFT":  {_MCU_OFFICIAL["BANK_LEFT"],  _MASCHINE_LOGIC.get("BANK_LEFT", -1)},
+        "BANK_RIGHT": {_MCU_OFFICIAL["BANK_RIGHT"], _MASCHINE_LOGIC.get("BANK_RIGHT", -1)},
+        "PAGE_LEFT":  {_MCU_OFFICIAL["PAGE_LEFT"]},
+        "PAGE_RIGHT": {_MCU_OFFICIAL["PAGE_RIGHT"]},
+    }
+    for k in list(_ASSIGN_ALIAS.keys()):
+        _ASSIGN_ALIAS[k] = {n for n in _ASSIGN_ALIAS[k] if isinstance(n, int) and n >= 0}
+    _ASSIGN_RAW_TO_ACTION = {}
+    for action, ids in _ASSIGN_ALIAS.items():
+        for i in ids:
+            _ASSIGN_RAW_TO_ACTION.setdefault(i, set()).add(action)
+    _ACTION_TO_OFFICIAL = {name: code for name, code in _MCU_OFFICIAL.items()}
 
+    @classmethod
+    def _resolve_assign_action(cls, raw_id: int, *, page_mode: bool = False) -> Optional[str]:
+        actions = cls._ASSIGN_RAW_TO_ACTION.get(raw_id)
+        if not actions:
+            return None
+        if raw_id == 44:  # EQ vs PAGE_LEFT
+            if page_mode and "PAGE_LEFT" in actions:
+                return "PAGE_LEFT"
+            return "EQ" if "EQ" in actions else next(iter(actions))
+        if raw_id == 45:  # DYNAMICS vs PAGE_RIGHT
+            if page_mode and "PAGE_RIGHT" in actions:
+                return "PAGE_RIGHT"
+            return "DYNAMICS" if "DYNAMICS" in actions else next(iter(actions))
+        for pref in ("TRACK","SEND","PAN","PLUGIN","EQ","INSTRUMENT","BANK_LEFT","BANK_RIGHT","PAGE_LEFT","PAGE_RIGHT"):
+            if pref in actions:
+                return pref
+        return next(iter(actions))
 
+    def _translate_assign_alias(self, note: int) -> int:
+        """Normalize Maschine/Logic assign notes (e.g., 40, 42, 44, 45) to official MCU notes before BUTTON_MAP lookup."""
+        try:
+            action = self._resolve_assign_action(note, page_mode=False)
+            if not action:
+                return note
+            official = self._ACTION_TO_OFFICIAL.get(action)
+            return official if official is not None else note
+        except Exception:
+            return note
 
-
+    # ──────────────────────────────────────────────────────────────────────────
+    # Init / state
+    # ──────────────────────────────────────────────────────────────────────────
     def __init__(self, app, port_name="IAC Driver LogicMCU_In", enabled=True, update_interval=0.05):
         self.input_port = None
         self.output_port = None
@@ -103,42 +181,37 @@ class LogicMCUManager:
         self.app = app
         self.enabled = enabled
         self.port_name = port_name
-        self.update_interval = update_interval  # Minimum time between display updates (50ms default)
-        self.lcd = [bytearray(b' ' * 56), bytearray(b' ' * 56)]  # 2×56
+        self.update_interval = update_interval
+        self.lcd = [bytearray(b' ' * 56), bytearray(b' ' * 56)]
         self._lcd_top = bytearray(b' ' * 56)
         self._lcd_bot = bytearray(b' ' * 56)
         self.debug_mcu = getattr(app, "debug_mcu", False)
 
-        # listeners (extensible; add_listener uses setdefault)
         self._listeners = {"track_state": [], "pan": [], "pan_text": [], "transport": [], "meter": []}
 
         self.transport = {"play": False, "stop": True, "record": False, "ffwd": False, "rew": False}
         self._transport_dirty = True
         self._transport_seen = False
-        # Callback hooks (legacy single-slot style)
         self.on_transport_change = None
         self.on_button = None
         self.on_fader = None
-        self.on_vpot = None  # raw ring from 0x0E (optional legacy)
-        self.on_vpot_display = None  # official ring echo: fn(ch:int, pos:int)
+        self.on_vpot = None
+        self.on_vpot_display = None
         self.on_track_state = None
-        self._last_vpot_idx = None  # 0..7
-        self.vpot_pos = [0] * 8  # 0..7 (tick slots)
+        self._last_vpot_idx = None
+        self.vpot_pos = [0] * 8
         self.listener_thread = None
         self.running = False
         self._last_led_req = 0.0
         self._led_req_interval = 0.3
         self._led_req_bank = None
-        self._lcd_pan_ts = [0.0] * 8  # when we last accepted pan from LCD (per strip)
+        self._lcd_pan_ts = [0.0] * 8
         self.pan_string = [""] * 8
-        # State cache for throttling
         self.last_update_time = 0
         self.pending_update = False
 
-        # Simple MCU track‑type colours (8‑color rotating palette)
         self.track_colors = [definitions.MIXER_PALETTE[i % len(definitions.MIXER_PALETTE)] for i in range(8)]
 
-        # Track/LED state caches
         self.track_names = [""] * 8
         self.mute_states = [False] * 64
         self.solo_states = [False] * 64
@@ -146,9 +219,9 @@ class LogicMCUManager:
         self.meter_levels = [0] * 64
         self.select_states = [False] * 8
         self.fader_levels = [0] * 8
-        self.pan_levels = [0.0] * 8  # −64..+63 (float)
-        self.pan_text = [None] * 8  # what the LCD shows (int)
-        self.vpot_ring = [6] * 8  # 0..11, 6 = detent
+        self.pan_levels = [0.0] * 8
+        self.pan_text = [None] * 8
+        self.vpot_ring = [6] * 8
 
         self.selected_track_idx = None
         self.playhead = 0.0
@@ -157,10 +230,12 @@ class LogicMCUManager:
             self.app.mcu = self
         if not hasattr(self.app, "mcu_manager"):
             self.app.mcu_manager = self
-        # track/LED update flag used by flush_updates
         if not hasattr(self.app, "buttons_need_update"):
             self.app.buttons_need_update = False
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Lifecycle
+    # ──────────────────────────────────────────────────────────────────────────
     def start(self):
         if not self.enabled:
             if self.debug_mcu:
@@ -191,8 +266,10 @@ class LogicMCUManager:
             if self.debug_mcu:
                 print("[MCU] Output port closed")
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Events
+    # ──────────────────────────────────────────────────────────────────────────
     def add_listener(self, event_type: str, callback):
-        """Register a callback for generic events (pan, pan_text, track_state, meter, transport …)."""
         self._listeners.setdefault(event_type, []).append(callback)
 
     def _fire(self, evt, **kw):
@@ -203,25 +280,21 @@ class LogicMCUManager:
         if not self.output_port:
             print("[MCU] No output port available to send", button_type)
             return
-
         button_type = button_type.upper()
-
-        # Track-specific buttons require a selected track
         if button_type in ("SOLO", "MUTE", "REC") and self.selected_track_idx is None:
             print(f"[MCU] No selected track to send {button_type}")
             return
-
         if button_type == "SOLO":
             note_num = 8 + self.selected_track_idx
         elif button_type == "MUTE":
             note_num = 16 + self.selected_track_idx
-        elif button_type == "REC":  # record arm
+        elif button_type == "REC":
             note_num = 0 + self.selected_track_idx
         elif button_type == "PLAY":
             note_num = 94
         elif button_type == "STOP":
             note_num = 93
-        elif button_type == "RECORD":  # transport record
+        elif button_type == "RECORD":
             note_num = 95
         elif button_type == "FFWD":
             note_num = 92
@@ -230,18 +303,14 @@ class LogicMCUManager:
         else:
             print("[MCU] Unknown button type:", button_type)
             return
-
-        msg_press = mido.Message("note_on", note=note_num, velocity=127, channel=0)
-        msg_release = mido.Message("note_on", note=note_num, velocity=0, channel=0)
-        self.output_port.send(msg_press)
-        self.output_port.send(msg_release)
-
+        self.output_port.send(mido.Message("note_on", note=note_num, velocity=127, channel=0))
+        self.output_port.send(mido.Message("note_on", note=note_num, velocity=0, channel=0))
         if self.debug_mcu:
-            if button_type in ("SOLO", "MUTE", "REC"):
-                print(f"[MCU] Sent {button_type} for track {self.selected_track_idx + 1} (note {note_num})")
-            else:
-                print(f"[MCU] Sent {button_type} (note {note_num})")
+            print(f"[MCU] Sent {button_type} (note {note_num})")
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Main listen loop
+    # ──────────────────────────────────────────────────────────────────────────
     def listen_loop(self):
         print("[MCU] Starting listen loop")
         for msg in self.input_port:
@@ -255,9 +324,15 @@ class LogicMCUManager:
                 self.handle_sysex(payload)
 
             elif msg.type in ("note_on", "note_off"):
-                # Treat NOTE 0–23 (REC/SOLO/MUTE) + 24–31 (SELECT) as authoritative LED/state from Logic.
                 pressed = (msg.type == "note_on" and msg.velocity > 0)
-                handled = self.handle_button(msg.note, pressed)
+
+                # Normalize Maschine/Logic assign IDs before BUTTON_MAP lookup
+                try:
+                    msg_note = self._translate_assign_alias(msg.note)
+                except Exception:
+                    msg_note = msg.note
+
+                handled = self.handle_button(msg_note, pressed)
                 if handled is False and hasattr(self.app, "on_push2_midi_message"):
                     self.app.on_push2_midi_message(msg)
 
@@ -303,14 +378,11 @@ class LogicMCUManager:
                     self.pending_update = False
 
     def flush_updates(self):
-        """Push all pending updates to Push 2 display in one go."""
-        # Only repaint Mute/Solo LEDs if someone marked them dirty
         if getattr(self.app, "buttons_need_update", False) and self.selected_track_idx is not None:
             if hasattr(self.app, "update_push2_mute_solo"):
                 self.app.update_push2_mute_solo(track_idx=self.selected_track_idx)
             self.app.buttons_need_update = False
 
-        # Paint Play/Record only when state changed
         if getattr(self, "_transport_dirty", False):
             if hasattr(self.app, "update_play_button_color"):
                 self.app.update_play_button_color(self.transport.get("play", False))
@@ -318,47 +390,39 @@ class LogicMCUManager:
                 self.app.update_record_button_color(self.transport.get("record", False))
             self._transport_dirty = False
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # SysEx handling (trimmed to your handlers)
+    # ──────────────────────────────────────────────────────────────────────────
     def request_bank_led_states(self, selected_idx: int):
-        """Ask Logic for LED state for the 8 strips in the current bank, throttled."""
         try:
             port = self.output_port or getattr(self.app, "midi_out", None)
             if not port:
                 return
             bank_start = (selected_idx // 8) * 8
             now = time.time()
-            if self._led_req_bank == bank_start and (now - self._last_led_req) < self._led_req_interval:
-                return  # throttle duplicate requests
-
+            if getattr(self, "_led_req_bank", None) == bank_start and (now - getattr(self, "_last_led_req", 0)) < getattr(self, "_led_req_interval", 0.3):
+                return
             self._led_req_bank = bank_start
             self._last_led_req = now
-
             for ch in range(bank_start, bank_start + 8):
                 msg = mido.Message('sysex', data=definitions.MCU_SYSEX_PREFIX[:4] + [0x20, ch, 0x07])
                 port.send(msg)
-
-            if self.debug_mcu:
-                print(f"[MCU] Requested LED states for bank {bank_start + 1}-{bank_start + 8}")
         except Exception as e:
             if self.debug_mcu:
                 print(f"[MCU] Failed to request bank LED states: {e}")
 
-    # ---------------- SysEx Handlers ----------------
     def handle_sysex(self, data: bytes):
         try:
-            # Validate Mackie header
             if not (len(data) >= 5 and list(data[:3]) == definitions.MCU_SYSEX_PREFIX_ANY and data[3] in definitions.ACCEPTED_MCU_MODEL_IDS):
                 if self.debug_mcu:
                     print("[MCU] Ignoring non-Mackie sysex:", data[:8], "…")
                 return
-
             cmd = data[4]
 
             if cmd == 0x1A and len(data) >= 6 and data[5] == 0x00:
-                if self.debug_mcu:
-                    print("[MCU] Serial request seen (1A 00). Replying with", getattr(definitions, "SERIAL_BYTES", []))
                 try:
-                    model = data[3]  # 0x14 or 0x15
-                    reply = mido.Message('sysex', data=[0x00,0x00,0x66, model, 0x1B, *definitions.SERIAL_BYTES])
+                    model = data[3]
+                    reply = mido.Message('sysex', data=[0x00, 0x00, 0x66, model, 0x1B, *definitions.SERIAL_BYTES])
                     if self.output_port:
                         self.output_port.send(reply)
                 except Exception as e:
@@ -366,15 +430,10 @@ class LogicMCUManager:
                         print("[MCU] Failed to send serial reply:", e)
                 return
 
-            # --- Selection notification: 0x0E <index> 0x03
             if len(data) >= 7 and cmd == 0x0E and data[6] == 0x03:
                 track_index = data[5]
                 self.selected_track_idx = track_index
-                if self.debug_mcu:
-                    print("*** Bank/selection → selected_track_idx:", track_index)
                 self.pending_update = True
-
-                # request LEDs for bank (throttled)
                 self.request_bank_led_states(track_index)
 
                 if getattr(self.app, "mc_mode", None):
@@ -387,8 +446,6 @@ class LogicMCUManager:
             if cmd == 0x00:
                 try:
                     self.output_port.send(mido.Message('sysex', data=definitions.MCU_SYSEX_PREFIX[:4] + [0x13, 0x00]))
-                    if self.debug_mcu:
-                        print("[MCU] → ACK 0x13 00")
                 except Exception as e:
                     if self.debug_mcu:
                         print("[MCU] Failed to send ACK:", e)
@@ -532,13 +589,7 @@ class LogicMCUManager:
         bot = bytes(self._lcd_bot)
         cells_bot = [bot[i:i + 7].decode('ascii', 'ignore').strip() for i in range(0, 56, 7)]
 
-        # (optional) debug so you can verify we actually caught the 0,10,20,... frame
-        if self.debug_mcu:
-            try:
-                print("[MCU] LCD pans:", " | ".join(cells_bot[:8]))
-            except Exception:
-                pass
-
+        _PAN_RE = re.compile(r'^(?:[+\-]?\d{1,3}|C)$')
         for i, cell in enumerate(cells_bot[:8]):
             if not cell:
                 continue
@@ -551,7 +602,6 @@ class LogicMCUManager:
                     continue
             else:
                 continue
-
             self.pan_text[i] = v
             self.pan_levels[i] = float(v)
             self._fire("pan_text", channel_idx=i, value=float(v))
@@ -608,45 +658,27 @@ class LogicMCUManager:
         bits = int(payload[1])
 
         # Logic MCU 0x21 bitfield: 0x01=STOP, 0x02=PLAY, 0x04=RECORD, 0x10=FFWD, 0x20=REW
-        play   = bool(bits & 0x02)
-        stop   = bool(bits & 0x01)
+        play = bool(bits & 0x02)
+        stop = bool(bits & 0x01)
         record = bool(bits & 0x04)
-        ffwd   = bool(bits & 0x10)
-        rew    = bool(bits & 0x20)
-
-        # If both happen to be set, prefer 'play'
+        ffwd = bool(bits & 0x10)
+        rew = bool(bits & 0x20)
         if play and stop:
             stop = False
-
-        new_transport = {
-            "play":   play,
-            "stop":   stop,
-            "record": record,
-            "ffwd":   ffwd,
-            "rew":    rew,
-        }
-
+        new_transport = {"play": play, "stop": stop, "record": record, "ffwd": ffwd, "rew": rew}
         if new_transport != self.transport:
             self.transport = new_transport
-            self._transport_dirty = True  # mark for UI paint
-            if self.debug_mcu:
-                print("[MCU] Transport update:", self.transport)
+            self._transport_dirty = True
             if self.on_transport_change:
                 self.on_transport_change(self.transport)
             self.emit_event("transport", state=self.transport)
         else:
-            # even if no change, note we've seen transport
             self._transport_dirty = True
-
-        if self.debug_mcu:
-            print(f"[MCU] 0x21 bits=0x{bits:02X} → play={play} stop={stop} rec={record} ffwd={ffwd} rew={rew}")
-
 
     def _handle_time(self, payload):
         self.playhead = payload
 
     def emit_event(self, event_type, **kwargs):
-        """Dispatch to the old dedicated hooks *and* any add_listener() hooks."""
         if event_type == "pan" and hasattr(self.app, "on_pan"):
             self.app.on_pan(kwargs.get("channel_idx"), kwargs.get("value"))
         if event_type == "button" and self.on_button:
@@ -658,13 +690,7 @@ class LogicMCUManager:
         if event_type == "vpot" and self.on_vpot:
             self.on_vpot(kwargs.get("idx"), kwargs.get("value"))
         if event_type == "track_state" and self.on_track_state:
-            self.on_track_state(
-                kwargs.get("channel_idx"),
-                kwargs.get("rec"),
-                kwargs.get("solo"),
-                kwargs.get("mute"),
-            )
-
+            self.on_track_state(kwargs.get("channel_idx"), kwargs.get("rec"), kwargs.get("solo"), kwargs.get("mute"))
         for cb in self._listeners.get(event_type, []):
             try:
                 cb(**kwargs)
@@ -672,8 +698,18 @@ class LogicMCUManager:
                 if self.debug_mcu:
                     print(f"[MCU] listener for '{event_type}' raised:", e)
 
+    # Normalize Maschine/Logic assign notes to official actions before lookup
+    def _translate_assign_alias(self, note: int) -> int:
+        # Use the same translation as the Mix mode (prefer official outbound note)
+        action = _resolve_assign_action(note, page_mode=False)  # no page context at input
+        if not action:
+            return note
+        official = _ACTION_TO_OFFICIAL.get(action)
+        return official if official is not None else note
+
     # ---------------- Realtime Handlers ----------------
     def handle_button(self, note, pressed):
+
         label = self.BUTTON_MAP.get(note)
 
         if label:
@@ -778,8 +814,7 @@ class LogicMCUManager:
                     self.on_transport_change(self.transport)
                 self.emit_event("transport", state=self.transport)
 
-
-    # Fire generic button event
+            # Fire generic button event
             if self.on_button:
                 self.on_button(label, pressed)
             self.emit_event("button", label=label, pressed=pressed)
@@ -820,7 +855,7 @@ class LogicMCUManager:
         bot = bytes(self._lcd_bot)
 
         def cells(b):
-            return [b[i:i+7].decode("ascii", "ignore").rstrip()
+            return [b[i:i + 7].decode("ascii", "ignore").rstrip()
                     for i in range(0, 56, 7)][:8]
 
         return cells(top), cells(bot)
@@ -847,14 +882,13 @@ class LogicMCUManager:
             # Channel 8 == “9th” channel = Master fader on MCU
             self.output_port.send(mido.Message("pitchwheel", pitch=pb, channel=8))
 
-    def nudge_master_level(self, steps: int, step_size: float = 1/200.0):
+    def nudge_master_level(self, steps: int, step_size: float = 1 / 200.0):
         """
         Relative master change in small steps; positive raises, negative lowers.
         Default ~0.5% per detent (tweak step_size to taste).
         """
         cur = self.get_master_level()
         self.set_master_level(cur + steps * step_size)
-
 
     def handle_midi_message(self, msg):
         if msg.type in ("note_on", "note_off"):
@@ -919,7 +953,9 @@ class LogicMCUManager:
                 should_toast = False
                 label = None
                 if new_db is not None and old_db is not None:
-                    def _safe(v): return -90.0 if math.isinf(v) else v
+                    def _safe(v):
+                        return -90.0 if math.isinf(v) else v
+
                     if abs(_safe(new_db) - _safe(old_db)) >= 0.1:
                         label = "-∞ dB" if new_db == float("-inf") else f"{new_db:+.1f} dB"
                         should_toast = True
@@ -933,8 +969,6 @@ class LogicMCUManager:
                     self.app.add_display_notification(f"MASTER {label}")
             except Exception:
                 pass
-
-
 
         if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
             self.app.mc_mode.update_encoders()
@@ -957,13 +991,19 @@ class LogicMCUManager:
         time.sleep(_TAP_OFF_DELAY)
         self._send_note(note, 0)
 
-    def cursor_up(self):    self._tap_note(self.MCU_NOTE_CURSOR_UP)
-    def cursor_down(self):  self._tap_note(self.MCU_NOTE_CURSOR_DOWN)
-    def cursor_left(self):  self._tap_note(self.MCU_NOTE_CURSOR_LEFT)
-    def cursor_right(self): self._tap_note(self.MCU_NOTE_CURSOR_RIGHT)
+    def cursor_up(self):
+        self._tap_note(self.MCU_NOTE_CURSOR_UP)
 
+    def cursor_down(self):
+        self._tap_note(self.MCU_NOTE_CURSOR_DOWN)
 
-# --- Meter -----------------------------------------------------------------
+    def cursor_left(self):
+        self._tap_note(self.MCU_NOTE_CURSOR_LEFT)
+
+    def cursor_right(self):
+        self._tap_note(self.MCU_NOTE_CURSOR_RIGHT)
+
+    # --- Meter -----------------------------------------------------------------
     def _handle_meter_dump(self, payload):
         """
         Logic sends:  F0 00 00 66 14 1n v1 v2 v3 v4 v5 v6 v7 v8 F7

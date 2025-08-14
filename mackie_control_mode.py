@@ -37,7 +37,86 @@ def _mcu_note_for(row: int, col: int) -> Optional[int]:
     return None
 
 
-# === Mode constants ===
+# 0..7 index within current bank
+def _bank(idx: int) -> int:
+    return idx % 8
+
+
+PAD_COLUMNS = [[(row, col) for row in range(8)] for col in range(8)]
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Assign translation (MCU official <-> Maschine/Logic observed)
+# ──────────────────────────────────────────────────────────────────────────────
+_MCU_OFFICIAL = {
+    "PAGE_LEFT": 44,
+    "PAGE_RIGHT": 45,
+    "BANK_LEFT": 46,
+    "BANK_RIGHT": 47,
+    "TRACK": 48,
+    "SEND": 49,
+    "PAN": 50,
+    "PLUGIN": 51,
+    "EQ": 52,
+    "INSTRUMENT": 53,
+}
+
+# Adjust IDs below to match your Maschine template if needed
+_MASCHINE_LOGIC = {
+    "TRACK": 40,
+    "INSTRUMENT": 41,  # change if your template uses another ID
+    "PAN": 42,
+    "PLUGIN": 43,
+    "EQ": 44,  # conflicts with official PAGE_LEFT
+    "DYNAMICS": 45,  # conflicts with official PAGE_RIGHT (often labeled "DYN")
+    "BANK_LEFT": 46,
+    "BANK_RIGHT": 47,
+}
+
+_ASSIGN_ALIAS = {
+    "TRACK": {_MCU_OFFICIAL["TRACK"], _MASCHINE_LOGIC.get("TRACK", -1)},
+    "SEND": {_MCU_OFFICIAL["SEND"]},
+    "PAN": {_MCU_OFFICIAL["PAN"], _MASCHINE_LOGIC.get("PAN", -1)},
+    "PLUGIN": {_MCU_OFFICIAL["PLUGIN"], _MASCHINE_LOGIC.get("PLUGIN", -1)},
+    "EQ": {_MCU_OFFICIAL["EQ"], _MASCHINE_LOGIC.get("EQ", -1)},
+    "INSTRUMENT": {_MCU_OFFICIAL["INSTRUMENT"], _MASCHINE_LOGIC.get("INSTRUMENT", -1)},
+    "BANK_LEFT": {_MCU_OFFICIAL["BANK_LEFT"], _MASCHINE_LOGIC.get("BANK_LEFT", -1)},
+    "BANK_RIGHT": {_MCU_OFFICIAL["BANK_RIGHT"], _MASCHINE_LOGIC.get("BANK_RIGHT", -1)},
+    "PAGE_LEFT": {_MCU_OFFICIAL["PAGE_LEFT"]},
+    "PAGE_RIGHT": {_MCU_OFFICIAL["PAGE_RIGHT"]},
+}
+for k in list(_ASSIGN_ALIAS.keys()):
+    _ASSIGN_ALIAS[k] = {n for n in _ASSIGN_ALIAS[k] if isinstance(n, int) and n >= 0}
+
+_ASSIGN_RAW_TO_ACTION = {}
+for action, ids in _ASSIGN_ALIAS.items():
+    for i in ids:
+        _ASSIGN_RAW_TO_ACTION.setdefault(i, set()).add(action)
+
+_ACTION_TO_OFFICIAL = {name: code for name, code in _MCU_OFFICIAL.items()}
+
+
+def _resolve_assign_action(raw_id: int, *, page_mode: bool = False) -> Optional[str]:
+    actions = _ASSIGN_RAW_TO_ACTION.get(raw_id)
+    if not actions:
+        return None
+    if raw_id == 44:  # EQ vs PAGE_LEFT
+        if page_mode and "PAGE_LEFT" in actions:
+            return "PAGE_LEFT"
+        return "EQ" if "EQ" in actions else next(iter(actions))
+    if raw_id == 45:  # DYNAMICS vs PAGE_RIGHT
+        if page_mode and "PAGE_RIGHT" in actions:
+            return "PAGE_RIGHT"
+        return "DYNAMICS" if "DYNAMICS" in actions else next(iter(actions))
+    for pref in ("TRACK", "SEND", "PAN", "PLUGIN", "EQ", "INSTRUMENT", "BANK_LEFT", "BANK_RIGHT", "PAGE_LEFT",
+                 "PAGE_RIGHT"):
+        if pref in actions:
+            return pref
+    return next(iter(actions))
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Modes & labels
+# ──────────────────────────────────────────────────────────────────────────────
 MODE_VOLUME = "volume"
 MODE_PAN = "pan"
 MODE_EQ = "eq"
@@ -46,9 +125,9 @@ MODE_SOLO = "solo"
 MODE_VPOT = "vpot"
 MODE_EXTRA2 = "extra2"
 MODE_EXTRA3 = "extra3"
-# === Submode labels ===
-SUB_ALL = "all"  # 8 encoders act across 8 channels
-SUB_SINGLE = "single"  # encoder 1 targets selected channel only
+
+SUB_ALL = "all"
+SUB_SINGLE = "single"
 EQ_PAGE_1 = 1
 EQ_PAGE_2 = 2
 
@@ -78,26 +157,33 @@ MODE_COLORS = {
     "extra2": getattr(definitions, "GREEN_LIGHT", getattr(definitions, "GREEN", "green")),
     "extra3": getattr(definitions, "RED_LIGHT", getattr(definitions, "RED", "red")),
 }
-# --- PAN submodes
-PAN_SUBMODE_TRACK = "track"  # 8-track pan view (all encoders live)
-PAN_SUBMODE_CSTRIP = "cstrip"  # Channel-Strip pan page (encoder 1 only)
 
-# Mackie "Assign" keys (match LogicMCUManager.BUTTON_MAP):
-MCU_ASSIGN_TRACK       = 48
-MCU_ASSIGN_SENDS       = 49
-MCU_ASSIGN_PAN         = 50
-MCU_ASSIGN_PLUGINS     = 51
-MCU_ASSIGN_EQ          = 52
-MCU_ASSIGN_INSTRUMENT  = 53
+# PAN submodes
+PAN_SUBMODE_TRACK = "track"
+PAN_SUBMODE_CSTRIP = "cstrip"
+
+MCU_ASSIGN_PAGE_LEFT = 44
+MCU_ASSIGN_PAGE_RIGHT = 45
+MCU_ASSIGN_BANK_LEFT = 46
+MCU_ASSIGN_BANK_RIGHT = 47
+MCU_ASSIGN_TRACK = 48
+MCU_ASSIGN_SENDS = 49
+MCU_ASSIGN_PAN = 50
+MCU_ASSIGN_PLUGINS = 51
+MCU_ASSIGN_EQ = 52
+MCU_ASSIGN_INSTRUMENT = 53
 
 # Alias so existing code that refers to “INOUT” keeps working:
 MCU_ASSIGN_INOUT = MCU_ASSIGN_TRACK
 
-# Page/Bank (transport/edit block):
+# Transport/edit block (you already had these)
 MCU_CHANNEL_LEFT = 70
 MCU_CHANNEL_RIGHT = 71
 MCU_BANK_LEFT = 68
 MCU_BANK_RIGHT = 69
+
+
+
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -287,8 +373,44 @@ class MackieControlMode(definitions.LogicMode):
     _name_cache = [""] * 8
     _last_names_print = 0  # throttle debug printing
     _last_grid_snapshot = None
-    _pan_submode: Optional[str] = None  # "track" | "cstrip" | None
-    _last_assignment: Optional[int] = None
+    _pan_submode: Optional[str] = None
+    _last_assignment: Optional[str] = None
+
+    buttons_used = [
+        push2_python.constants.BUTTON_UPPER_ROW_1,
+        push2_python.constants.BUTTON_UPPER_ROW_2,
+        push2_python.constants.BUTTON_UPPER_ROW_3,
+        push2_python.constants.BUTTON_UPPER_ROW_4,
+        push2_python.constants.BUTTON_UPPER_ROW_5,
+        push2_python.constants.BUTTON_UPPER_ROW_6,
+        push2_python.constants.BUTTON_UPPER_ROW_7,
+        push2_python.constants.BUTTON_UPPER_ROW_8,
+        push2_python.constants.BUTTON_LOWER_ROW_1,
+        push2_python.constants.BUTTON_LOWER_ROW_2,
+        push2_python.constants.BUTTON_LOWER_ROW_3,
+        push2_python.constants.BUTTON_LOWER_ROW_4,
+        push2_python.constants.BUTTON_LOWER_ROW_5,
+        push2_python.constants.BUTTON_LOWER_ROW_6,
+        push2_python.constants.BUTTON_LOWER_ROW_7,
+        push2_python.constants.BUTTON_LOWER_ROW_8,
+        push2_python.constants.BUTTON_PAGE_LEFT,
+        push2_python.constants.BUTTON_PAGE_RIGHT,
+        P2.BUTTON_UP, P2.BUTTON_DOWN, P2.BUTTON_LEFT, P2.BUTTON_RIGHT,
+    ]
+    n_pages = 1
+    tracks_per_page = 8
+    track_strips = []
+
+    encoder_names = [
+        push2_python.constants.ENCODER_TRACK1_ENCODER,
+        push2_python.constants.ENCODER_TRACK2_ENCODER,
+        push2_python.constants.ENCODER_TRACK3_ENCODER,
+        push2_python.constants.ENCODER_TRACK4_ENCODER,
+        push2_python.constants.ENCODER_TRACK5_ENCODER,
+        push2_python.constants.ENCODER_TRACK6_ENCODER,
+        push2_python.constants.ENCODER_TRACK7_ENCODER,
+        push2_python.constants.ENCODER_TRACK8_ENCODER,
+    ]
 
     # ---------------------------------------------------------------- helpers
     # def _draw_top_mute_solo_header(self, ctx, w, h):
@@ -354,6 +476,14 @@ class MackieControlMode(definitions.LogicMode):
     #         ctx.move_to(tx, ty)
     #         ctx.show_text(label)
     #         ctx.restore()
+
+    @staticmethod
+    def _level_to_db(level: float) -> float:
+        return pb_to_db(int(level * 16383))
+
+    @staticmethod
+    def _db_to_level(db: float) -> float:
+        return db_to_pb(db) / 16383.0
 
     def _upper_row_label_and_color(self):
         """Returns (label, color) for the 8 upper per-channel buttons, based on active_mode."""
@@ -486,6 +616,9 @@ class MackieControlMode(definitions.LogicMode):
                 self._set_ring(i, led)
                 self.app.display_dirty = True
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Rendering & state (unchanged logic; trimmed where possible for brevity)
+    # ──────────────────────────────────────────────────────────────────────────
     def _set_pad_color(self, pad_id, color):
         # pad_id = (row, col)
         # STATIC avoids the pre-black frame
@@ -495,6 +628,47 @@ class MackieControlMode(definitions.LogicMode):
             animation=ANIMATION_STATIC,
             optimize_num_messages=True
         )
+
+    def _send_assignment(self, note_or_alias):
+        """
+        Tap a Mackie 'Assign' key in Logic.
+        Accepts either a numeric note (44..53) or a string alias like 'PAN', 'EQ', 'PAGE_LEFT'.
+        Always sends the official MCU note to Logic.
+        """
+        alias_map = {
+            "PAGE_LEFT": MCU_ASSIGN_PAGE_LEFT,
+            "PAGE_RIGHT": MCU_ASSIGN_PAGE_RIGHT,
+            "BANK_LEFT": MCU_ASSIGN_BANK_LEFT,
+            "BANK_RIGHT": MCU_ASSIGN_BANK_RIGHT,
+            "TRACK": MCU_ASSIGN_TRACK,
+            "INOUT": MCU_ASSIGN_INOUT,  # alias to TRACK
+            "SEND": MCU_ASSIGN_SENDS,
+            "SENDS": MCU_ASSIGN_SENDS,
+            "PAN": MCU_ASSIGN_PAN,
+            "PLUGIN": MCU_ASSIGN_PLUGINS,
+            "PLUGINS": MCU_ASSIGN_PLUGINS,
+            "EQ": MCU_ASSIGN_EQ,
+            "INSTRUMENT": MCU_ASSIGN_INSTRUMENT,
+        }
+
+        # Normalize
+        if isinstance(note_or_alias, str):
+            key = note_or_alias.strip().upper()
+            note = alias_map.get(key)
+            if note is None:
+                return
+        else:
+            try:
+                note = int(note_or_alias)
+            except Exception:
+                return
+
+        # Certain Assign buttons are pageable in Logic (allow repeat taps to cycle subpages)
+        always_retap = {MCU_ASSIGN_PAN, MCU_ASSIGN_SENDS, MCU_ASSIGN_PLUGINS, MCU_ASSIGN_EQ, MCU_ASSIGN_INOUT}
+
+        if note in always_retap or getattr(self, "_last_assignment", None) != note:
+            self._tap_mcu_button(note)
+            self._last_assignment = note
 
     def _draw_bottom_mode_labels(self, ctx, w, h):
         # Mirror track_selection_mode.py proportions
@@ -527,13 +701,11 @@ class MackieControlMode(definitions.LogicMode):
             ctx.fill()
             ctx.restore()
 
-            # label centered
             label = MODE_LABELS.get(mode, mode.upper())
             ctx.save()
             ctx.set_source_rgb(*definitions.get_color_rgb_float(text_col))
             ctx.select_font_face("Helvetica", 0, 0)
             ctx.set_font_size(12)
-
             xb, yb, tw, th, xadv, yadv = ctx.text_extents(label)
             tx = x + (width - tw) / 2.0 - xb
             ty = bar_y + (bar_h - th) / 2.0 - yb
@@ -545,44 +717,42 @@ class MackieControlMode(definitions.LogicMode):
         for btn in self.buttons_used:
             self.push.buttons.set_button_color(btn, definitions.OFF_BTN_COLOR)
 
-    # === NEW: selector row paint + mode switch ================================
     def _set_mode(self, mode: str):
         if mode not in MODE_LABELS:
             return
 
-        reselecting_same = (mode == self.active_mode)
+        same = (mode == self.active_mode)
 
-        # Toggle submodes when re-pressing the same mode
-        if mode == MODE_VOLUME and reselecting_same:
+        # Toggle substates when pressing same mode again
+        if mode == MODE_VOLUME and same:
             self._substate[MODE_VOLUME] = SUB_SINGLE if self._substate[MODE_VOLUME] == SUB_ALL else SUB_ALL
-
-        if mode == MODE_EQ and reselecting_same:
+        if mode == MODE_EQ and same:
             self._substate[MODE_EQ] = EQ_PAGE_2 if self._substate[MODE_EQ] == EQ_PAGE_1 else EQ_PAGE_1
 
-        # Lock in active mode
         self.active_mode = mode
 
-        # Send the appropriate MCU assignment for this mode/submode
+        # Send correct MCU assignment
         if mode == MODE_PAN:
-            self._send_assignment(MCU_ASSIGN_PAN)
+            self._send_assignment("PAN")
 
         elif mode == MODE_VOLUME:
-            # 8-track volumes can show TRACK/INOUT; focus mode needs PAN so encoders act on pan
             if self._substate.get(MODE_VOLUME) == SUB_SINGLE:
-                self._send_assignment(MCU_ASSIGN_PAN)
+                # Single-channel strip mode → second encoder does Pan
+                self._send_assignment("PAN")
             else:
-                self._send_assignment(MCU_ASSIGN_INOUT)
+                # Normal multi-channel volume mode
+                self._send_assignment("TRACK")  # NI/Logic alias
 
         elif mode == MODE_EQ:
-            self._send_assignment(MCU_ASSIGN_EQ)
+            self._send_assignment("EQ")
 
-        # UI feedback
+        # Optional: On-screen feedback
         if hasattr(self, "add_display_notification"):
             sub = self._substate.get(self.active_mode)
             label = f"{self.active_mode.upper()} / {sub if isinstance(sub, str) else f'Page {sub}'}"
             self.add_display_notification(label)
 
-        # Refresh
+        # Refresh UI and state
         self.update_buttons()
         self.update_encoders()
         self._paint_selector_row()
@@ -604,9 +774,7 @@ class MackieControlMode(definitions.LogicMode):
 
         try:
             top, bot = mm.get_visible_lcd_lines()
-            # Flatten; be defensive about the shape
-            flat = " ".join([(s or "") for s in (top or [])]) + " " + " ".join([(s or "") for s in (bot or [])])
-            txt = flat.lower()
+            txt = (" ".join(top) + " " + " ".join(bot)).lower()
         except Exception:
             return None
 
@@ -700,7 +868,6 @@ class MackieControlMode(definitions.LogicMode):
         base = (getattr(self, "current_page", 0) or 0) * 8
         top = base + 8
 
-        # Defensive arrays
         mute_states = getattr(mcu, "mute_states", []) or []
         solo_states = getattr(mcu, "solo_states", []) or []
         rec_states = getattr(mcu, "recarm_states", []) or []
@@ -711,7 +878,6 @@ class MackieControlMode(definitions.LogicMode):
             except Exception:
                 return False
 
-        # Selected track (relative within visible bank)
         sel_rel = -1
         sel_abs = getattr(mcu, "selected_track_idx", None)
         if isinstance(sel_abs, (int, float)):
@@ -719,37 +885,29 @@ class MackieControlMode(definitions.LogicMode):
             if base <= sel_abs < top:
                 sel_rel = sel_abs - base
 
-        # --- build snapshot of visible state (for no-op early return) ---
         m_row = tuple(_state(mute_states, base + i) for i in range(8))
         s_row = tuple(_state(solo_states, base + i) for i in range(8))
         r_row = tuple(_state(rec_states, base + i) for i in range(8))
         snapshot = (base, sel_rel, m_row, s_row, r_row)
-
         if snapshot == getattr(self, "_last_grid_snapshot", None):
-            return  # nothing changed; skip writes
+            return
         if msg:
             print(f"[MCP RENDERMIX] From: {msg}")
         self._last_grid_snapshot = snapshot
 
-        # Row pad IDs
         row_select = _row_buttons(0)
         row_mute = _row_buttons(1)
         row_solo = _row_buttons(2)
         row_rec = _row_buttons(3)
 
-        # Build paint list (pairs: ((row,col), color))
         to_set = []
-
-        # 1) Base layer: dim gray everywhere on rows 0..3
         for row in (row_select, row_mute, row_solo, row_rec):
             for pad_id in row:
                 to_set.append((pad_id, _DARK))
 
-        # 2) Selected track (row 0)
         if 0 <= sel_rel < 8:
             to_set.append((row_select[sel_rel], _GREEN))
 
-        # 3) Per-track overlays (rows 1..3)
         for i in range(8):
             abs_idx = base + i
             if _state(mute_states, abs_idx):
@@ -759,15 +917,12 @@ class MackieControlMode(definitions.LogicMode):
             if _state(rec_states, abs_idx):
                 to_set.append((row_rec[i], _RED))
 
-        # Apply in order (later writes override base)
         self._apply_pad_colors(to_set)
         self.app.pads_need_update = True
 
-    # Call this whenever MCU state changes (bank switch, external updates, etc.)
     def on_mcu_state_changed(self):
         self._render_mix_grid("mcu state changed")
 
-    # ---------------------------------------------------------------- init/up
     def initialize(self, settings=None):
         """Build default strips and start meter timer."""
         super().initialize(settings) if hasattr(super(), "initialize") else None
@@ -780,13 +935,9 @@ class MackieControlMode(definitions.LogicMode):
         self._pan_view = [0.0] * 8
         self._pan_ring = [6] * 8
         self._last_pan = [None] * 8
-        # Per-mode substate (defaults)
+
         self.active_mode = getattr(self, "active_mode", MODE_VOLUME)
-        self._substate = {
-            MODE_PAN: SUB_ALL,
-            MODE_VOLUME: SUB_ALL,
-            MODE_EQ: EQ_PAGE_1,
-        }
+        self._substate = {MODE_PAN: SUB_ALL, MODE_VOLUME: SUB_ALL, MODE_EQ: EQ_PAGE_1}
         if hasattr(self, "add_display_notification"):
             self.add_display_notification(f"Mode: {self.active_mode.upper()} / {self._substate[self.active_mode]}")
 
@@ -815,7 +966,6 @@ class MackieControlMode(definitions.LogicMode):
                 TrackStrip(self.app, i, f"Track {i + 1}", get_color, get_volume, set_volume, get_pan)
             )
 
-        # add listeners only once
         mm = getattr(self.app, "mcu_manager", None)
         if mm and not getattr(self, "_listeners_added", False):
             mm.add_listener("pan", self._on_mcu_pan)
@@ -825,7 +975,6 @@ class MackieControlMode(definitions.LogicMode):
             mm.add_listener("mute", self._on_mcu_track_state)
             mm.add_listener("meter", self._on_mcu_meter)
             mm.add_listener("pan_text", self._on_mcu_pan_text)
-            # current transport state
             self._playing = mm.transport.get("play", False)
             self._on_mcu_transport(state=mm.transport)
             self._on_mcu_meter()
@@ -835,97 +984,51 @@ class MackieControlMode(definitions.LogicMode):
         if hasattr(mm, "on_vpot_display"):
             mm.on_vpot_display = self.on_mcu_pan_echo  # reuse same ring handler (0..11 → 0..127)
 
-    def _send_assignment(self, note: int):
-        """
-        Tap an MCU assignment key (Pan/Sends/etc.).
-        For PAN we intentionally allow repeat taps (they cycle sub-pages in Logic).
-        For others we keep a simple de-dupe to avoid spam.
-        """
-        # notes that should always allow repeated taps:
-        _always_retap = {MCU_ASSIGN_PAN, MCU_ASSIGN_SENDS, MCU_ASSIGN_PLUGINS, MCU_ASSIGN_INOUT, MCU_ASSIGN_EQ}
-        if note in _always_retap:
-            self._tap_mcu_button(note)
-            self._last_assignment = note
-            return
-
-        # light de-dupe for the rest
-        if getattr(self, "_last_assignment", None) == note:
-            return
-        self._tap_mcu_button(note)
-        self._last_assignment = note
-
     def _apply_pad_colors(self, pairs):
-        # pairs: [((row, col), color), ...]
         for pad_id, col in pairs:
             self._set_pad_color(pad_id, col)
 
     def _on_mcu_transport(self, *, state, **_):
         self._playing = bool(state.get("play", False))
         if self.app.is_mode_active(self):
-            self._render_mix_grid("on transport")  # render LAST
+            self._render_mix_grid("on transport")
             self.app.pads_need_update = True
 
     def _on_mcu_pan_text(self, *, channel_idx: int, value, **_):
-        # Use the precise value typed in Logic for the green number
         if channel_idx is None:
             return
         bi = channel_idx % 8
         if value is not None:
-            self._pan_view[bi] = float(value)  # −64..+63 from Logic
+            self._pan_view[bi] = float(value)
             self.app.display_dirty = True
             self.update_strip_values()
 
-    # Called by App when Logic sends the official V-Pot ring echo via SysEx
     def on_mcu_pan_echo(self, ch: int, ring_pos: int):
         if ch is None or not (0 <= ch < 8):
             return
-        # Clamp and store 0..11
         rp = max(0, min(11, int(ring_pos)))
         self._pan_ring[ch] = rp
-        # Update the physical Push ring immediately (convert 0..11 → 0..127)
         self._set_ring(ch, int(rp * 127 / 11))
         self.app.display_dirty = True
 
-    # --- meters ------------------------------------------------------
     def _on_mcu_meter(self, **_):
-        if not self.app.is_mode_active(self):
+        if not self.app.is_mode_active(self) or not getattr(self, "_playing", False):
             return
-        if not getattr(self, "_playing", False):
-            return
-
         mm = self.app.mcu_manager
-        if not mm or len(mm.meter_levels) < 8:  # <-- guard
+        if not mm or len(mm.meter_levels) < 8:
             return
         num_banks = max(1, len(mm.meter_levels) // 8)
         raw = []
         for i in range(8):
-            levels = [(mm.meter_levels[bank * 8 + i] & 0x0F)
-                      for bank in range(num_banks)
-                      if (bank * 8 + i) < len(mm.meter_levels)]
-            if not levels:
-                raw.append(0)
-            else:
-                raw.append(max(levels))
+            levels = [(mm.meter_levels[bank * 8 + i] & 0x0F) for bank in range(num_banks) if
+                      (bank * 8 + i) < len(mm.meter_levels)]
+            raw.append(max(levels) if levels else 0)
         MIN_RAW = 4
         MAX_RAW = 12
+        _ = [max(1, min(127, int(((v - MIN_RAW) / (MAX_RAW - MIN_RAW)) * 127))) if v > MIN_RAW else 0 for v in raw]
+        # (meter-to-pad rendering handled elsewhere in your project)
 
-        scaled = []
-        for v in raw:
-            if v <= MIN_RAW:
-                s = 0
-            else:
-                frac = (v - MIN_RAW) / (MAX_RAW - MIN_RAW)
-                s = int(frac * 127)
-                s = max(1, min(127, s))
-            scaled.append(s)
-
-        # self._pad_meter.update(scaled)
-
-    # ---------------------------------------------------------------- ring helper
     def _set_ring(self, idx: int, value: int):
-        """
-        Set encoder ring LEDs. Handles multiple push2_python API variants.
-        """
         enc = self.push.encoders
         name = self.encoder_names[idx]
         value = max(0, min(127, int(value)))
@@ -1069,8 +1172,8 @@ class MackieControlMode(definitions.LogicMode):
         self._paint_selector_row()
         self._render_mix_grid("activate")
         if self.active_mode == MODE_PAN:
-            self._send_assignment(MCU_ASSIGN_PAN)
-        # seed from Logic's current pan levels
+            self._send_assignment("PAN")
+
         mm = getattr(self.app, "mcu_manager", None)
         if mm and hasattr(mm, "pan_levels"):
             for i in range(8):
@@ -1149,62 +1252,98 @@ class MackieControlMode(definitions.LogicMode):
         self.app.display_dirty = True
 
     def update_encoders(self):
+        """
+        Paint Push 2 encoder rings to reflect current mode/submode.
+        - VOL (SUB_SINGLE): Enc1=Volume (selected track), Enc2=Pan (selected track), Enc3..8=idle.
+        - VOL (SUB_ALL):    Enc1..8 = 8 visible track volumes.
+        - PAN:               Rings mirror current pan view (or are zeroed in CStrip for Enc2..8).
+        - EQ:                Let Logic drive the rings via official VPOT ring echo; we don't paint here.
+        """
         encoders = self.push.encoders
         mm = getattr(self.app, "mcu_manager", None)
-        # NEW: In EQ mode, do not paint rings here; let Logic's VPOT ring echo drive them.
+
+        # EQ: don't touch rings; Logic's ring echo (on_vpot_display) owns them
         if self.active_mode == MODE_EQ:
             self.app.display_dirty = True
             return
-        # ----- VOLUME Focus: enc1 Volume, enc2 Pan for the selected track -----
+
+        # ---------------------------
+        # VOL focus (single channel)
+        # ---------------------------
         if self.active_mode == MODE_VOLUME and self._substate.get(MODE_VOLUME) == SUB_SINGLE:
+            # Ensure a selected track so Enc1/Enc2 have a target
+            if mm and mm.selected_track_idx is None:
+                mm.selected_track_idx = (self.current_page or 0) * 8
 
             sel_rel = None
             if mm and mm.selected_track_idx is not None:
                 sel_rel = int(mm.selected_track_idx) % 8
 
-            # enc1 (index 0): Volume ring
+            # Enc 1 ring = selected track volume (linear 0..1 → 0..127)
             vol_lin = 0.0
             if mm and sel_rel is not None and 0 <= sel_rel < len(mm.fader_levels):
-                vol_lin = float(mm.fader_levels[sel_rel])
-            self._set_ring(0, int(vol_lin * 127))
+                try:
+                    vol_lin = float(mm.fader_levels[sel_rel])
+                except Exception:
+                    vol_lin = 0.0
+            self._set_ring(0, int(max(0.0, min(1.0, vol_lin)) * 127))
 
-            # enc2 (index 1): Pan ring
+            # Enc 2 ring = selected track pan (−64..+63 → 0..127)
             pan_val = 0.0
             if mm and sel_rel is not None and hasattr(mm, "pan_levels"):
                 try:
-                    pan_val = float(mm.pan_levels[sel_rel])  # −64..+63
+                    pan_val = float(mm.pan_levels[sel_rel])
                 except Exception:
                     pan_val = 0.0
-            pan_led = int(((pan_val + 64.0) / 128.0) * 127.0)
+            pan_led = int(((max(-64.0, min(63.0, pan_val)) + 64.0) / 128.0) * 127.0)
             self._set_ring(1, pan_led)
 
-            # enc3..8: dim/idle (for now)
+            # Enc 3..8 idle
             for i in range(2, 8):
                 self._set_ring(i, 0)
 
             self.app.display_dirty = True
             return
 
-        # ----- Default: show 8 track volumes on the rings -----
+        # ---------------------------
+        # PAN mode
+        # ---------------------------
+        if self.active_mode == MODE_PAN:
+            # Channel-Strip submode: only encoder 1 is active; zero others
+            if self._pan_submode == PAN_SUBMODE_CSTRIP:
+                # Keep enc1 showing the currently selected channel's pan (or last visible)
+                for i in range(1, 8):
+                    self._set_ring(i, 0)
+                # enc1 will be driven by on_mcu_pan/on_mcu_pan_echo shortly; still mark dirty
+                self.app.display_dirty = True
+                return
+
+            # Track-pan view: show 8 pans on 8 rings using our cached _pan_view (−64..+63)
+            for i in range(self.tracks_per_page):
+                try:
+                    val = float(self._pan_view[i])
+                except Exception:
+                    val = 0.0
+                led_val = int(((max(-64.0, min(63.0, val)) + 64.0) / 128.0) * 127.0)
+                self._set_ring(i, led_val)
+
+            self.app.display_dirty = True
+            return
+
+        # ---------------------------
+        # Default: 8-track volumes
+        # ---------------------------
         for i in range(self.tracks_per_page):
             strip_idx = self.current_page * self.tracks_per_page + i
             if strip_idx >= len(self.track_strips):
                 continue
-            value = self.track_strips[strip_idx].get_volume_func(strip_idx)
-            led_val = int(value * 127)
-            encoder_name = self.encoder_names[i]
+            try:
+                value = float(self.track_strips[strip_idx].get_volume_func(strip_idx))  # 0..1
+            except Exception:
+                value = 0.0
+            self._set_ring(i, int(max(0.0, min(1.0, value)) * 127))
 
-            if hasattr(encoders, "set_ring_value"):
-                encoders.set_ring_value(encoder_name, led_val)
-            elif hasattr(encoders, "set_encoder_ring_value"):
-                encoders.set_encoder_ring_value(encoder_name, led_val)
-            elif hasattr(encoders, "set_value"):
-                encoders.set_value(encoder_name, led_val)
-
-        # PAN Channel-Strip mode: only encoder 1 is active
-        if self.active_mode == MODE_PAN and self._pan_submode == PAN_SUBMODE_CSTRIP:
-            for i in range(1, 8):
-                self._set_ring(i, 0)
+        self.app.display_dirty = True
 
     # ---------------------------------------------------------------- inputs
     def update_buttons(self):
@@ -1258,76 +1397,83 @@ class MackieControlMode(definitions.LogicMode):
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_LEFT, definitions.GRAY_LIGHT)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_UP, definitions.GRAY_LIGHT)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_DOWN, definitions.GRAY_LIGHT)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_1_32T, definitions.GREEN)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_1_32, definitions.SKYBLUE)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_1_16T, definitions.YELLOW)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_1_16, definitions.RED)
 
         except Exception:
             pass
 
     def on_button_pressed_raw(self, btn):
-        # MCU navigation arrows
-        if btn in (P2.BUTTON_PAGE_LEFT, P2.BUTTON_PAGE_RIGHT):
-            shift = bool(getattr(self.app, "shift_held", False))
-            left = (btn == P2.BUTTON_PAGE_LEFT)
-            note = (MCU_BANK_LEFT if shift and left else
-                    MCU_BANK_RIGHT if shift and not left else
-                    MCU_CHANNEL_LEFT if left else
-                    MCU_CHANNEL_RIGHT)
-            self._tap_mcu_button(note)
+        mm = getattr(self.app, "mcu_manager", None)
+
+        # === 1) D‑PAD → MCU Cursor (96..99) ===
+        if btn in (P2.BUTTON_LEFT, P2.BUTTON_RIGHT, P2.BUTTON_UP, P2.BUTTON_DOWN):
+            if not mm:
+                return True
+            if btn == P2.BUTTON_LEFT:
+                mm.cursor_left()
+            elif btn == P2.BUTTON_RIGHT:
+                mm.cursor_right()
+            elif btn == P2.BUTTON_UP:
+                mm.cursor_up()
+            elif btn == P2.BUTTON_DOWN:
+                mm.cursor_down()
             return True
-        # Map Push PAGE < / > (with optional Shift) to MCU assignment Page/Bank notes
+
+        # === 2) Touch-strip PAGE < > (your “channel/bank” nav) ===
         if btn in (push2_python.constants.BUTTON_PAGE_LEFT, push2_python.constants.BUTTON_PAGE_RIGHT):
             shift = bool(getattr(self.app, "shift_held", False))
-
             if shift:
-                if btn == push2_python.constants.BUTTON_PAGE_LEFT:
-                    self._tap_mcu_button(MCU_ASSIGN_BANK_LEFT)  # 46
-                else:
-                    self._tap_mcu_button(MCU_ASSIGN_BANK_RIGHT)  # 47
+                # Shift+Page = BANK < >
+                self._send_assignment("BANK_LEFT" if btn == push2_python.constants.BUTTON_PAGE_LEFT else "BANK_RIGHT")
             else:
-                if btn == push2_python.constants.BUTTON_PAGE_LEFT:
-                    self._tap_mcu_button(MCU_ASSIGN_PAGE_LEFT)  # 44
+                # In pageable contexts use true PAGE < >; otherwise fall back to EQ/PAN shortcuts
+                page_mode = (self.active_mode == MODE_EQ) or (self._pan_submode == PAN_SUBMODE_CSTRIP)
+                if page_mode:
+                    self._send_assignment("PAGE_LEFT" if btn == push2_python.constants.BUTTON_PAGE_LEFT else "PAGE_RIGHT")
                 else:
-                    self._tap_mcu_button(MCU_ASSIGN_PAGE_RIGHT)  # 45
+                    self._send_assignment("EQ" if btn == push2_python.constants.BUTTON_PAGE_LEFT else "PAN")
             return True
 
-        # LOWER ROW = MODE SELECTORS
+        # === 3) LOWER ROW = MODE SELECTORS ===
         for i in range(8):
             lower_btn = getattr(push2_python.constants, f"BUTTON_LOWER_ROW_{i + 1}")
             if btn == lower_btn:
                 self._set_mode(LOWER_ROW_MODES[i])
                 return True
 
-        # UPPER ROW = TRACK ACTIONS (mode-dependent)
+        # === 4) UPPER ROW = TRACK ACTIONS (SELECT/MUTE/SOLO) ===
         for i in range(8):
             upper_btn = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
             if btn == upper_btn:
                 if self.active_mode == MODE_SOLO:
-                    mm = self.app.mcu_manager
                     if mm and mm.selected_track_idx is None:
                         mm.selected_track_idx = self.current_page * self.tracks_per_page + i
-                    self._tap_mcu_button(8 + i)  # MCU SOLO notes 8..15
+                    self._tap_mcu_button(8 + i)   # SOLO 8..15
                     self.app.buttons_need_update = True
                     return True
 
                 elif self.active_mode == MODE_MUTE:
-                    mm = self.app.mcu_manager
                     if mm and mm.selected_track_idx is None:
                         mm.selected_track_idx = self.current_page * self.tracks_per_page + i
-                    self._tap_mcu_button(16 + i)  # MCU MUTE notes 16..23
+                    self._tap_mcu_button(16 + i)  # MUTE 16..23
                     self.app.buttons_need_update = True
                     return True
 
                 elif self.active_mode in (MODE_VOLUME, MODE_PAN, MODE_VPOT):
                     # In these modes, upper row = SELECT for that strip
-                    mm = self.app.mcu_manager
                     if mm:
-                        abs_idx = self.current_page * self.tracks_per_page + i  # bank-aware
+                        abs_idx = self.current_page * self.tracks_per_page + i
                         mm.selected_track_idx = abs_idx
-                    self._tap_mcu_button(24 + i)  # MCU SELECT notes 24..31
-                    self._render_mix_grid("on button pressed raw")  # <-- add this so pads snap immediately
+                    self._tap_mcu_button(24 + i)  # SELECT 24..31
+                    self._render_mix_grid("on button pressed raw")
                     self.app.buttons_need_update = True
                     return True
 
         return btn in self.buttons_used
+
 
     def on_button_pressed(self, button_name, **_):
         return button_name in self.buttons_used
@@ -1374,7 +1520,7 @@ class MackieControlMode(definitions.LogicMode):
         if encoder_name not in self.encoder_names:
             return False
 
-        local_idx = self.encoder_names.index(encoder_name)   # 0..7 in visible bank
+        local_idx = self.encoder_names.index(encoder_name)  # 0..7 in visible bank
         strip_idx = self.current_page * self.tracks_per_page + local_idx
         if strip_idx >= len(self.track_strips):
             return False
@@ -1426,7 +1572,6 @@ class MackieControlMode(definitions.LogicMode):
             if increment != 0:
                 self._send_mcu_vpot_delta(local_idx, 1 if increment > 0 else -1)
             return True
-
 
     def _visible_base(self) -> int:
         return (getattr(self, "current_page", 0) or 0) * 8
