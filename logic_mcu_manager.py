@@ -7,6 +7,14 @@ from typing import Optional
 
 _PAN_RE = re.compile(r'^(?:[+\-]?\d{1,3}|C)$')
 _TAP_OFF_DELAY = 0.001  # 1 ms tap
+_ASSIGN_FROM_VAL = {
+    0x00: "TRACK",     # In/Out
+    0x01: "SEND",
+    0x02: "PAN",
+    0x03: "PLUGIN",
+    0x04: "EQ",
+    0x05: "DYNAMICS",
+}
 
 
 class LogicMCUManager:
@@ -223,6 +231,7 @@ class LogicMCUManager:
         self.on_vpot_display = None
         self.on_track_state = None
         self._last_vpot_idx = None
+        self.vpot_ring = [0] * 8  # if not already defined
         self.vpot_pos = [0] * 8
         self.listener_thread = None
         self.running = False
@@ -483,33 +492,56 @@ class LogicMCUManager:
                 self._handle_display_text(payload)
                 return
             if cmd == 0x20:
-                # # payload = [0x20, ch, val]
-                # if len(payload) < 3:
-                #     return
-                # ch  = int(payload[1])
-                # val = int(payload[2])
-                #
-                # # NEW: 0x07 = selector for which v‑pot the next channel-pressure belongs to
-                # if 0 <= ch <= 7 and val == 0x07:
-                #     self._last_vpot_idx = ch
-                #     if self.debug_mcu:
-                #         print(f"[MCU] VPOT selector → idx {ch}")
-                #     return
-                #
-                # # Ring echo case (some hosts send 0x20 ch pos directly)
-                # if 0 <= ch <= 7 and 0 <= val <= 11:
-                #     self.vpot_ring[ch] = val
-                #     if self.on_vpot_display:
-                #         try:
-                #             self.on_vpot_display(ch, val)
-                #         except Exception:
-                #             import logging; logging.exception("on_vpot_display failed")
-                #     return
-                #
-                # # Channel LED bits for ch >= 8
-                # if ch >= 8:
-                #     self._handle_channel_led([ch, val])
+                # payload can be either:
+                #  - [0x20, vv]            => host ASSIGN mirror (vv=0..5)
+                #  - [0x20, ch, val]       => VPOT selector / ring echo / channel LEDs
+                plen = len(payload)
+
+                # --- Short form: host ASSIGN mirror: F0 00 00 66 14 20 vv F7
+                if plen == 2:
+                    vv = int(payload[1])
+                    assign = _ASSIGN_FROM_VAL.get(vv)
+                    if assign:
+                        mc = getattr(self.app, "mc_mode", None) or getattr(self.app, "mackie_mode", None)
+                        if mc:
+                            try:
+                                mc._host_assign = assign  # keep internal view in sync with Logic
+                                if getattr(self.app, "DEBUG_LOGS", False) and hasattr(mc, "add_display_notification"):
+                                    mc.add_display_notification(f"Host ASSIGN: {assign}")
+                            except Exception:
+                                pass
+                    return
+
+                # --- Long form: [0x20, ch, val]
+                if plen >= 3:
+                    ch  = int(payload[1])
+                    val = int(payload[2])
+
+                    # NEW: 0x07 = selector for which v‑pot the next channel-pressure belongs to
+                    if 0 <= ch <= 7 and val == 0x07:
+                        self._last_vpot_idx = ch
+                        if self.debug_mcu:
+                            print(f"[MCU] VPOT selector → idx {ch}")
+                        return
+
+                    # Ring echo case (some hosts send 0x20 ch pos directly)
+                    if 0 <= ch <= 7 and 0 <= val <= 11:
+                        self.vpot_ring[ch] = val
+                        if self.on_vpot_display:
+                            try:
+                                self.on_vpot_display(ch, val)
+                            except Exception:
+                                import logging; logging.exception("on_vpot_display failed")
+                        return
+
+                    # Channel LED bits for ch >= 8
+                    if ch >= 8:
+                        self._handle_channel_led([ch, val])
+                        return
+
+                # If it didn’t match known forms, just ignore 0x20 silently
                 return
+
             if cmd == 0x21:  # transport bits
                 self._handle_transport(payload)
                 return
