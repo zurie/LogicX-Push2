@@ -159,10 +159,34 @@ class LogicMCUManager:
                 return pref
         return next(iter(actions))
 
+    def _is_page_context(self) -> bool:
+        """
+        Return True when Assign 44/45 should act as PAGE_LEFT/PAGE_RIGHT instead of EQ/DYNAMICS.
+        We treat the Mix UI as 'page mode' when:
+          - active_mode == "eq"  (paging EQ)
+          - PAN channel-strip submode is active
+          - volume 'single' submode is active (enc2 = PAN, and PAGE < > makes sense for PAN)
+        """
+        mc = getattr(self.app, "mc_mode", None) or getattr(self.app, "mackie_mode", None)
+        if not mc:
+            return False
+        try:
+            if getattr(mc, "active_mode", None) == "eq":
+                return True
+            if getattr(mc, "_pan_submode", None) == "cstrip":
+                return True
+            # Volume-single toggled state is stored in mc._substate.get("volume")
+            sub = getattr(mc, "_substate", {}) or {}
+            if getattr(mc, "active_mode", None) == "volume" and sub.get("volume") == "single":
+                return True
+        except Exception:
+            pass
+        return False
+
     def _translate_assign_alias(self, note: int) -> int:
         """Normalize Maschine/Logic assign notes (e.g., 40, 42, 44, 45) to official MCU notes before BUTTON_MAP lookup."""
         try:
-            action = self._resolve_assign_action(note, page_mode=False)
+            action = self._resolve_assign_action(note, page_mode=self._is_page_context())
             if not action:
                 return note
             official = self._ACTION_TO_OFFICIAL.get(action)
@@ -698,14 +722,6 @@ class LogicMCUManager:
                 if self.debug_mcu:
                     print(f"[MCU] listener for '{event_type}' raised:", e)
 
-    # Normalize Maschine/Logic assign notes to official actions before lookup
-    def _translate_assign_alias(self, note: int) -> int:
-        # Use the same translation as the Mix mode (prefer official outbound note)
-        action = _resolve_assign_action(note, page_mode=False)  # no page context at input
-        if not action:
-            return note
-        official = _ACTION_TO_OFFICIAL.get(action)
-        return official if official is not None else note
 
     # ---------------- Realtime Handlers ----------------
     def handle_button(self, note, pressed):
