@@ -219,14 +219,15 @@ class LogicApp(object):
 
         if sel_idx is not None:
             if self.mcu_manager.solo_states[sel_idx]:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.YELLOW)
+                self._set_button_color_cached(push2_python.constants.BUTTON_SOLO, definitions.YELLOW)
             else:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.OFF_BTN_COLOR)
+                self._set_button_color_cached(push2_python.constants.BUTTON_SOLO, definitions.OFF_BTN_COLOR)
 
             if self.mcu_manager.mute_states[sel_idx]:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.SKYBLUE)
+                self._set_button_color_cached(push2_python.constants.BUTTON_MUTE, definitions.SKYBLUE)
+
             else:
-                self.push.buttons.set_button_color(push2_python.constants.BUTTON_MUTE, definitions.OFF_BTN_COLOR)
+                self._set_button_color_cached(push2_python.constants.BUTTON_MUTE, definitions.OFF_BTN_COLOR)
 
     def _on_mcu_fader(self, channel_idx, level):
         """
@@ -241,6 +242,15 @@ class LogicApp(object):
         # send it down the same MCU port Logic is listening to:
         if self.mcu_manager.output_port:
             self.mcu_manager.output_port.send(msg)
+
+    def _set_button_color_cached(self, button_const, color):
+        if not hasattr(self, "_btn_color_cache"):
+            self._btn_color_cache = {}
+        prev = self._btn_color_cache.get(button_const)
+        if prev == color:
+            return
+        self._btn_color_cache[button_const] = color
+        self.push.buttons.set_button_color(button_const, color)
 
     def get_all_modes(self):
         return [getattr(self, element) for element in vars(self) if

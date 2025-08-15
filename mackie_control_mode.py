@@ -74,13 +74,13 @@ MODE_COLORS = {
     "extra3": getattr(definitions, "RED_LIGHT", getattr(definitions, "RED", "red")),
 }
 # MCU Assignment / Function keys (notes)
-MCU_ASSIGN_INOUT      = 40
-MCU_ASSIGN_SENDS      = 41
-MCU_ASSIGN_PAN        = 42
-MCU_ASSIGN_PLUGINS    = 43
-MCU_ASSIGN_PAGE_LEFT  = 44
+MCU_ASSIGN_INOUT = 40
+MCU_ASSIGN_SENDS = 41
+MCU_ASSIGN_PAN = 42
+MCU_ASSIGN_PLUGINS = 43
+MCU_ASSIGN_PAGE_LEFT = 44
 MCU_ASSIGN_PAGE_RIGHT = 45
-MCU_ASSIGN_BANK_LEFT  = 46
+MCU_ASSIGN_BANK_LEFT = 46
 MCU_ASSIGN_BANK_RIGHT = 47
 
 
@@ -261,7 +261,7 @@ class MackieControlMode(definitions.LogicMode):
     _polling_active = False
     _volume_submode = 0
     # Pad brightness policy: OFF = dimmed gray, ON = full
-    _PAD_OFF_COLOR = _DARK                 # GRAY_DARK from your palette
+    _PAD_OFF_COLOR = _DARK  # GRAY_DARK from your palette
     # Pan state: view is the green number (−64..+63), ring is 0..11 from Logic echo
     _pan_view = [0.0] * 8
     _pan_ring = [6] * 8
@@ -270,7 +270,12 @@ class MackieControlMode(definitions.LogicMode):
     _name_cache = [""] * 8
     _last_names_print = 0  # throttle debug printing
     _last_grid_snapshot = None
+
     # ---------------------------------------------------------------- helpers
+    def __init__(self, app, settings=None):
+        super().__init__(app, settings)
+        self._pad_color_cache = None
+
     def _draw_top_mute_solo_header(self, ctx, w, h):
         mm = getattr(self.app, "mcu_manager", None)
         if not mm:
@@ -365,10 +370,10 @@ class MackieControlMode(definitions.LogicMode):
             ctx.save()
             ctx.set_source_rgb(*definitions.get_color_rgb_float(col))
             ctx.new_sub_path()
-            ctx.arc(x + width - corner, y + corner,             corner, math.radians(-90), math.radians(0))
-            ctx.arc(x + width - corner, y + header_h - corner,  corner, math.radians(0),   math.radians(90))
-            ctx.arc(x + corner,          y + header_h - corner, corner, math.radians(90),  math.radians(180))
-            ctx.arc(x + corner,          y + corner,            corner, math.radians(180), math.radians(270))
+            ctx.arc(x + width - corner, y + corner, corner, math.radians(-90), math.radians(0))
+            ctx.arc(x + width - corner, y + header_h - corner, corner, math.radians(0), math.radians(90))
+            ctx.arc(x + corner, y + header_h - corner, corner, math.radians(90), math.radians(180))
+            ctx.arc(x + corner, y + corner, corner, math.radians(180), math.radians(270))
             ctx.close_path()
             ctx.fill()
             ctx.restore()
@@ -464,9 +469,18 @@ class MackieControlMode(definitions.LogicMode):
                 self._set_ring(i, led)
                 self.app.display_dirty = True
 
+    # mackie_control_mode.py
+
     def _set_pad_color(self, pad_id, color):
-        # pad_id = (row, col)
-        # STATIC avoids the pre-black frame
+        # Cache to skip redundant calls across floods
+        if not hasattr(self, "_pad_color_cache"):
+            self._pad_color_cache = {}
+
+        prev = self._pad_color_cache.get(pad_id)
+        if prev == color:
+            return
+
+        self._pad_color_cache[pad_id] = color
         self.push.pads.set_pad_color(
             pad_id,
             color,
@@ -518,9 +532,14 @@ class MackieControlMode(definitions.LogicMode):
             ctx.show_text(label)
             ctx.restore()
 
-    def _blank_track_row_buttons(self):
+    def _blank_upper_row_buttons(self):
+        for i in range(8):
+            upper = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
+            self.app._set_button_color_cached(upper, definitions.OFF_BTN_COLOR)
+
+    def _blank_buttons_used(self):
         for btn in self.buttons_used:
-            self.push.buttons.set_button_color(btn, definitions.OFF_BTN_COLOR)
+            self.app._set_button_color_cached(btn, definitions.OFF_BTN_COLOR)
 
     # === NEW: selector row paint + mode switch ================================
     def _set_mode(self, mode: str):
@@ -532,7 +551,7 @@ class MackieControlMode(definitions.LogicMode):
         # Leaving VOLUME: reset submode and restore TRACK/INOUT
         if prev == MODE_VOLUME and mode != MODE_VOLUME:
             MackieControlMode._volume_submode = 0
-            self._send_assignment(MCU_ASSIGN_INOUT)    # 40
+            self._send_assignment(MCU_ASSIGN_INOUT)  # 40
 
         # Entering VOLUME: set assignment based on submode (0=40, 1=42)
         if mode == MODE_VOLUME:
@@ -549,7 +568,6 @@ class MackieControlMode(definitions.LogicMode):
         self._paint_selector_row()
         self.app.pads_need_update = True
         self.app.buttons_need_update = True
-
 
     def _paint_lower_selector(self):
         """Color the lower row buttons as mode selector."""
@@ -574,24 +592,12 @@ class MackieControlMode(definitions.LogicMode):
             else:
                 self.push.pads.set_pad_color(pad_id, definitions.GRAY_DARK)
 
-    def _send_mcu_vpot_delta(self, channel: int, increment: int):
-        """
-        Basic MCU V-Pot delta:
-        CC 16–23, value 1..63 = CW, 65..127 = CCW. We'll send a single tick.
-        """
-        mcu = getattr(self.app, "mcu_manager", None)
-        port = mcu.output_port if (mcu and mcu.output_port) else getattr(self.app, "midi_out", None)
-        if port is None:
-            return
-        cc = 16 + channel
-        val = 1 if increment > 0 else 65
-        port.send(mido.Message('control_change', control=cc, value=val))
-
     def activate_mix_mode(self):
         """Call this when entering Mix mode."""
         self._render_mix_grid("activate_mix_mode")
 
         # === Rendering ===
+
     def _render_mix_grid(self, msg: str = ""):
         """
         Paint rows 0..3 as a bank of 8:
@@ -603,18 +609,17 @@ class MackieControlMode(definitions.LogicMode):
         Skips repaint if nothing changed (snapshot).
         """
 
-
         mcu = getattr(self.app, "mcu_manager", None)
         if not mcu:
             return
 
         base = (getattr(self, "current_page", 0) or 0) * 8
-        top  = base + 8
+        top = base + 8
 
         # Defensive arrays
         mute_states = getattr(mcu, "mute_states", []) or []
         solo_states = getattr(mcu, "solo_states", []) or []
-        rec_states  = getattr(mcu, "recarm_states", []) or []
+        rec_states = getattr(mcu, "recarm_states", []) or []
 
         def _state(arr, abs_idx):
             try:
@@ -633,7 +638,7 @@ class MackieControlMode(definitions.LogicMode):
         # --- build snapshot of visible state (for no-op early return) ---
         m_row = tuple(_state(mute_states, base + i) for i in range(8))
         s_row = tuple(_state(solo_states, base + i) for i in range(8))
-        r_row = tuple(_state(rec_states,  base + i) for i in range(8))
+        r_row = tuple(_state(rec_states, base + i) for i in range(8))
         snapshot = (base, sel_rel, m_row, s_row, r_row)
 
         if snapshot == getattr(self, "_last_grid_snapshot", None):
@@ -644,9 +649,9 @@ class MackieControlMode(definitions.LogicMode):
 
         # Row pad IDs
         row_select = _row_buttons(0)
-        row_mute   = _row_buttons(1)
-        row_solo   = _row_buttons(2)
-        row_rec    = _row_buttons(3)
+        row_mute = _row_buttons(1)
+        row_solo = _row_buttons(2)
+        row_rec = _row_buttons(3)
 
         # Build paint list (pairs: ((row,col), color))
         to_set = []
@@ -674,8 +679,7 @@ class MackieControlMode(definitions.LogicMode):
         self._apply_pad_colors(to_set)
         self.app.pads_need_update = True
 
-
-# Call this whenever MCU state changes (bank switch, external updates, etc.)
+    # Call this whenever MCU state changes (bank switch, external updates, etc.)
     def on_mcu_state_changed(self):
         self._render_mix_grid("mcu state changed")
 
@@ -747,10 +751,10 @@ class MackieControlMode(definitions.LogicMode):
             pname = getattr(port, "name", str(port))
         except Exception:
             pname = str(port)
-        print(f"[MCU OUT] ASSIGN note {note} → {pname}")
+        if getattr(self.app, "debug_mcu", False):
+            print(f"[MCU OUT] ASSIGN note {note} → {pname}")
         port.send(mido.Message('note_on', note=note, velocity=127, channel=0))
-        port.send(mido.Message('note_on', note=note, velocity=0,   channel=0))
-
+        port.send(mido.Message('note_on', note=note, velocity=0, channel=0))
 
     def _apply_pad_colors(self, pairs):
         # pairs: [((row, col), color), ...]
@@ -760,7 +764,7 @@ class MackieControlMode(definitions.LogicMode):
     def _on_mcu_transport(self, *, state, **_):
         self._playing = bool(state.get("play", False))
         if self.app.is_mode_active(self):
-            self._render_mix_grid("on transport")             # render LAST
+            self._render_mix_grid("on transport")  # render LAST
             self.app.pads_need_update = True
 
     def _on_mcu_pan_text(self, *, channel_idx: int, value, **_):
@@ -841,37 +845,83 @@ class MackieControlMode(definitions.LogicMode):
             enc.set_value(name, value);
             return
 
+    def _now(self):
+        return time.time()
+
+    def _init_tx_coalesce(self):
+        # VPOT (pan) coalescing
+        if not hasattr(self, "_vpot_last_ts"):
+            self._vpot_last_ts = [0.0] * 8  # last send time per ch
+            self._vpot_pending = [0] * 8  # accumulated delta per ch
+        # PB (fader) coalescing
+        if not hasattr(self, "_pb_last_ts"):
+            self._pb_last_ts = [0.0] * 8  # last send time per ch
+            self._pb_pending = [None] * 8  # last pending PB per ch
+
+    def _flush_pending_vpot(self, hz: int = 125):
+        """Emit any queued V‑Pot deltas at most `hz` per channel."""
+        self._init_tx_coalesce()
+        port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
+        if port is None:
+            return
+        now = time.time()
+        budget = 1.0 / float(hz)
+
+        for ch in range(8):
+            pend = int(self._vpot_pending[ch])
+            if pend == 0:
+                continue
+            if (now - self._vpot_last_ts[ch]) < budget:
+                continue
+
+            mag = min(63, abs(pend))
+            val = (mag if pend > 0 else 64 + mag)  # MCU rel format
+            cc_num = 16 + ch
+            port.send(mido.Message('control_change', control=cc_num, value=val, channel=0))
+
+            # keep remainder (if any) so we don't lose fast spins
+            self._vpot_pending[ch] = pend - (mag if pend > 0 else -mag)
+            self._vpot_last_ts[ch] = now
+
     def _on_mcu_pan(self, *, channel_idx: int, value: int, **_):
         """
-        Logic's pan changed (mouse/automation). Keep both ring and green number in sync.
-        Prefer mm.pan_levels (continuous) when available.
+        Logic's pan changed (mouse/automation). Keep ring + on‑screen number in sync.
+        Do NOT repaint the pad grid here; that’s unrelated to pan and is expensive.
         """
         if channel_idx is None:
             return
-        if channel_idx < self.current_page * 8 or channel_idx >= (self.current_page + 1) * 8:
+        if channel_idx < self.current_page * self.tracks_per_page or channel_idx >= (
+                self.current_page + 1) * self.tracks_per_page:
             return
 
         bi = channel_idx % 8
-        mm = getattr(self.app, "mcu_manager", None)
 
-        if mm and hasattr(mm, "pan_levels"):
-            try:
-                val = float(mm.pan_levels[bi])  # −64..+63 (float)
-            except Exception:
-                val = float(value)
-        else:
+        # --- simple 60Hz throttle per encoder to avoid storms ---
+        now = time.time()
+        if not hasattr(self, "_last_pan_tick"):
+            self._last_pan_tick = [0.0] * 8
+        if (now - self._last_pan_tick[bi]) < (1.0 / 60.0):
+            return
+        self._last_pan_tick[bi] = now
+
+        # value is −64..+63 in Logic terms if you normalized it earlier; if not, coerce
+        try:
             val = float(value)
+        except Exception:
+            val = float(self._pan_view[bi]) if 0 <= bi < len(self._pan_view) else 0.0
 
-        # Update the Push ring (0..127) and our on‑screen number
-        led_val = int(((val + 64.0) / 128.0) * 127.0)
-        self._set_ring(bi, led_val)
+        # Update physical Push ring (0..127)
+        led = int(((val + 64.0) / 128.0) * 127.0)
+        self._set_ring(bi, led)
+
+        # Update internal views; let update_display() paint the green numbers
         self._pan_view[bi] = val
         self._last_pan[bi] = val
-
         self.app.display_dirty = True
-        self.update_strip_values()
-        self._render_mix_grid("on pan")
-        self.app.pads_need_update = True
+
+
+        # IMPORTANT: DO NOT call update_strip_values(), _render_mix_grid(), or set pads here.
+        # That work belongs to display/frame code and bank/selection/solo/mute changes only.
 
     def set_visible_names(self, names):
         """
@@ -883,6 +933,9 @@ class MackieControlMode(definitions.LogicMode):
             return False
 
         norm = [(n or "").strip() for n in names[:8]]
+        if tuple(norm) == getattr(self, "_last_names_tuple", None):
+            return False
+        self._last_names_tuple = tuple(norm)
         overlays = sum(1 for n in norm if n and n.lower() in definitions.OVERLAY_TOKENS)
 
         if overlays > 2:
@@ -925,6 +978,7 @@ class MackieControlMode(definitions.LogicMode):
 
     def activate(self):
         self.initialize()
+        self._pad_color_cache = {}
         self.current_page = 0
         self._last_grid_snapshot = None
         self.push.pads.reset_current_pads_state()
@@ -958,7 +1012,7 @@ class MackieControlMode(definitions.LogicMode):
             animation_end_color='black'
         )
         self.update_encoders()
-        self._blank_track_row_buttons()
+        self._blank_buttons_used()
         self.update_buttons()
         self._paint_selector_row()
         self._render_mix_grid("activate")
@@ -982,6 +1036,7 @@ class MackieControlMode(definitions.LogicMode):
 
     def deactivate(self):
         super().deactivate()
+        self._pad_color_cache = {}
         self.push.pads.set_all_pads_to_color(
             color=definitions.BLACK,
             animation=ANIMATION_STATIC,
@@ -990,14 +1045,12 @@ class MackieControlMode(definitions.LogicMode):
         self._blank_track_row_buttons()
         self.app.pads_need_update = True
 
-
-
-
     def update_display(self, ctx, w, h):
         ctx.rectangle(0, 0, w, h)
         ctx.set_source_rgb(0, 0, 0)
         ctx.fill()
-
+        if hasattr(self, "_flush_pending_tx"):
+            self._flush_pending_tx()
         # reflect any external pan changes instantly
         self._sync_pan_from_logic()
         self.update_strip_values()
@@ -1017,7 +1070,7 @@ class MackieControlMode(definitions.LogicMode):
 
         self._draw_top_button_labels(ctx, w, h)
         self._draw_bottom_mode_labels(ctx, w, h)
-        self.update_buttons()
+        #self.update_buttons()
         #self._render_mix_grid("update display")
 
     def get_current_page(self) -> int:
@@ -1027,17 +1080,18 @@ class MackieControlMode(definitions.LogicMode):
 
     def _send_mcu_pan_delta(self, channel: int, delta: int):
         """
-        Send MCU V‑Pot relative for PAN on CC 16–23.
-        Positive delta => 1..63, Negative delta => 65..127 (65 == -1).
+        Queue MCU PAN relative deltas; a flusher emits at ~125 Hz per channel.
+        Multiple ticks become one larger step (2..63 / 65..127).
         """
-        if delta == 0:
+        if not delta:
             return
-        mag = min(63, abs(int(delta)))
-        value = mag if delta > 0 else 64 + mag
-        cc_num = 16 + channel
-        port = self.app.mcu_manager.output_port or getattr(self.app, "midi_out", None)
-        if port:
-            port.send(mido.Message('control_change', control=cc_num, value=value, channel=0))
+        self._init_tx_coalesce()
+        ch = 0 if channel is None else int(channel)
+        if ch < 0 or ch > 7:
+            return
+
+        # accumulate; flusher will convert to MCU and send
+        self._vpot_pending[ch] += int(delta)
 
     def update_strip_values(self):
         self.app.display_dirty = True
@@ -1062,7 +1116,7 @@ class MackieControlMode(definitions.LogicMode):
     # ---------------------------------------------------------------- inputs
     def update_buttons(self):
         mm = getattr(self.app, "mcu_manager", None)
-        self._blank_track_row_buttons()
+        self._blank_buttons_used()
 
         if not mm:
             return
@@ -1117,14 +1171,14 @@ class MackieControlMode(definitions.LogicMode):
 
             if shift:
                 if btn == push2_python.constants.BUTTON_PAGE_LEFT:
-                    self._tap_mcu_button(MCU_ASSIGN_BANK_LEFT)    # 46
+                    self._tap_mcu_button(MCU_ASSIGN_BANK_LEFT)  # 46
                 else:
-                    self._tap_mcu_button(MCU_ASSIGN_BANK_RIGHT)   # 47
+                    self._tap_mcu_button(MCU_ASSIGN_BANK_RIGHT)  # 47
             else:
                 if btn == push2_python.constants.BUTTON_PAGE_LEFT:
-                    self._tap_mcu_button(MCU_ASSIGN_PAGE_LEFT)    # 44
+                    self._tap_mcu_button(MCU_ASSIGN_PAGE_LEFT)  # 44
                 else:
-                    self._tap_mcu_button(MCU_ASSIGN_PAGE_RIGHT)   # 45
+                    self._tap_mcu_button(MCU_ASSIGN_PAGE_RIGHT)  # 45
             return True
 
         # LOWER ROW = MODE SELECTORS
@@ -1139,14 +1193,16 @@ class MackieControlMode(definitions.LogicMode):
                     MackieControlMode._volume_submode = 0 if MackieControlMode._volume_submode else 1
                     # In detail submode keep PAN (42) so enc2 deltas are PAN; otherwise TRACK/INOUT (40)
                     if MackieControlMode._volume_submode == 1:
-                        self._send_assignment(MCU_ASSIGN_PAN)      # 42
+                        self._send_assignment(MCU_ASSIGN_PAN)  # 42
                     else:
-                        self._send_assignment(MCU_ASSIGN_INOUT)    # 40
+                        self._send_assignment(MCU_ASSIGN_INOUT)  # 40
 
+                    if hasattr(self.app, "_btn_color_cache"):
+                        self.app._btn_color_cache.clear()
                     # Light/labels refresh
+                    self._paint_selector_row()
                     self.update_buttons()
                     self.update_encoders()
-                    self._paint_selector_row()
                     self.app.pads_need_update = True
                     self.app.buttons_need_update = True
                     return True
@@ -1182,7 +1238,7 @@ class MackieControlMode(definitions.LogicMode):
                         abs_idx = self.current_page * self.tracks_per_page + i  # bank-aware
                         mm.selected_track_idx = abs_idx
                     self._tap_mcu_button(24 + i)  # MCU SELECT notes 24..31
-                    self._render_mix_grid("on button pressed raw")       # <-- add this so pads snap immediately
+                    self._render_mix_grid("on button pressed raw")  # <-- add this so pads snap immediately
                     self.app.buttons_need_update = True
                     return True
 
@@ -1200,15 +1256,55 @@ class MackieControlMode(definitions.LogicMode):
     # ───────────────────────────────────────────────────────────────────── MIDI
     def _send_mcu_fader_move(self, channel: int, level: float):
         """
-        Real MCU-style: fader movement sends only PITCHBEND.
-        Touch down/up is handled by on_encoder_touched/on_encoder_released.
+        Coalesced PITCHBEND: cap at ~120 Hz per channel.
+        Flushes the last pending value automatically on next allowance
+        or when encoder is released.
         """
+        self._init_tx_coalesce()
         port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
         if port is None:
             return
+
         level = max(0.0, min(1.0, float(level)))
-        pb_value = int(level * 16383) - 8192  # −8192..+8191
-        port.send(mido.Message('pitchwheel', pitch=pb_value, channel=channel))
+        pb_val = int(level * 16383) - 8192  # −8192..+8191
+        now = self._now()
+        ch = max(0, min(7, int(channel)))
+
+        # Budget: 120 Hz per channel (~8.3 ms)
+        if (now - self._pb_last_ts[ch]) >= (1.0 / 120.0):
+            # If there was a pending value, prefer the newest (this one)
+            self._pb_pending[ch] = None
+            self._pb_last_ts[ch] = now
+            port.send(mido.Message('pitchwheel', pitch=pb_val, channel=ch))
+        else:
+            # Just remember the newest value; we’ll send it when budget opens
+            self._pb_pending[ch] = pb_val
+
+    def _flush_pending_tx(self):
+        """Send any pending PB/VPOT updates that were throttled."""
+        self._init_tx_coalesce()
+        port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
+        if port is None:
+            return
+        now = self._now()
+
+        # Pitchbend flush at 120 Hz budget
+        for ch in range(8):
+            if self._pb_pending[ch] is not None and (now - self._pb_last_ts[ch]) >= (1.0 / 120.0):
+                port.send(mido.Message('pitchwheel', pitch=int(self._pb_pending[ch]), channel=ch))
+                self._pb_pending[ch] = None
+                self._pb_last_ts[ch] = now
+
+        # VPOT flush at ~125 Hz budget
+        for ch in range(8):
+            pend = int(self._vpot_pending[ch])
+            if pend != 0 and (now - self._vpot_last_ts[ch]) >= (1.0 / 125.0):
+                mag = min(63, abs(pend))
+                val = (mag if pend > 0 else 64 + mag)  # MCU rel
+                cc_num = 16 + ch
+                port.send(mido.Message('control_change', control=cc_num, value=val, channel=0))
+                self._vpot_pending[ch] = 0
+                self._vpot_last_ts[ch] = now
 
     def set_bank_levels(self, levels):
         """levels = iterable of ≤8 linear floats.  Writes them to Logic and refreshes Push rings."""
@@ -1225,7 +1321,7 @@ class MackieControlMode(definitions.LogicMode):
         if not self.app.is_mode_active(self): return
         self.update_buttons()
         self.update_strip_values()
-        self._render_mix_grid("on mcu track state")                 # render LAST
+        self._render_mix_grid("on mcu track state")  # render LAST
         self.app.pads_need_update = True
         self.app.buttons_need_update = True
 
@@ -1308,7 +1404,7 @@ class MackieControlMode(definitions.LogicMode):
             base = self._visible_base()
             if mcu:
                 mcu.selected_track_idx = base + col  # instant local select for pads
-            self._render_mix_grid("on pad pressed")                  # show green immediately
+            self._render_mix_grid("on pad pressed")  # show green immediately
             self._set_pad_color((row, col), _GREEN)  # pressed highlight
 
         # --- MUTE / SOLO / REC: pressed highlight only (state lands on release) ---
@@ -1327,7 +1423,6 @@ class MackieControlMode(definitions.LogicMode):
                 port.send(mido.Message('note_on', note=note_num, velocity=0, channel=0))
         return True
 
-
     def on_pad_released(self, pad_n, pad_ij, **_):
         row, col = pad_ij
         # Repaint from actual MCU state the moment the finger lifts (no timers)
@@ -1336,7 +1431,6 @@ class MackieControlMode(definitions.LogicMode):
             self.app.pads_need_update = True
             self.app.buttons_need_update = True
         return True
-
 
     def _pull_lcd_labels_for_visible_bank(self):
         mm = getattr(self.app, "mcu_manager", None)
@@ -1368,7 +1462,12 @@ class MackieControlMode(definitions.LogicMode):
         if encoder_name not in self.encoder_names:
             return False
         ch = self.encoder_names.index(encoder_name)
-
+        # Force-send any pending coalesced PB/VPOT now
+        if hasattr(self, "_flush_pending_tx"):
+            # temporarily zero the budget
+            self._pb_last_ts[ch] = 0.0
+            self._vpot_last_ts[ch] = 0.0
+            self._flush_pending_tx()
         if not hasattr(self, "_touch_state") or not self._touch_state[ch]:
             return True  # already up
 
