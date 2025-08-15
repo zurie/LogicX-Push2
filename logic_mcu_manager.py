@@ -4,6 +4,7 @@
 import re, mido, threading, time
 import definitions
 from typing import Optional
+import cairocffi as cairo
 
 _PAN_RE = re.compile(r'^(?:[+\-]?\d{1,3}|C)$')
 _TAP_OFF_DELAY = 0.001  # 1 ms tap
@@ -220,6 +221,8 @@ class LogicMCUManager:
         self.debug_mcu = getattr(app, "debug_mcu", False)
 
         self._listeners = {"track_state": [], "pan": [], "pan_text": [], "transport": [], "meter": []}
+        self._change_listeners = set()   # callables with no args
+        self.last_lcd_text = ""          # single-line headline for debug banner
 
         self.transport = {"play": False, "stop": True, "record": False, "ffwd": False, "rew": False}
         self._transport_dirty = True
@@ -409,12 +412,47 @@ class LogicMCUManager:
                     self.flush_updates()
                     self.last_update_time = now
                     self.pending_update = False
+    def _draw_debug_banner(self, ctx, w, h):
+        if not getattr(definitions, "MC_DRAW_DEBUG", False):
+            return
+
+        # source data
+        mcu = getattr(self.app, "mcu_manager", None)
+        if not mcu:
+            return
+        headline = (mcu.last_lcd_text or "MCU").strip()
+
+        # banner metrics
+        bh    = getattr(definitions, "MC_DEBUG_HEIGHT", 28)
+        alpha = getattr(definitions, "MC_DEBUG_ALPHA", 0.85)
+        font  = getattr(definitions, "MC_DEBUG_FONT", "Menlo")
+
+        # background
+        ctx.save()
+        ctx.rectangle(0, 0, w, bh)
+        ctx.set_source_rgba(0, 0, 0, alpha)
+        ctx.fill()
+
+        # text
+        ctx.select_font_face(font, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+        ctx.set_font_size(bh - 10 if bh >= 22 else 12)
+        ctx.set_source_rgb(0.92, 0.97, 1.00)
+
+        # clip so long text doesn't spill
+        ctx.rectangle(6, 0, w - 12, bh)
+        ctx.clip()
+
+        ctx.move_to(10, bh - 8)
+        ctx.show_text(headline)
+        ctx.restore()
 
     def flush_updates(self):
+        changed = False
         if getattr(self.app, "buttons_need_update", False) and self.selected_track_idx is not None:
             if hasattr(self.app, "update_push2_mute_solo"):
                 self.app.update_push2_mute_solo(track_idx=self.selected_track_idx)
             self.app.buttons_need_update = False
+            changed = True
 
         if getattr(self, "_transport_dirty", False):
             if hasattr(self.app, "update_play_button_color"):
@@ -422,6 +460,10 @@ class LogicMCUManager:
             if hasattr(self.app, "update_record_button_color"):
                 self.app.update_record_button_color(self.transport.get("record", False))
             self._transport_dirty = False
+            changed = True
+
+        if changed:
+            self._notify_change()
 
     # ──────────────────────────────────────────────────────────────────────────
     # SysEx handling (trimmed to your handlers)
@@ -665,7 +707,19 @@ class LogicMCUManager:
 
         if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
             self.app.mc_mode.update_strip_values()
+
+        # --- ADDED: headline for debug banner (full top line, trimmed) ---
+        try:
+            headline = bytes(self._lcd_top).decode('ascii', 'ignore').strip()
+        except Exception:
+            headline = ""
+        if headline != self.last_lcd_text:
+            self.last_lcd_text = headline
+            # optional: emit a typed event if you want to hook elsewhere
+            self.emit_event("lcd", text=self.last_lcd_text)
+
         self.pending_update = True
+        self._notify_change()   # ADDED: ping HUD listeners
 
     def _handle_channel_led(self, payload):
         if len(payload) < 2:
@@ -706,6 +760,7 @@ class LogicMCUManager:
             self.app.buttons_need_update = True
 
         self.pending_update = True
+        self._notify_change()
 
     def _handle_transport(self, payload):
         if len(payload) < 2:
@@ -737,6 +792,11 @@ class LogicMCUManager:
     def emit_event(self, event_type, **kwargs):
         if event_type == "pan" and hasattr(self.app, "on_pan"):
             self.app.on_pan(kwargs.get("channel_idx"), kwargs.get("value"))
+        if event_type == "lcd" and hasattr(self.app, "on_lcd"):
+            try:
+                self.app.on_lcd(kwargs.get("text", ""))
+            except Exception:
+                pass
         if event_type == "button" and self.on_button:
             self.on_button(kwargs.get("label"), kwargs.get("pressed"))
         if event_type == "transport" and self.on_transport_change:
@@ -1023,7 +1083,7 @@ class LogicMCUManager:
             self.app.mc_mode.update_strip_values()
 
         self.pending_update = True
-
+        self._notify_change()
     # === Inside class LogicMCUManager ===
     # Place near the top of the class (constants)
 
@@ -1065,3 +1125,16 @@ class LogicMCUManager:
                 self.meter_levels.extend([0] * (idx + 1 - len(self.meter_levels)))
             self.meter_levels[idx] = lvl
             self._fire("meter", channel_idx=i, value=lvl)
+
+    def add_change_listener(self, fn):
+        """Register a callable() to be invoked after meaningful state changes."""
+        if callable(fn):
+            self._change_listeners.add(fn)
+
+    def _notify_change(self):
+        """Invoke listeners; never throw."""
+        for fn in tuple(self._change_listeners):
+            try:
+                fn()
+            except Exception:
+                pass

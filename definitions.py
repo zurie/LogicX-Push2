@@ -14,6 +14,11 @@ DELAYED_ACTIONS_APPLY_TIME = 1.0  # Encoder changes won't be applied until this 
 isPlaying = 0.0  # instead of False
 isMetronome = 0.0
 isRecording = 0.0
+# --- Debug HUD toggle ---
+MC_DRAW_DEBUG = True  # set True to enable overlay
+MC_DEBUG_FONT = "Menlo"  # or any mono you have
+MC_DEBUG_ALPHA = 0.85  # translucency for banner
+MC_DEBUG_HEIGHT = 28  # px height of the top banner
 
 # -----------------------------------------------------------------------------
 # Mackie/MCU Model IDs & SysEx prefixes
@@ -22,13 +27,13 @@ isRecording = 0.0
 MCU_MODEL_ID = 0x14  # Logic sends 0x14; some hosts use 0x12
 ACCEPTED_MCU_MODEL_IDS = (0x12, 0x14)
 
-MCU_SYSEX_PREFIX = [0x00, 0x00, 0x66, MCU_MODEL_ID]        # for sending
-MCU_SYSEX_PREFIX_ANY = [0x00, 0x00, 0x66]                  # for matching incoming
+MCU_SYSEX_PREFIX = [0x00, 0x00, 0x66, MCU_MODEL_ID]  # for sending
+MCU_SYSEX_PREFIX_ANY = [0x00, 0x00, 0x66]  # for matching incoming
 
 # Universal Device Inquiry request; many DAWs answer with their own vendor/model header right after this
 MCU_DEVICE_INQUIRY = [0x7E, 0x7F, 0x06, 0x01]
-MCU_METERS_ON       = MCU_SYSEX_PREFIX + [0x00, 0x00]
-MCU_METERS_OFF      = MCU_SYSEX_PREFIX + [0x00, 0x01]
+MCU_METERS_ON = MCU_SYSEX_PREFIX + [0x00, 0x00]
+MCU_METERS_OFF = MCU_SYSEX_PREFIX + [0x00, 0x01]
 SERIAL_BYTES = [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x00, 0x01]  # 7 bytes total
 
 # Things the DAW writes on the LCD top/bottom rows that are UI overlays, not track names

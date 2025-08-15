@@ -230,6 +230,7 @@ class TrackStrip:
         ctx.show_text(pan_text)
         ctx.restore()
 
+
     # ------------------------------------------------------------------ values
     def update_value(self, increment):
         """
@@ -389,6 +390,41 @@ class MackieControlMode(definitions.LogicMode):
             ctx.move_to(tx, ty)
             ctx.show_text(label)
             ctx.restore()
+
+    def _draw_debug_banner(self, ctx, w, h):
+        """Top overlay that prints MCU LCD headline. No-ops when MC_DRAW_DEBUG is False."""
+        if not getattr(definitions, "MC_DRAW_DEBUG", False):
+            return
+        mcu = getattr(self.app, "mcu_manager", None)
+        if not mcu:
+            return
+
+        headline = (getattr(mcu, "last_lcd_text", "") or "").strip()
+        if not headline:
+            return
+
+        bh    = getattr(definitions, "MC_DEBUG_HEIGHT", 28)
+        alpha = getattr(definitions, "MC_DEBUG_ALPHA", 0.85)
+        font  = getattr(definitions, "MC_DEBUG_FONT", "Menlo")
+
+        ctx.save()
+        # background bar
+        ctx.rectangle(0, 0, w, bh)
+        ctx.set_source_rgba(0, 0, 0, alpha)
+        ctx.fill()
+
+        # text
+        ctx.select_font_face("Helvetica", 0, 0)
+        ctx.set_font_size(bh - 10 if bh >= 22 else 12)
+        ctx.set_source_rgb(0.92, 0.97, 1.00)
+
+        # clip so it doesn’t spill
+        ctx.rectangle(6, 0, w - 12, bh)
+        ctx.clip()
+
+        ctx.move_to(10, bh - 8)
+        ctx.show_text(headline)
+        ctx.restore()
 
     def _tap_mcu_button(self, note_num: int):
         port = self.app.mcu_manager.output_port or getattr(self.app, "midi_out", None)
@@ -1070,6 +1106,7 @@ class MackieControlMode(definitions.LogicMode):
 
         self._draw_top_button_labels(ctx, w, h)
         self._draw_bottom_mode_labels(ctx, w, h)
+        self._draw_debug_banner(ctx, w, h)
         #self.update_buttons()
         #self._render_mix_grid("update display")
 
