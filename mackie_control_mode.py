@@ -74,6 +74,10 @@ MODE_COLORS = {
     "extra2": getattr(definitions, "GREEN_LIGHT", getattr(definitions, "GREEN", "green")),
     "extra3": getattr(definitions, "RED_LIGHT", getattr(definitions, "RED", "red")),
 }
+ROW6_MODE_FUNCTION = "function"   # F1..F8 (MCU 40..47)
+ROW6_MODE_CUSTOM   = "custom"
+MIX_ROW6_CUSTOM_NOTES = [40, 41, 42, 43, 44, 45, 46, 47]  # example
+
 # MCU Assignment / Function keys (notes)
 MCU_ASSIGN_INOUT = 40
 MCU_ASSIGN_SENDS = 41
@@ -271,12 +275,19 @@ class MackieControlMode(definitions.LogicMode):
     _name_cache = [""] * 8
     _last_names_print = 0  # throttle debug printing
     _last_grid_snapshot = None
+    ROW6_DEFAULT_MODE = getattr(definitions, "MIX_ROW6_MODE", ROW6_MODE_FUNCTION)
+    # sanitize unexpected values
+    if ROW6_DEFAULT_MODE not in (ROW6_MODE_FUNCTION, ROW6_MODE_CUSTOM):
+        ROW6_DEFAULT_MODE = ROW6_MODE_FUNCTION
 
-    # ---------------------------------------------------------------- helpers
+    ROW6_CUSTOM_NOTES = getattr(definitions, "MIX_ROW6_CUSTOM_NOTES", None)  # e.g. [40,41,42,43,44,45,46,47]
+
+# ---------------------------------------------------------------- helpers
     def __init__(self, app, settings=None):
         super().__init__(app, settings)
         self._pad_color_cache = None
-
+        self.row6_mode = self.ROW6_DEFAULT_MODE
+        self.row6_custom_notes = self.ROW6_CUSTOM_NOTES
     def _draw_top_mute_solo_header(self, ctx, w, h):
         mm = getattr(self.app, "mcu_manager", None)
         if not mm:
@@ -801,6 +812,15 @@ class MackieControlMode(definitions.LogicMode):
         for btn in self.buttons_used:
             self.app._set_button_color_cached(btn, definitions.OFF_BTN_COLOR)
 
+    def set_row6_mode(self, mode: str, custom_notes=None):
+        if mode not in (ROW6_MODE_FUNCTION, ROW6_MODE_CUSTOM):
+            return
+        self.row6_mode = mode
+        if custom_notes is not None:
+            self.row6_custom_notes = custom_notes
+        # repaint pads immediately
+        self._render_mix_grid("set_row6_mode")
+
     # === NEW: selector row paint + mode switch ================================
     def _set_mode(self, mode: str):
         if mode not in MODE_LABELS:
@@ -827,6 +847,35 @@ class MackieControlMode(definitions.LogicMode):
                 continue
             col = MODE_COLORS.get(mode, definitions.GRAY_DARK)
             self.push.buttons.set_button_color(btn, col if mode == self.active_mode else definitions.GRAY_DARK)
+
+    def _paint_row6(self, to_set):
+        """
+        Paint row 6 (second from bottom). We keep it simple:
+        - FUNCTION: show a neutral label color so it's visible
+        - CUSTOM:   same color if a slot has a binding; dark if None
+        """
+        row_idx = 6
+        pads = _row_buttons(row_idx)
+
+        if self.row6_mode == ROW6_MODE_FUNCTION:
+            # F1..F8 (MCU notes 40..47) presence indicated by a steady gray-light
+            col = getattr(definitions, "GRAY_LIGHT", "gray")
+            for pad_id in pads:
+                to_set.append((pad_id, col))
+            return
+
+        if self.row6_mode == ROW6_MODE_CUSTOM:
+            col_on  = getattr(definitions, "GRAY_LIGHT", "gray")
+            col_off = _DARK
+            notes = self.row6_custom_notes or []
+            for i, pad_id in enumerate(pads):
+                has_binding = (i < len(notes) and notes[i] is not None)
+                to_set.append((pad_id, col_on if has_binding else col_off))
+            return
+
+        # Fallback: off
+        for pad_id in pads:
+            to_set.append((pad_id, _DARK))
 
     def _paint_selector_row(self):
         """
@@ -925,6 +974,7 @@ class MackieControlMode(definitions.LogicMode):
             if _state(rec_states, abs_idx):
                 to_set.append((row_rec[i], _RED))
 
+        self._paint_row6(to_set)
         # Apply in order (later writes override base)
         self._apply_pad_colors(to_set)
         self.app.pads_need_update = True
@@ -1393,10 +1443,16 @@ class MackieControlMode(definitions.LogicMode):
                 col if mode == self.active_mode else definitions.GRAY_DARK
             )
         try:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_LEFT, definitions.GRAY_LIGHT)
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_RIGHT, definitions.GRAY_LIGHT)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_LEFT, definitions.WHITE)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_RIGHT, definitions.WHITE)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_1_32T, definitions.GREEN)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_1_32, definitions.SKYBLUE)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_1_16T, definitions.YELLOW)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_1_16, definitions.RED)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_MIX, definitions.WHITE)
+
         except Exception:
-            pass
+                pass
 
     def on_button_pressed_raw(self, btn):
         # Map Push PAGE < / > (with optional Shift) to MCU assignment Page/Bank notes
@@ -1405,14 +1461,14 @@ class MackieControlMode(definitions.LogicMode):
 
             if shift:
                 if btn == push2_python.constants.BUTTON_PAGE_LEFT:
-                    self._tap_mcu_button(MCU_ASSIGN_BANK_LEFT)  # 46
-                else:
-                    self._tap_mcu_button(MCU_ASSIGN_BANK_RIGHT)  # 47
-            else:
-                if btn == push2_python.constants.BUTTON_PAGE_LEFT:
                     self._tap_mcu_button(MCU_ASSIGN_PAGE_LEFT)  # 44
                 else:
                     self._tap_mcu_button(MCU_ASSIGN_PAGE_RIGHT)  # 45
+            else:
+                if btn == push2_python.constants.BUTTON_PAGE_LEFT:
+                    self._tap_mcu_button(MCU_ASSIGN_BANK_LEFT)  # 46
+                else:
+                    self._tap_mcu_button(MCU_ASSIGN_BANK_RIGHT)  # 47
             return True
 
         # LOWER ROW = MODE SELECTORS
@@ -1625,6 +1681,28 @@ class MackieControlMode(definitions.LogicMode):
             mode = LOWER_ROW_MODES[col]
             self._set_mode(mode)
             return True
+
+        # Row 6 = configurable (F-keys or custom) — handle BEFORE checking MCU note map
+        if row == 6 and 0 <= col < 8:
+            port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
+            if port is None:
+                return True
+
+            if self.row6_mode == ROW6_MODE_FUNCTION:
+                note = 40 + col  # F1..F8
+                port.send(mido.Message('note_on', note=note, velocity=127, channel=0))
+                port.send(mido.Message('note_on', note=note, velocity=0,   channel=0))
+                self._set_pad_color((row, col), getattr(definitions, "GRAY_LIGHT", "gray"))
+                return True
+
+            if self.row6_mode == ROW6_MODE_CUSTOM:
+                notes = self.row6_custom_notes or []
+                if col < len(notes) and notes[col] is not None:
+                    note = int(notes[col])
+                    port.send(mido.Message('note_on', note=note, velocity=127, channel=0))
+                    port.send(mido.Message('note_on', note=note, velocity=0,   channel=0))
+                    self._set_pad_color((row, col), getattr(definitions, "GRAY_LIGHT", "gray"))
+                return True
 
         note_num = _mcu_note_for(row, col)
         if note_num is None:
