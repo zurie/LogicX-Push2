@@ -4,12 +4,10 @@
 import re, mido, threading, time
 import definitions
 from typing import Optional
-import cairocffi as cairo
 
-_PAN_RE = re.compile(r'^(?:[+\-]?\d{1,3}|C)$')
 _TAP_OFF_DELAY = 0.001  # 1 ms tap
 _ASSIGN_FROM_VAL = {
-    0x00: "TRACK",     # In/Out
+    0x00: "TRACK",  # In/Out
     0x01: "SEND",
     0x02: "PAN",
     0x03: "PLUGIN",
@@ -109,37 +107,37 @@ class LogicMCUManager:
     # Assign translation tables (keep in sync with mackie_control_mode)
     # ──────────────────────────────────────────────────────────────────────────
     _MCU_OFFICIAL = {
-        "PAGE_LEFT":   44,
-        "PAGE_RIGHT":  45,
-        "BANK_LEFT":   46,
-        "BANK_RIGHT":  47,
-        "TRACK":       48,
-        "SEND":        49,
-        "PAN":         50,
-        "PLUGIN":      51,
-        "EQ":          52,
-        "INSTRUMENT":  53,
+        "PAGE_LEFT": 44,
+        "PAGE_RIGHT": 45,
+        "BANK_LEFT": 46,
+        "BANK_RIGHT": 47,
+        "TRACK": 48,
+        "SEND": 49,
+        "PAN": 50,
+        "PLUGIN": 51,
+        "EQ": 52,
+        "INSTRUMENT": 53,
     }
     _MASCHINE_LOGIC = {
-        "TRACK":      40,
+        "TRACK": 40,
         "INSTRUMENT": 41,
-        "PAN":        42,
-        "PLUGIN":     43,
-        "EQ":         44,
-        "DYNAMICS":   45,
-        "BANK_LEFT":  46,
+        "PAN": 42,
+        "PLUGIN": 43,
+        "EQ": 44,
+        "DYNAMICS": 45,
+        "BANK_LEFT": 46,
         "BANK_RIGHT": 47,
     }
     _ASSIGN_ALIAS = {
-        "TRACK":      {_MCU_OFFICIAL["TRACK"],      _MASCHINE_LOGIC.get("TRACK", -1)},
-        "SEND":       {_MCU_OFFICIAL["SEND"]},
-        "PAN":        {_MCU_OFFICIAL["PAN"],        _MASCHINE_LOGIC.get("PAN", -1)},
-        "PLUGIN":     {_MCU_OFFICIAL["PLUGIN"],     _MASCHINE_LOGIC.get("PLUGIN", -1)},
-        "EQ":         {_MCU_OFFICIAL["EQ"],         _MASCHINE_LOGIC.get("EQ", -1)},
+        "TRACK": {_MCU_OFFICIAL["TRACK"], _MASCHINE_LOGIC.get("TRACK", -1)},
+        "SEND": {_MCU_OFFICIAL["SEND"]},
+        "PAN": {_MCU_OFFICIAL["PAN"], _MASCHINE_LOGIC.get("PAN", -1)},
+        "PLUGIN": {_MCU_OFFICIAL["PLUGIN"], _MASCHINE_LOGIC.get("PLUGIN", -1)},
+        "EQ": {_MCU_OFFICIAL["EQ"], _MASCHINE_LOGIC.get("EQ", -1)},
         "INSTRUMENT": {_MCU_OFFICIAL["INSTRUMENT"], _MASCHINE_LOGIC.get("INSTRUMENT", -1)},
-        "BANK_LEFT":  {_MCU_OFFICIAL["BANK_LEFT"],  _MASCHINE_LOGIC.get("BANK_LEFT", -1)},
+        "BANK_LEFT": {_MCU_OFFICIAL["BANK_LEFT"], _MASCHINE_LOGIC.get("BANK_LEFT", -1)},
         "BANK_RIGHT": {_MCU_OFFICIAL["BANK_RIGHT"], _MASCHINE_LOGIC.get("BANK_RIGHT", -1)},
-        "PAGE_LEFT":  {_MCU_OFFICIAL["PAGE_LEFT"]},
+        "PAGE_LEFT": {_MCU_OFFICIAL["PAGE_LEFT"]},
         "PAGE_RIGHT": {_MCU_OFFICIAL["PAGE_RIGHT"]},
     }
     for k in list(_ASSIGN_ALIAS.keys()):
@@ -163,7 +161,8 @@ class LogicMCUManager:
             if page_mode and "PAGE_RIGHT" in actions:
                 return "PAGE_RIGHT"
             return "DYNAMICS" if "DYNAMICS" in actions else next(iter(actions))
-        for pref in ("TRACK","SEND","PAN","PLUGIN","EQ","INSTRUMENT","BANK_LEFT","BANK_RIGHT","PAGE_LEFT","PAGE_RIGHT"):
+        for pref in ("TRACK", "SEND", "PAN", "PLUGIN", "EQ", "INSTRUMENT", "BANK_LEFT", "BANK_RIGHT", "PAGE_LEFT",
+                     "PAGE_RIGHT"):
             if pref in actions:
                 return pref
         return next(iter(actions))
@@ -221,9 +220,9 @@ class LogicMCUManager:
         self.debug_mcu = getattr(app, "debug_mcu", False)
 
         self._listeners = {"track_state": [], "pan": [], "pan_text": [], "transport": [], "meter": []}
-        self._change_listeners = set()   # callables with no args
-        self.last_lcd_text = ""          # single-line headline for debug banner
-
+        self._change_listeners = set()  # callables with no args
+        self.last_lcd_text = ""  # single-line headline for debug banner
+        self.last_lcd_bottom_text = ""  # bottom 56 bytes (NEW)
         self.transport = {"play": False, "stop": True, "record": False, "ffwd": False, "rew": False}
         self._transport_dirty = True
         self._transport_seen = False
@@ -412,39 +411,7 @@ class LogicMCUManager:
                     self.flush_updates()
                     self.last_update_time = now
                     self.pending_update = False
-    def _draw_debug_banner(self, ctx, w, h):
-        if not getattr(definitions, "MC_DRAW_DEBUG", False):
-            return
 
-        # source data
-        mcu = getattr(self.app, "mcu_manager", None)
-        if not mcu:
-            return
-        headline = (mcu.last_lcd_text or "MCU").strip()
-
-        # banner metrics
-        bh    = getattr(definitions, "MC_DEBUG_HEIGHT", 28)
-        alpha = getattr(definitions, "MC_DEBUG_ALPHA", 0.85)
-        font  = getattr(definitions, "MC_DEBUG_FONT", "Menlo")
-
-        # background
-        ctx.save()
-        ctx.rectangle(0, 0, w, bh)
-        ctx.set_source_rgba(0, 0, 0, alpha)
-        ctx.fill()
-
-        # text
-        ctx.select_font_face(font, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
-        ctx.set_font_size(bh - 10 if bh >= 22 else 12)
-        ctx.set_source_rgb(0.92, 0.97, 1.00)
-
-        # clip so long text doesn't spill
-        ctx.rectangle(6, 0, w - 12, bh)
-        ctx.clip()
-
-        ctx.move_to(10, bh - 8)
-        ctx.show_text(headline)
-        ctx.restore()
 
     def flush_updates(self):
         changed = False
@@ -475,7 +442,8 @@ class LogicMCUManager:
                 return
             bank_start = (selected_idx // 8) * 8
             now = time.time()
-            if getattr(self, "_led_req_bank", None) == bank_start and (now - getattr(self, "_last_led_req", 0)) < getattr(self, "_led_req_interval", 0.3):
+            if getattr(self, "_led_req_bank", None) == bank_start and (
+                    now - getattr(self, "_last_led_req", 0)) < getattr(self, "_led_req_interval", 0.3):
                 return
             self._led_req_bank = bank_start
             self._last_led_req = now
@@ -488,7 +456,8 @@ class LogicMCUManager:
 
     def handle_sysex(self, data: bytes):
         try:
-            if not (len(data) >= 5 and list(data[:3]) == definitions.MCU_SYSEX_PREFIX_ANY and data[3] in definitions.ACCEPTED_MCU_MODEL_IDS):
+            if not (len(data) >= 5 and list(data[:3]) == definitions.MCU_SYSEX_PREFIX_ANY and data[
+                3] in definitions.ACCEPTED_MCU_MODEL_IDS):
                 if self.debug_mcu:
                     print("[MCU] Ignoring non-Mackie sysex:", data[:8], "…")
                 return
@@ -556,7 +525,7 @@ class LogicMCUManager:
 
                 # --- Long form: [0x20, ch, val]
                 if plen >= 3:
-                    ch  = int(payload[1])
+                    ch = int(payload[1])
                     val = int(payload[2])
 
                     # NEW: 0x07 = selector for which v‑pot the next channel-pressure belongs to
@@ -573,7 +542,8 @@ class LogicMCUManager:
                             try:
                                 self.on_vpot_display(ch, val)
                             except Exception:
-                                import logging; logging.exception("on_vpot_display failed")
+                                import logging;
+                                logging.exception("on_vpot_display failed")
                         return
 
                     # Channel LED bits for ch >= 8
@@ -708,18 +678,33 @@ class LogicMCUManager:
         if getattr(self.app, "mc_mode", None) and self.app.is_mode_active(self.app.mc_mode):
             self.app.mc_mode.update_strip_values()
 
-        # --- ADDED: headline for debug banner (full top line, trimmed) ---
+        # --- TOP: full 56 bytes as headline ---
         try:
             headline = bytes(self._lcd_top).decode('ascii', 'ignore').strip()
         except Exception:
             headline = ""
+
+        # --- BOTTOM: full 56 bytes raw (debug) ---
+        try:
+            bottomline = bytes(self._lcd_bot).decode('ascii', 'ignore').strip()
+        except Exception:
+            bottomline = ""
+
+        changed = False
         if headline != self.last_lcd_text:
             self.last_lcd_text = headline
-            # optional: emit a typed event if you want to hook elsewhere
             self.emit_event("lcd", text=self.last_lcd_text)
+            changed = True
+
+        # NEW: emit a separate event if you want, otherwise the HUD will pull the field
+        if bottomline != self.last_lcd_bottom_text:
+            self.last_lcd_bottom_text = bottomline
+            self.emit_event("lcd_bottom", text=self.last_lcd_bottom_text)
+            changed = True
 
         self.pending_update = True
-        self._notify_change()   # ADDED: ping HUD listeners
+        if changed:
+            self._notify_change()
 
     def _handle_channel_led(self, payload):
         if len(payload) < 2:
@@ -797,6 +782,11 @@ class LogicMCUManager:
                 self.app.on_lcd(kwargs.get("text", ""))
             except Exception:
                 pass
+        if event_type == "lcd_bottom" and hasattr(self.app, "on_lcd_bottom"):
+            try:
+                self.app.on_lcd_bottom(kwargs.get("text", ""))
+            except Exception:
+                pass
         if event_type == "button" and self.on_button:
             self.on_button(kwargs.get("label"), kwargs.get("pressed"))
         if event_type == "transport" and self.on_transport_change:
@@ -813,7 +803,6 @@ class LogicMCUManager:
             except Exception as e:
                 if self.debug_mcu:
                     print(f"[MCU] listener for '{event_type}' raised:", e)
-
 
     # ---------------- Realtime Handlers ----------------
     def handle_button(self, note, pressed):
@@ -1084,6 +1073,7 @@ class LogicMCUManager:
 
         self.pending_update = True
         self._notify_change()
+
     # === Inside class LogicMCUManager ===
     # Place near the top of the class (constants)
 

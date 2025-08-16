@@ -5,7 +5,8 @@ import colorsys
 import threading
 
 from functools import wraps
-
+MC_DEBUG_HEIGHT = 16      # was 22 — shrinks the banner rows
+MC_DEBUG_FONT   = "Menlo" #
 from push2_python.constants import ANIMATION_STATIC
 
 VERSION = '1.1.1'
@@ -15,11 +16,14 @@ isPlaying = 0.0  # instead of False
 isMetronome = 0.0
 isRecording = 0.0
 # --- Debug HUD toggle ---
-MC_DRAW_DEBUG = True  # set True to enable overlay
-MC_DEBUG_FONT = "Menlo"  # or any mono you have
-MC_DEBUG_ALPHA = 0.85  # translucency for banner
-MC_DEBUG_HEIGHT = 28  # px height of the top banner
-
+MC_DRAW_DEBUG = True
+MC_DEBUG_LAYOUT = "continuous" # or "cells"
+MC_DEBUG_COLLAPSE_SPACES = False
+MC_DEBUG_HEIGHT = 40
+MC_DEBUG_SMART_GLUE = True
+MC_DEBUG_DEBOUNCE_MS = 20
+MC_DEBUG_GUIDES = True  #(or True to see 8 columns)
+MC_DEBUG_FONT = "Menlo"  #(or any mono)
 # -----------------------------------------------------------------------------
 # Mackie/MCU Model IDs & SysEx prefixes
 # -----------------------------------------------------------------------------
