@@ -5,6 +5,7 @@ from definitions import pb_to_db, db_to_pb, MCU_SYSEX_PREFIX, MCU_MODEL_ID, MCU_
 from push2_python import constants as P2
 from typing import Optional  # put this at the top with imports
 from push2_python.constants import ANIMATION_STATIC
+import cairocffi as cairo
 
 # Color helpers (choose safe fallbacks if a name isn't defined in your palette)
 _SKY = getattr(definitions, "SKYBLUE", getattr(definitions, "skyblue", getattr(definitions, "CYAN", "cyan")))
@@ -230,7 +231,6 @@ class TrackStrip:
         ctx.show_text(pan_text)
         ctx.restore()
 
-
     # ------------------------------------------------------------------ values
     def update_value(self, increment):
         """
@@ -391,45 +391,269 @@ class MackieControlMode(definitions.LogicMode):
             ctx.show_text(label)
             ctx.restore()
 
+        # --- place this helper anywhere in the class (above _draw_debug_banner is fine)
+    def _lcd_accept(self, top56: str, bot56: str) -> bool:
+        """
+        Debounce host overlay flashes (e.g. 'Volume', 'Pan', long params).
+        Accept new text if:
+          1) It's identical to last drawn, or
+          2) It has stayed the same for MC_DEBUG_DEBOUNCE_MS, or
+          3) It doesn't look like an overlay token burst.
+        """
+        debounce_ms = int(getattr(definitions, "MC_DEBUG_DEBOUNCE_MS", 80))
+        now = time.time()
+
+        if not hasattr(self, "_lcd_last"):
+            self._lcd_last = {"top": "", "bot": "", "since": now}
+
+        last = self._lcd_last
+        same = (top56 == last["top"] and bot56 == last["bot"])
+        if same:
+            last["since"] = now
+            return True
+
+        # quick heuristic: a lot of spaces + only a short word (overlay), or a known token
+        # you already have definitions.OVERLAY_TOKENS in your project
+        tokens = getattr(definitions, "OVERLAY_TOKENS", set())
+        def looks_overlay(s: str) -> bool:
+            t = s.strip()
+            if not t:
+                return False
+            if t.lower() in tokens:
+                return True
+            # very short word or mostly spaces signals temp overlay
+            return (len(t) <= 6 and s.count(" ") >= 40)
+
+        # If either row smells like overlay, wait debounce window
+        if looks_overlay(top56) or looks_overlay(bot56):
+            if (now - last["since"]) * 1000.0 < debounce_ms:
+                return False
+
+        # accept and reset timer
+        last["top"], last["bot"], last["since"] = top56, bot56, now
+        return True
+
+
     def _draw_debug_banner(self, ctx, w, h):
-        """Top overlay that prints MCU LCD headline. No-ops when MC_DRAW_DEBUG is False."""
+        """
+        Debug overlay that can render in two modes:
+          - continuous: draw the 56-char top/bottom lines as one string (stable, readable)
+          - cells:      draw 8×7 cells like MCU hardware (authentic)
+        Toggle via definitions.MC_DEBUG_LAYOUT = "continuous" | "cells"
+        """
         if not getattr(definitions, "MC_DRAW_DEBUG", False):
             return
         mcu = getattr(self.app, "mcu_manager", None)
         if not mcu:
             return
 
-        headline = (getattr(mcu, "last_lcd_text", "") or "").strip()
-        if not headline:
+        # 56 bytes per row (8 * 7)
+        top56 = (getattr(mcu, "last_lcd_text", "") or "").ljust(56)[:56]
+        bot56 = (getattr(mcu, "last_lcd_bottom_text", "") or "").ljust(56)[:56]
+        if not (top56.strip() or bot56.strip()):
             return
 
-        bh    = getattr(definitions, "MC_DEBUG_HEIGHT", 28)
-        alpha = getattr(definitions, "MC_DEBUG_ALPHA", 0.85)
-        font  = getattr(definitions, "MC_DEBUG_FONT", "Menlo")
+        # Debounce transient overlays to reduce flicker
+        if not self._lcd_accept(top56, bot56):
+            return
 
+        layout = getattr(definitions, "MC_DEBUG_LAYOUT", "continuous").lower()
+        bh     = int(getattr(definitions, "MC_DEBUG_HEIGHT", 22))    # per-row height
+        alpha  = float(getattr(definitions, "MC_DEBUG_ALPHA", 0.85))
+        font   = getattr(definitions, "MC_DEBUG_FONT", "Menlo")
+        rows   = 1 if not bot56.strip() else 2
+        total_h = rows * bh
+
+        # Background slab
         ctx.save()
-        # background bar
-        ctx.rectangle(0, 0, w, bh)
+        ctx.rectangle(0, 0, w, total_h)
         ctx.set_source_rgba(0, 0, 0, alpha)
         ctx.fill()
 
-        # text
-        ctx.select_font_face("Helvetica", 0, 0)
-        ctx.set_font_size(bh - 10 if bh >= 22 else 12)
-        ctx.set_source_rgb(0.92, 0.97, 1.00)
+        # Force a monospaced face
+        for fam in (font, "Menlo", "Monaco", "Courier New", "Courier"):
+            try:
+                ctx.select_font_face(fam, 0, 0)
+                break
+            except Exception:
+                continue
 
-        # clip so it doesn’t spill
-        ctx.rectangle(6, 0, w - 12, bh)
-        ctx.clip()
+        # cache sizing between frames to avoid jitter
+        if not hasattr(self, "_dbg_cache"):
+            self._dbg_cache = {"cont_size": None, "cell_size": None, "w": None, "bh": None, "layout": None}
 
-        ctx.move_to(10, bh - 8)
-        ctx.show_text(headline)
+        def _ensure_size(sample_chars: int, target_width: float, key: str):
+            if (self._dbg_cache.get(key) is not None and
+                    self._dbg_cache["w"] == w and
+                    self._dbg_cache["bh"] == bh and
+                    self._dbg_cache["layout"] == layout):
+                ctx.set_font_size(self._dbg_cache[key])
+                return self._dbg_cache[key]
+
+            size = max(8, bh - 6)
+            ctx.set_font_size(size)
+            _, _, tw, _, _, _ = ctx.text_extents("M" * sample_chars)
+            while tw > target_width and size > 8:
+                size -= 0.5
+                ctx.set_font_size(size)
+                _, _, tw, _, _, _ = ctx.text_extents("M" * sample_chars)
+            self._dbg_cache.update({key: size, "w": w, "bh": bh, "layout": layout})
+            return size
+
+        def _draw_guides(rows_to_draw):
+            if not getattr(definitions, "MC_DEBUG_GUIDES", False):
+                return
+            ctx.save()
+            ctx.set_source_rgba(1, 1, 1, 0.08)
+            for i in range(1, 8):
+                x = i * (w / 8.0)
+                ctx.move_to(x, 0)
+                ctx.line_to(x, rows_to_draw * bh)
+            ctx.set_line_width(1)
+            ctx.stroke()
+            ctx.restore()
+
+        # Common green color
+        ctx.set_source_rgb(0, 1, 0)
+
+        # ---------- MODE A: CONTINUOUS ----------
+        if layout == "continuous":
+            pad_x = 4
+            size = _ensure_size(56, w - pad_x * 2, "cont_size")
+            ctx.set_font_size(size)
+
+            # glue short units so they don’t split when host sends a space
+            def glue_units(s: str) -> str:
+                return (s.replace(" dB", "\u202FdB")
+                        .replace(" Hz", "\u202FHz")
+                        .replace(" kHz", "\u202FkHz")
+                        .replace(" %", "\u202F%"))
+
+            top_line = glue_units(top56)
+            bot_line = glue_units(bot56)
+
+            baseline0 = 1 * bh - 6
+            ctx.move_to(pad_x, baseline0)
+            ctx.show_text(top_line)
+            if rows == 2:
+                baseline1 = 2 * bh - 6
+                ctx.move_to(pad_x, baseline1)
+                ctx.show_text(bot_line)
+
+            _draw_guides(rows)
+            ctx.restore()
+            return
+
+        # ---------- MODE B: CELLS (authentic 8×7) ----------
+        col_w = w / 8.0
+        pad_x = 4
+        size = _ensure_size(7, col_w - pad_x * 2, "cell_size")
+        ctx.set_font_size(size)
+
+        collapse = bool(getattr(definitions, "MC_DEBUG_COLLAPSE_SPACES", True))
+        smart_glue = bool(getattr(definitions, "MC_DEBUG_SMART_GLUE", True))
+        import re
+
+        def _tight(s: str) -> str:
+            return re.sub(r"\s{2,}", " ", s) if collapse else s
+
+        def _row_to_cells(text56: str):
+            # slice → normalize → pad/clamp to 7
+            cells = [(_tight(text56[i*7:(i+1)*7]) + "       ")[:7] for i in range(8)]
+            if not smart_glue:
+                return cells
+
+            # conservative “glue” so units don’t spill into next cell
+            for i in range(7):
+                left = list(cells[i])
+                right = list(cells[i+1])
+
+                # find last printable in left
+                li = 6
+                while li >= 0 and left[li] == " ":
+                    li -= 1
+                lch = left[li] if li >= 0 else ""
+
+                # find first printable in right
+                ri = 0
+                while ri < 7 and right[ri] == " ":
+                    ri += 1
+                rch = right[ri] if ri < 7 else ""
+
+                def pull_one():
+                    nonlocal left, right, ri
+                    if ri >= 7: return
+                    ch = right[ri]
+                    # place into last space if available; else shift left
+                    try:
+                        sp = "".join(left).rfind(" ")
+                    except Exception:
+                        sp = -1
+                    if sp != -1:
+                        left[sp] = ch
+                    else:
+                        left = left[1:] + [ch]
+                    right.pop(ri)
+                    right.append(" ")
+
+                # d | B  (dB), H | z (Hz), k | H (kHz), % stuck on next cell
+                if lch == "d" and rch == "B": pull_one()
+                if lch == "H" and rch == "z": pull_one()
+                if lch == "k" and rch == "H": pull_one()
+                if rch == "%" and lch not in ("", " "): pull_one()
+
+                cells[i]   = ("".join(left)  + "       ")[:7]
+                cells[i+1] = ("".join(right) + "       ")[:7]
+            return cells
+
+        def _looks_numeric(seg: str) -> bool:
+            seg = seg.strip()
+            if not seg: return False
+            # digits, sign, dot, optional tiny unit
+            return any(ch.isdigit() for ch in seg) or seg.startswith(("+", "-"))
+
+        def _draw_row_cells(text56: str, row_idx: int):
+            baseline = (row_idx + 1) * bh - 6
+            cells = _row_to_cells(text56)
+            for col, seg in enumerate(cells):
+                x0 = col * col_w
+                # right-justify numeric-ish cells, left-justify others
+                xb, yb, tw, th, _, _ = ctx.text_extents(seg)
+                if _looks_numeric(seg):
+                    tx = x0 + col_w - pad_x - tw - xb
+                else:
+                    tx = x0 + pad_x - xb
+                ty = baseline - yb
+
+                ctx.save()
+                ctx.rectangle(x0, row_idx * bh, col_w, bh)
+                ctx.clip()
+                ctx.move_to(tx, ty)
+                ctx.show_text(seg)
+                ctx.restore()
+
+        _draw_row_cells(top56, 0)
+        if rows == 2:
+            _draw_row_cells(bot56, 1)
+
+        _draw_guides(rows)
         ctx.restore()
 
+
+
+
     def _tap_mcu_button(self, note_num: int):
-        port = self.app.mcu_manager.output_port or getattr(self.app, "midi_out", None)
+        self._tap(note_num)
+
+    def _send_assignment(self, note: int):
+        # assignment keys like 40/41/42/43, etc.
+        self._tap(note)
+
+    def _tap(self, note_num: int):
+        port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
         if not port:
             return
+        # Mackie style: ON 127 then OFF 0 (do NOT use velocity 64)
         port.send(mido.Message('note_on', note=note_num, velocity=127, channel=0))
         port.send(mido.Message('note_on', note=note_num, velocity=0, channel=0))
 
@@ -581,23 +805,13 @@ class MackieControlMode(definitions.LogicMode):
     def _set_mode(self, mode: str):
         if mode not in MODE_LABELS:
             return
-        prev = self.active_mode
         self.active_mode = mode
 
-        # Leaving VOLUME: reset submode and restore TRACK/INOUT
-        if prev == MODE_VOLUME and mode != MODE_VOLUME:
-            MackieControlMode._volume_submode = 0
-            self._send_assignment(MCU_ASSIGN_INOUT)  # 40
-
-        # Entering VOLUME: set assignment based on submode (0=40, 1=42)
         if mode == MODE_VOLUME:
-            if MackieControlMode._volume_submode == 1:
-                self._send_assignment(MCU_ASSIGN_PAN)  # 42 (detail submode)
-            else:
-                self._send_assignment(MCU_ASSIGN_INOUT)  # 40 (normal)
-
+            # do NOT send 42 here; pressing vol should always be 40-tap only (handled on press)
+            self._send_assignment(MCU_ASSIGN_INOUT)  # safe to reinforce if you want
         elif mode == MODE_PAN:
-            self._send_assignment(MCU_ASSIGN_PAN)
+            self._send_assignment(MCU_ASSIGN_PAN)  # user explicitly chose PAN
 
         self.update_buttons()
         self.update_encoders()
@@ -776,22 +990,6 @@ class MackieControlMode(definitions.LogicMode):
             # self.pad_meter = PadMeter(self.push)
             self._listeners_added = True
 
-    # --- near your helpers ---
-    def _send_assignment(self, note: int):
-        """Tap an MCU assignment key (Pan/Sends/etc.) every time and log the port."""
-        port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
-        if not port:
-            print("[MCU OUT] No output_port/midi_out; cannot send assignment", note)
-            return
-        try:
-            pname = getattr(port, "name", str(port))
-        except Exception:
-            pname = str(port)
-        if getattr(self.app, "debug_mcu", False):
-            print(f"[MCU OUT] ASSIGN note {note} → {pname}")
-        port.send(mido.Message('note_on', note=note, velocity=127, channel=0))
-        port.send(mido.Message('note_on', note=note, velocity=0, channel=0))
-
     def _apply_pad_colors(self, pairs):
         # pairs: [((row, col), color), ...]
         for pad_id, col in pairs:
@@ -955,7 +1153,6 @@ class MackieControlMode(definitions.LogicMode):
         self._last_pan[bi] = val
         self.app.display_dirty = True
 
-
         # IMPORTANT: DO NOT call update_strip_values(), _render_mix_grid(), or set pads here.
         # That work belongs to display/frame code and bank/selection/solo/mute changes only.
 
@@ -1078,7 +1275,7 @@ class MackieControlMode(definitions.LogicMode):
             animation=ANIMATION_STATIC,
             animation_end_color='black'
         )
-        self._blank_track_row_buttons()
+        self._blank_buttons_used()
         self.app.pads_need_update = True
 
     def update_display(self, ctx, w, h):
@@ -1196,7 +1393,7 @@ class MackieControlMode(definitions.LogicMode):
                 col if mode == self.active_mode else definitions.GRAY_DARK
             )
         try:
-            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_LEFT,  definitions.GRAY_LIGHT)
+            self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_LEFT, definitions.GRAY_LIGHT)
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_PAGE_RIGHT, definitions.GRAY_LIGHT)
         except Exception:
             pass
@@ -1225,23 +1422,22 @@ class MackieControlMode(definitions.LogicMode):
                 wanted_mode = LOWER_ROW_MODES[i]
 
                 # Special behavior: pressing VOLUME again toggles its submode (and always sends 40)
-                if wanted_mode == MODE_VOLUME and self.active_mode == MODE_VOLUME:
-                    # toggle submode
+                if wanted_mode == MODE_VOLUME:
+                    # Always behave like the real Mackie: tap IN/OUT (40) each press.
+                    self._send_assignment(MCU_ASSIGN_INOUT)  # 40
+
+                    # (Optional) keep your visual submode toggle, but DO NOT send 42 here.
                     MackieControlMode._volume_submode = 0 if MackieControlMode._volume_submode else 1
-                    # In detail submode keep PAN (42) so enc2 deltas are PAN; otherwise TRACK/INOUT (40)
-                    if MackieControlMode._volume_submode == 1:
-                        self._send_assignment(MCU_ASSIGN_PAN)  # 42
-                    else:
-                        self._send_assignment(MCU_ASSIGN_INOUT)  # 40
 
                     if hasattr(self.app, "_btn_color_cache"):
                         self.app._btn_color_cache.clear()
-                    # Light/labels refresh
                     self._paint_selector_row()
                     self.update_buttons()
                     self.update_encoders()
                     self.app.pads_need_update = True
                     self.app.buttons_need_update = True
+                    # Also set active mode (stays in volume)
+                    self.active_mode = MODE_VOLUME
                     return True
 
                 # Normal path: switch modes
