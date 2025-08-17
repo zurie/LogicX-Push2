@@ -264,6 +264,13 @@ class MackieControlMode(definitions.LogicMode):
     active_mode = MODE_VOLUME  # default
     _polling_active = False
     _volume_submode = 0
+    _submodes = {
+        MODE_VOLUME: 0,
+        MODE_PAN: 0,
+        # MODE_PLUGINS: 0, MODE_SENDS: 0, ... (add more as you wire them up)
+    }
+    _startup_submodes_loaded = False  # one-shot guard
+
     # Pad brightness policy: OFF = dimmed gray, ON = full
     _PAD_OFF_COLOR = _DARK  # GRAY_DARK from your palette
     # Pan state: view is the green number (−64..+63), ring is 0..11 from Logic echo
@@ -280,6 +287,51 @@ class MackieControlMode(definitions.LogicMode):
         ROW6_DEFAULT_MODE = ROW6_MODE_FUNCTION
 
     ROW6_CUSTOM_NOTES = getattr(definitions, "MIX_ROW6_CUSTOM_NOTES", None)  # e.g. [40,41,42,43,44,45,46,47]
+
+    def _get_sub(self, mode: str) -> int:
+        return MackieControlMode._submodes.get(mode, 0)
+
+    def _set_sub(self, mode: str, val: int):
+        val = 1 if val else 0
+        MackieControlMode._submodes[mode] = val
+
+        # Keep legacy globals in sync (if you reference them elsewhere)
+        if mode == MODE_VOLUME:
+            MackieControlMode._volume_submode = val
+        elif mode == MODE_PAN:
+            MackieControlMode._pan_submode = val
+
+        # Persist immediately
+        self._persist_submodes()
+
+    def _load_submodes_from_settings(self):
+        if MackieControlMode._startup_submodes_loaded:
+            return
+        try:
+            s = getattr(self.app, "settings", None)
+            if isinstance(s, dict):
+                sm = (s.get("mix_submodes") or {})
+                # Accept both mode keys and friendly names
+                vol = sm.get("volume", sm.get(MODE_VOLUME, 0))
+                pan = sm.get("pan", sm.get(MODE_PAN, 0))
+                self._set_sub(MODE_VOLUME, 1 if vol else 0)
+                self._set_sub(MODE_PAN, 1 if pan else 0)
+        except Exception:
+            pass
+        MackieControlMode._startup_submodes_loaded = True
+
+    def _persist_submodes(self):
+        try:
+            s = getattr(self.app, "settings", None)
+            if not isinstance(s, dict):
+                return
+            sm = s.setdefault("mix_submodes", {})
+            sm["volume"] = self._get_sub(MODE_VOLUME)
+            sm["pan"]    = self._get_sub(MODE_PAN)
+            if hasattr(self.app, "save_settings"):
+                self.app.save_settings()
+        except Exception:
+            pass
 
     # ---------------------------------------------------------------- helpers
     def __init__(self, app, settings=None):
@@ -836,8 +888,10 @@ class MackieControlMode(definitions.LogicMode):
         if mode == MODE_VOLUME:
             # do NOT send 42 here; pressing vol should always be 40-tap only (handled on press)
             self._send_assignment(MCU_ASSIGN_INOUT)  # safe to reinforce if you want
+            MackieControlMode._volume_submode = self._get_sub(MODE_VOLUME)
         elif mode == MODE_PAN:
             self._send_assignment(MCU_ASSIGN_PAN)  # user explicitly chose PAN
+            MackieControlMode._pan_submode = self._get_sub(MODE_PAN)
 
         self.update_buttons()
         self.update_encoders()
@@ -1267,6 +1321,7 @@ class MackieControlMode(definitions.LogicMode):
 
     def activate(self):
         self.initialize()
+        self._load_submodes_from_settings()
         self._pad_color_cache = {}
         self.current_page = 0
         self._last_grid_snapshot = None
@@ -1305,8 +1360,6 @@ class MackieControlMode(definitions.LogicMode):
         self.update_buttons()
         self._paint_selector_row()
         self._render_mix_grid("activate")
-        if self.active_mode == MODE_PAN:
-            self._send_assignment(MCU_ASSIGN_PAN)
         # seed from Logic's current pan levels
         mm = getattr(self.app, "mcu_manager", None)
         if mm and hasattr(mm, "pan_levels"):
@@ -1483,29 +1536,48 @@ class MackieControlMode(definitions.LogicMode):
             if btn == lower_btn:
                 wanted_mode = LOWER_ROW_MODES[i]
 
-                # Special behavior: pressing VOLUME again toggles its submode (and always sends 40)
+                # Special behavior: VOLUME toggles only if we're ALREADY in Volume mode.
                 if wanted_mode == MODE_VOLUME:
-                    # Always behave like the real Mackie: tap IN/OUT (40) each press.
-                    self._send_assignment(MCU_ASSIGN_INOUT)  # 40
+                    if self.active_mode == MODE_VOLUME:
+                        # Send IN/OUT (40) only on explicit Volume press and flip Volume's own submode
+                        self._send_assignment(MCU_ASSIGN_INOUT)
+                        self._set_sub(MODE_VOLUME, 0 if self._get_sub(MODE_VOLUME) else 1)
 
-                    # (Optional) keep your visual submode toggle, but DO NOT send 42 here.
-                    MackieControlMode._volume_submode = 0 if MackieControlMode._volume_submode else 1
-
-                    if hasattr(self.app, "_btn_color_cache"):
-                        self.app._btn_color_cache.clear()
-                    self._paint_selector_row()
-                    self.update_buttons()
-                    self.update_encoders()
-                    self.app.pads_need_update = True
-                    self.app.buttons_need_update = True
-                    # Also set active mode (stays in volume)
-                    self.active_mode = MODE_VOLUME
+                        if hasattr(self.app, "_btn_color_cache"):
+                            self.app._btn_color_cache.clear()
+                        self._paint_selector_row()
+                        self.update_buttons()
+                        self.update_encoders()
+                        self.app.pads_need_update = True
+                        self.app.buttons_need_update = True
+                        # Stay in Volume
+                        self.active_mode = MODE_VOLUME
+                    else:
+                        # Coming from another mode → enter Volume without toggling Volume's submode
+                        self._set_mode(MODE_VOLUME)
                     return True
+                if wanted_mode == MODE_PAN:
+                    if self.active_mode == MODE_PAN:
+                        # Send PAN (42) only on explicit Pan press and flip Pan's own submode
+                        self._send_assignment(MCU_ASSIGN_PAN)
+                        self._set_sub(MODE_PAN, 0 if self._get_sub(MODE_PAN) else 1)
 
+                        if hasattr(self.app, "_btn_color_cache"):
+                            self.app._btn_color_cache.clear()
+                        self._paint_selector_row()
+                        self.update_buttons()
+                        self.update_encoders()
+                        self.app.pads_need_update = True
+                        self.app.buttons_need_update = True
+                        # Stay in Pan
+                        self.active_mode = MODE_PAN
+                    else:
+                        # Coming from another mode → enter Pan without toggling Pan's submode
+                        self._set_mode(MODE_PAN)
+                    return True
                 # Normal path: switch modes
                 self._set_mode(wanted_mode)
                 return True
-
         # UPPER ROW = TRACK ACTIONS (mode-dependent)
         for i in range(8):
             upper_btn = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
