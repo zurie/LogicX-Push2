@@ -249,6 +249,12 @@ class MackieModeDetector:
             elif s.startswith('sur'): inferred_sub = 'Surround'
             elif s.startswith('sen'): inferred_sub = 'Send'
 
+        if inferred_mode == "Track/Volume":
+            if inferred_sub == "Volume":
+                inferred_sub = "A"   # your Sub A
+            elif inferred_sub == "Pan":
+                inferred_sub = "B"   # your Sub B
+
         # If we don't have a real mode yet (cell0 not complete), keep the hint/current
         cell0_covered = all(self._top_cov[i] for i in range(7))
         new_mode = inferred_mode if cell0_covered and inferred_mode else (self.expected_mode or self.current_mode)
