@@ -659,6 +659,13 @@ class MackieControlMode(definitions.LogicMode):
     def _send_assignment(self, note: int):
         # assignment keys like 40/41/42/43, etc.
         self._tap(note)
+        # >>> NEW: tell the detector what we *expect* mode to be
+        mm = getattr(self.app, "mcu_manager", None)
+        if mm and hasattr(mm, "mode_detector") and callable(getattr(mm.mode_detector, "notify_assignment_pressed", None)):
+            try:
+                mm.mode_detector.notify_assignment_pressed(int(note))
+            except Exception:
+                pass
 
     def _tap(self, note_num: int):
         port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
@@ -1693,6 +1700,14 @@ class MackieControlMode(definitions.LogicMode):
                 port.send(mido.Message('note_on', note=note, velocity=127, channel=0))
                 port.send(mido.Message('note_on', note=note, velocity=0,   channel=0))
                 self._set_pad_color((row, col), getattr(definitions, "GRAY_LIGHT", "gray"))
+                # >>> NEW: if it’s a mode key (40..43 in YOUR layout), notify
+                if 40 <= note <= 43:
+                    mm = getattr(self.app, "mcu_manager", None)
+                    if mm and hasattr(mm, "mode_detector"):
+                        try:
+                            mm.mode_detector.notify_assignment_pressed(note)
+                        except Exception:
+                            pass
                 return True
 
             if self.row6_mode == ROW6_MODE_CUSTOM:

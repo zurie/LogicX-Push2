@@ -4,7 +4,8 @@
 import re, mido, threading, time
 import definitions
 from typing import Optional
-
+from mcu_mode_detector import MackieModeDetector
+from mcu_state import MCU_STATE
 _TAP_OFF_DELAY = 0.001  # 1 ms tap
 _ASSIGN_FROM_VAL = {
     0x00: "TRACK",  # In/Out
@@ -14,7 +15,10 @@ _ASSIGN_FROM_VAL = {
     0x04: "EQ",
     0x05: "DYNAMICS",
 }
-
+def _on_mode_changed(mode, sub):
+    # Use this to drive your GUI, global state, etc.
+    # Example: self.app.current_mcu_mode = mode; self.app.current_mcu_submode = sub
+    print(f"[GUI] MCU changed -> mode={mode} sub={sub}")
 
 class LogicMCUManager:
     MCU_NOTE_CURSOR_UP = 96
@@ -206,6 +210,7 @@ class LogicMCUManager:
     # Init / state
     # ──────────────────────────────────────────────────────────────────────────
     def __init__(self, app, port_name="IAC Driver LogicMCU_In", enabled=True, update_interval=0.05):
+        state = MCU_STATE()  # singleton
         self.input_port = None
         self.output_port = None
         self.button_press_times = {}
@@ -218,7 +223,11 @@ class LogicMCUManager:
         self._lcd_top = bytearray(b' ' * 56)
         self._lcd_bot = bytearray(b' ' * 56)
         self.debug_mcu = getattr(app, "debug_mcu", False)
-
+        self.mode_detector = MackieModeDetector(
+            log=self._debug_log,
+            on_mode_changed=lambda mode, sub: state._set_mode_sub(mode, sub),
+            on_ring_changed=lambda rings: state._set_ring_modes(tuple(rings)),
+        )
         self._listeners = {"track_state": [], "pan": [], "pan_text": [], "transport": [], "meter": []}
         self._change_listeners = set()  # callables with no args
         self.last_lcd_text = ""  # single-line headline for debug banner
@@ -310,6 +319,10 @@ class LogicMCUManager:
     def _fire(self, evt, **kw):
         for fn in self._listeners.get(evt, []):
             fn(**kw)
+
+    def _debug_log(self, msg: str):
+        # swap with your project’s logger
+        print(msg)
 
     def send_mcu_button(self, button_type):
         if not self.output_port:
@@ -501,6 +514,7 @@ class LogicMCUManager:
                 return
             if cmd == 0x12:  # scribble-strip text
                 self._handle_display_text(payload)
+                self.mode_detector.handle_lcd_sysex(data)
                 return
             if cmd == 0x20:
                 # payload can be either:
@@ -559,6 +573,7 @@ class LogicMCUManager:
                 return
             if cmd == 0x72:  # time
                 self._handle_time(payload[1:])
+                self.mode_detector.handle_vpot_ring_sysex(data)
                 return
 
             # Official 9-byte ring echo
