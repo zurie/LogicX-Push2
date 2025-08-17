@@ -26,6 +26,9 @@ MC_DEBUG_DEBOUNCE_MS = 20
 MC_DEBUG_GUIDES = True  #(or True to see 8 columns)
 MC_DEBUG_FONT = "Menlo"  #(or any mono)
 # Row 6 behavior config (can be overridden in definitions.py)
+ROW6_MODE_FUNCTION = "function"  # F1..F8 (MCU 40..47)
+MIX_ROW6_MODE = "custom"
+MIX_ROW6_CUSTOM_NOTES = [91, 92, 93, 94, 95, 96, 97, 70]  # example: F1..F6, UNDO, ENTER
 
 # -----------------------------------------------------------------------------
 # Mackie/MCU Model IDs & SysEx prefixes

@@ -74,9 +74,8 @@ MODE_COLORS = {
     "extra2": getattr(definitions, "GREEN_LIGHT", getattr(definitions, "GREEN", "green")),
     "extra3": getattr(definitions, "RED_LIGHT", getattr(definitions, "RED", "red")),
 }
-ROW6_MODE_FUNCTION = "function"   # F1..F8 (MCU 40..47)
-ROW6_MODE_CUSTOM   = "custom"
-MIX_ROW6_CUSTOM_NOTES = [40, 41, 42, 43, 44, 45, 46, 47]  # example
+ROW6_MODE_FUNCTION = "function"  # F1..F8 (MCU 40..47)
+ROW6_MODE_CUSTOM = "custom"
 
 # MCU Assignment / Function keys (notes)
 MCU_ASSIGN_INOUT = 40
@@ -282,12 +281,13 @@ class MackieControlMode(definitions.LogicMode):
 
     ROW6_CUSTOM_NOTES = getattr(definitions, "MIX_ROW6_CUSTOM_NOTES", None)  # e.g. [40,41,42,43,44,45,46,47]
 
-# ---------------------------------------------------------------- helpers
+    # ---------------------------------------------------------------- helpers
     def __init__(self, app, settings=None):
         super().__init__(app, settings)
         self._pad_color_cache = None
         self.row6_mode = self.ROW6_DEFAULT_MODE
         self.row6_custom_notes = self.ROW6_CUSTOM_NOTES
+
     def _draw_top_mute_solo_header(self, ctx, w, h):
         mm = getattr(self.app, "mcu_manager", None)
         if not mm:
@@ -403,6 +403,7 @@ class MackieControlMode(definitions.LogicMode):
             ctx.restore()
 
         # --- place this helper anywhere in the class (above _draw_debug_banner is fine)
+
     def _lcd_accept(self, top56: str, bot56: str) -> bool:
         """
         Debounce host overlay flashes (e.g. 'Volume', 'Pan', long params).
@@ -426,6 +427,7 @@ class MackieControlMode(definitions.LogicMode):
         # quick heuristic: a lot of spaces + only a short word (overlay), or a known token
         # you already have definitions.OVERLAY_TOKENS in your project
         tokens = getattr(definitions, "OVERLAY_TOKENS", set())
+
         def looks_overlay(s: str) -> bool:
             t = s.strip()
             if not t:
@@ -443,7 +445,6 @@ class MackieControlMode(definitions.LogicMode):
         # accept and reset timer
         last["top"], last["bot"], last["since"] = top56, bot56, now
         return True
-
 
     def _draw_debug_banner(self, ctx, w, h):
         """
@@ -469,10 +470,10 @@ class MackieControlMode(definitions.LogicMode):
             return
 
         layout = getattr(definitions, "MC_DEBUG_LAYOUT", "continuous").lower()
-        bh     = int(getattr(definitions, "MC_DEBUG_HEIGHT", 22))    # per-row height
-        alpha  = float(getattr(definitions, "MC_DEBUG_ALPHA", 0.85))
-        font   = getattr(definitions, "MC_DEBUG_FONT", "Menlo")
-        rows   = 1 if not bot56.strip() else 2
+        bh = int(getattr(definitions, "MC_DEBUG_HEIGHT", 22))  # per-row height
+        alpha = float(getattr(definitions, "MC_DEBUG_ALPHA", 0.85))
+        font = getattr(definitions, "MC_DEBUG_FONT", "Menlo")
+        rows = 1 if not bot56.strip() else 2
         total_h = rows * bh
 
         # Background slab
@@ -570,14 +571,14 @@ class MackieControlMode(definitions.LogicMode):
 
         def _row_to_cells(text56: str):
             # slice → normalize → pad/clamp to 7
-            cells = [(_tight(text56[i*7:(i+1)*7]) + "       ")[:7] for i in range(8)]
+            cells = [(_tight(text56[i * 7:(i + 1) * 7]) + "       ")[:7] for i in range(8)]
             if not smart_glue:
                 return cells
 
             # conservative “glue” so units don’t spill into next cell
             for i in range(7):
                 left = list(cells[i])
-                right = list(cells[i+1])
+                right = list(cells[i + 1])
 
                 # find last printable in left
                 li = 6
@@ -613,8 +614,8 @@ class MackieControlMode(definitions.LogicMode):
                 if lch == "k" and rch == "H": pull_one()
                 if rch == "%" and lch not in ("", " "): pull_one()
 
-                cells[i]   = ("".join(left)  + "       ")[:7]
-                cells[i+1] = ("".join(right) + "       ")[:7]
+                cells[i] = ("".join(left) + "       ")[:7]
+                cells[i + 1] = ("".join(right) + "       ")[:7]
             return cells
 
         def _looks_numeric(seg: str) -> bool:
@@ -650,9 +651,6 @@ class MackieControlMode(definitions.LogicMode):
         _draw_guides(rows)
         ctx.restore()
 
-
-
-
     def _tap_mcu_button(self, note_num: int):
         self._tap(note_num)
 
@@ -661,7 +659,8 @@ class MackieControlMode(definitions.LogicMode):
         self._tap(note)
         # >>> NEW: tell the detector what we *expect* mode to be
         mm = getattr(self.app, "mcu_manager", None)
-        if mm and hasattr(mm, "mode_detector") and callable(getattr(mm.mode_detector, "notify_assignment_pressed", None)):
+        if mm and hasattr(mm, "mode_detector") and callable(
+                getattr(mm.mode_detector, "notify_assignment_pressed", None)):
             try:
                 mm.mode_detector.notify_assignment_pressed(int(note))
             except Exception:
@@ -872,7 +871,7 @@ class MackieControlMode(definitions.LogicMode):
             return
 
         if self.row6_mode == ROW6_MODE_CUSTOM:
-            col_on  = getattr(definitions, "GRAY_LIGHT", "gray")
+            col_on = getattr(definitions, "ORANGE", "orange")
             col_off = _DARK
             notes = self.row6_custom_notes or []
             for i, pad_id in enumerate(pads):
@@ -1459,7 +1458,7 @@ class MackieControlMode(definitions.LogicMode):
             self.push.buttons.set_button_color(push2_python.constants.BUTTON_MIX, definitions.WHITE)
 
         except Exception:
-                pass
+            pass
 
     def on_button_pressed_raw(self, btn):
         # Map Push PAGE < / > (with optional Shift) to MCU assignment Page/Bank notes
@@ -1698,7 +1697,7 @@ class MackieControlMode(definitions.LogicMode):
             if self.row6_mode == ROW6_MODE_FUNCTION:
                 note = 40 + col  # F1..F8
                 port.send(mido.Message('note_on', note=note, velocity=127, channel=0))
-                port.send(mido.Message('note_on', note=note, velocity=0,   channel=0))
+                port.send(mido.Message('note_on', note=note, velocity=0, channel=0))
                 self._set_pad_color((row, col), getattr(definitions, "GRAY_LIGHT", "gray"))
                 # >>> NEW: if it’s a mode key (40..43 in YOUR layout), notify
                 if 40 <= note <= 43:
@@ -1715,7 +1714,7 @@ class MackieControlMode(definitions.LogicMode):
                 if col < len(notes) and notes[col] is not None:
                     note = int(notes[col])
                     port.send(mido.Message('note_on', note=note, velocity=127, channel=0))
-                    port.send(mido.Message('note_on', note=note, velocity=0,   channel=0))
+                    port.send(mido.Message('note_on', note=note, velocity=0, channel=0))
                     self._set_pad_color((row, col), getattr(definitions, "GRAY_LIGHT", "gray"))
                 return True
 
