@@ -21,9 +21,9 @@ MC_DRAW_DEBUG = True
 MC_DEBUG_LAYOUT = "continuous"  # or "cells"
 MC_DEBUG_COLLAPSE_SPACES = False
 MC_DEBUG_HEIGHT = 40
-MC_DEBUG_SMART_GLUE = True
+MC_DEBUG_SMART_GLUE = False
 MC_DEBUG_DEBOUNCE_MS = 20
-MC_DEBUG_GUIDES = True  #(or True to see 8 columns)
+MC_DEBUG_GUIDES = False  #(or True to see 8 columns)
 MC_DEBUG_FONT = "Menlo"  #(or any mono)
 # Row 6 behavior config (can be overridden in definitions.py)
 ROW6_MODE_FUNCTION = "function"  # F1..F8 (MCU 40..47)
