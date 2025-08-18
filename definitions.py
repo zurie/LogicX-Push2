@@ -29,7 +29,17 @@ MC_DEBUG_FONT = "Menlo"  #(or any mono)
 ROW6_MODE_FUNCTION = "function"  # F1..F8 (MCU 40..47)
 MIX_ROW6_MODE = "custom"
 MIX_ROW6_CUSTOM_NOTES = [91, 92, 93, 94, 95, 96, 97, 70]  # example: F1..F6, UNDO, ENTER
-
+# ---- 56-char test toggles ----
+MC_SCRIBBLE_TEST    = False       # turn the test line on/off
+MC_TEST_MODE        = "cells"    # "cells" or "stretch"
+MC_TEST_CHAR        = "■"        # try "■", "█", "▪", "#"
+MC_TEST_PAD_X       = 4          # left/right padding in pixels
+MC_TEST_MIN_SIZE    = 22
+MC_TEST_MAX_SIZE    = 22
+MC_TEST_FUDGE       = 0.0        # px added to target width (stretch mode)
+MC_SCRIBBLE_GUIDES  = True       # draw guides (8 columns + 56 ticks)
+MC_DEBUG_FONT       = "Menlo"    # preferred monospace
+MC_DEBUG_HEIGHT     = 30         # target row height
 # -----------------------------------------------------------------------------
 # Mackie/MCU Model IDs & SysEx prefixes
 # -----------------------------------------------------------------------------
