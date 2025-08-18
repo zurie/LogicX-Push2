@@ -80,13 +80,15 @@ ROW6_MODE_CUSTOM = "custom"
 # MCU Assignment / Function keys (notes)
 MCU_ASSIGN_INOUT = 40
 MCU_ASSIGN_SENDS = 41
-MCU_ASSIGN_PAN = 42
+#MCU_ASSIGN_PAN = 42
 MCU_ASSIGN_PLUGINS = 43
 MCU_ASSIGN_PAGE_LEFT = 44
 MCU_ASSIGN_PAGE_RIGHT = 45
 MCU_ASSIGN_BANK_LEFT = 46
 MCU_ASSIGN_BANK_RIGHT = 47
-
+MCU_ASSIGN_TRACK = 40   # "Track / Volume"
+MCU_ASSIGN_PAN   = 42
+MCU_ASSIGN_FLIP  = 50
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -1536,13 +1538,13 @@ class MackieControlMode(definitions.LogicMode):
             if btn == lower_btn:
                 wanted_mode = LOWER_ROW_MODES[i]
 
-                # Special behavior: VOLUME toggles only if we're ALREADY in Volume mode.
+                # --- SPECIAL CASE: VOLUME ---
+                # If already in Volume, pressing Volume triggers FLIP (50) instead of re-sending 40.
                 if wanted_mode == MODE_VOLUME:
                     if self.active_mode == MODE_VOLUME:
-                        # Send IN/OUT (40) only on explicit Volume press and flip Volume's own submode
-                        self._send_assignment(MCU_ASSIGN_INOUT)
-                        self._set_sub(MODE_VOLUME, 0 if self._get_sub(MODE_VOLUME) else 1)
-
+                        # FLIP (swap faders <-> V-Pots) — this is NOT an assignment key, so use direct tap
+                        self._tap_mcu_button(MCU_ASSIGN_FLIP)  # 50
+                        # No submode flip here; leave A/B alone. Just refresh UI hints.
                         if hasattr(self.app, "_btn_color_cache"):
                             self.app._btn_color_cache.clear()
                         self._paint_selector_row()
@@ -1550,15 +1552,16 @@ class MackieControlMode(definitions.LogicMode):
                         self.update_encoders()
                         self.app.pads_need_update = True
                         self.app.buttons_need_update = True
-                        # Stay in Volume
-                        self.active_mode = MODE_VOLUME
+                        return True
                     else:
-                        # Coming from another mode → enter Volume without toggling Volume's submode
+                        # Coming from another mode → enter Volume (your _set_mode sends 40)
                         self._set_mode(MODE_VOLUME)
-                    return True
+                        return True
+
+                # --- PAN (left as-is) ---
                 if wanted_mode == MODE_PAN:
                     if self.active_mode == MODE_PAN:
-                        # Send PAN (42) only on explicit Pan press and flip Pan's own submode
+                        # Keep old behavior for Pan re-press (send 42 / flip subview) unless you want FLIP here too
                         self._send_assignment(MCU_ASSIGN_PAN)
                         self._set_sub(MODE_PAN, 0 if self._get_sub(MODE_PAN) else 1)
 
@@ -1569,15 +1572,15 @@ class MackieControlMode(definitions.LogicMode):
                         self.update_encoders()
                         self.app.pads_need_update = True
                         self.app.buttons_need_update = True
-                        # Stay in Pan
-                        self.active_mode = MODE_PAN
+                        return True
                     else:
-                        # Coming from another mode → enter Pan without toggling Pan's submode
                         self._set_mode(MODE_PAN)
-                    return True
+                        return True
+
                 # Normal path: switch modes
                 self._set_mode(wanted_mode)
                 return True
+
         # UPPER ROW = TRACK ACTIONS (mode-dependent)
         for i in range(8):
             upper_btn = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
@@ -1605,7 +1608,7 @@ class MackieControlMode(definitions.LogicMode):
                         abs_idx = self.current_page * self.tracks_per_page + i  # bank-aware
                         mm.selected_track_idx = abs_idx
                     self._tap_mcu_button(24 + i)  # MCU SELECT notes 24..31
-                    self._render_mix_grid("on button pressed raw")  # <-- add this so pads snap immediately
+                    self._render_mix_grid("on button pressed raw")  # pads snap immediately
                     self.app.buttons_need_update = True
                     return True
 
