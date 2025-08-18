@@ -709,6 +709,11 @@ class MackieControlMode(definitions.LogicMode):
             self._pan_view[bi] = float(value)  # −64..+63
             self.app.display_dirty = True
             self.update_strip_values()
+            try:
+                pan_i = int(round(float(value)))
+            except Exception:
+                pan_i = 0
+                self._scribble_set(bi, bottom=f"{pan_i:+d}")
 
     def on_mcu_pan_echo(self, ch: int, ring_pos: int):
         if ch is None or not (0 <= ch < 8):
@@ -822,6 +827,8 @@ class MackieControlMode(definitions.LogicMode):
                 changed = True
         if changed:
             self.update_strip_values()
+            if hasattr(self, "_scribble_refresh_titles_for_visible_bank"):
+                self._scribble_refresh_titles_for_visible_bank()
         return changed
 
     # ================================ Navigation / lifecycle
@@ -1112,47 +1119,113 @@ class MackieControlMode(definitions.LogicMode):
         self.app.buttons_need_update = True
 
     def on_encoder_rotated(self, encoder_name, increment):
+        """
+        Handle Push encoders:
+          • VOL / SOLO / MUTE → faders (coarse/fine per modifiers)
+          • VOL (detail submode=B) → Enc1=selected VOL (absolute), Enc2=selected PAN (relative)
+          • PAN → per-strip PAN (relative)
+        Also keeps the v2 GUI focus overlay alive while turning.
+        """
+        # Guard: is this one of the 8 track encoders?
         if encoder_name not in self.encoder_names:
             return False
-        local_idx = self.encoder_names.index(encoder_name)  # 0–7 within page
-        strip_idx = self.current_page * self.tracks_per_page + local_idx
+
+        local_idx = self.encoder_names.index(encoder_name)   # 0..7 within current bank page
+        strip_idx = (self.current_page * self.tracks_per_page) + local_idx
         if strip_idx >= len(self.track_strips):
             return False
 
+        # Keep v2 overlay alive while turning (if renderer supports it)
+        if getattr(self, "renderer", None) and hasattr(self.renderer, "poke_focus"):
+            try:
+                # Default: focus the physical encoder's strip
+                focus_ch = local_idx
+
+                # Special-case: Volume detail submode (Enc1/Enc2 act on the SELECTED strip)
+                if self.active_mode == MODE_VOLUME and getattr(MackieControlMode, "_volume_submode", 0) == 1:
+                    mm = getattr(self.app, "mcu_manager", None)
+                    if mm:
+                        if mm.selected_track_idx is None:
+                            mm.selected_track_idx = self.current_page * self.tracks_per_page
+                        focus_ch = (mm.selected_track_idx % 8)
+
+                self.renderer.poke_focus(int(focus_ch))
+            except Exception:
+                pass
+
+        # --- VOLUME / SOLO / MUTE: encoders move faders ---------------------------
         if self.active_mode in (MODE_VOLUME, MODE_SOLO, MODE_MUTE):
-            if self.active_mode == MODE_VOLUME and self._submodes.get(MODE_VOLUME, 0) == 1:
-                mm = self.app.mcu_manager
-                if mm and mm.selected_track_idx is None:
-                    mm.selected_track_idx = self.current_page * self.tracks_per_page
-                selected_idx = mm.selected_track_idx if mm else strip_idx
-                local_sel = _bank(selected_idx)
 
-                if local_idx == 0:
-                    sel_strip_idx = selected_idx
-                    if 0 <= sel_strip_idx < len(self.track_strips):
-                        self.track_strips[sel_strip_idx].update_value(increment)
-                        level = self.app.mcu_manager.fader_levels[local_sel]
-                        self._send_mcu_fader_move(local_sel, level)
+            # Detail submode (B): Enc1 → selected VOL, Enc2 → selected PAN (relative)
+            if self.active_mode == MODE_VOLUME and getattr(MackieControlMode, "_volume_submode", 0) == 1:
+                mm = getattr(self.app, "mcu_manager", None)
+                if mm:
+                    if mm.selected_track_idx is None:
+                        mm.selected_track_idx = self.current_page * self.tracks_per_page
+
+                    selected_abs = int(mm.selected_track_idx)
+                    selected_local = selected_abs % 8
+
+                    # Enc1: selected track volume (absolute)
+                    if local_idx == 0:
+                        sel_strip_idx = selected_idx
+                        if 0 <= selected_abs < len(self.track_strips):
+                            self.track_strips[selected_abs].update_value(increment)
+                            level = float(mm.fader_levels[selected_local])
+                            self._send_mcu_fader_move(selected_local, level)
+                            # NEW: scribble for selected column
+                            db = MackieControlMode._level_to_db(level)
+                            label = "-∞ dB" if db == float("-inf") else f"{db:+.1f} dB"
+                            self._scribble_set(local_sel, bottom=label)
+                        return True
+
+                    # Enc2: selected track pan (relative)
+                    if local_idx == 1:
+                        if increment != 0:
+                            self._send_mcu_pan_delta(selected_local, 1 if increment > 0 else -1)
+                        return True
+
+                    # Enc3..Enc8: no-ops in detail submode
                     return True
 
-                if local_idx == 1:
-                    if increment != 0:
-                        self._send_mcu_pan_delta(local_sel, 1 if increment > 0 else -1)
-                    return True
-                return True
-
-            # Normal volume behavior
+            # Normal: each encoder controls its own strip's fader
             self.track_strips[strip_idx].update_value(increment)
-            level = self.app.mcu_manager.fader_levels[local_idx]
-            self._send_mcu_fader_move(local_idx, level)
+            mm = getattr(self.app, "mcu_manager", None)
+            if mm:
+                level = float(mm.fader_levels[local_idx])
+                self._send_mcu_fader_move(local_idx, level)
+            # NEW: fast scribble bottom for this column (dB readout)
+            db = MackieControlMode._level_to_db(level)
+            label = "-∞ dB" if db == float("-inf") else f"{db:+.1f} dB"
+            self._scribble_set(local_idx, bottom=label)
             return True
 
+        # --- PAN mode: send relative deltas; Logic echo updates rings/values ------
         if self.active_mode == MODE_PAN:
             if increment != 0:
                 self._send_mcu_pan_delta(local_idx, 1 if increment > 0 else -1)
             return True
 
+        # Other modes not handled here
         return False
+
+    def _scribble_set(self, ch: int, *, top=None, bottom=None):
+        """Fast path: patch a single 7-char cell (title/value) in the V2 renderer."""
+        r = getattr(self, "renderer", None)
+        if r and hasattr(r, "update_scribble_cell") and 0 <= ch < 8:
+            r.update_scribble_cell(ch, top=top, bottom=bottom)
+            self.app.display_dirty = True  # nudge a frame
+
+    def _scribble_refresh_titles_for_visible_bank(self):
+        base = (getattr(self, "current_page", 0) or 0) * getattr(self, "tracks_per_page", 8)
+        for i in range(8):
+            name = ""
+            idx = base + i
+            try:
+                name = (self.track_strips[idx].name or "")[:7]
+            except Exception:
+                pass
+            self._scribble_set(i, top=name)
 
     def _visible_base(self) -> int:
         return (getattr(self, "current_page", 0) or 0) * 8
@@ -1238,36 +1311,81 @@ class MackieControlMode(definitions.LogicMode):
         return mm.get_visible_lcd_lines()
 
     def on_encoder_touched(self, encoder_name):
-        if encoder_name not in self.encoder_names:
-            return False
-        ch = self.encoder_names.index(encoder_name)
-        if not hasattr(self, "_touch_state"):
-            self._touch_state = [False] * 8
-        if self._touch_state[ch]:
+        try:
+            # existing MCU touch-on code...
+            if encoder_name not in self.encoder_names:
+                return False
+            ch = self.encoder_names.index(encoder_name)  # 0..7
+
+            # NEW: tell the renderer which strip is focused
+            if getattr(self, "renderer", None) and hasattr(self.renderer, "on_strip_touch"):
+                self.renderer.on_strip_touch(ch)  # starts the TTL overlay
+                self.app.display_dirty = True
+
+            # existing: send MCU touch note-on
+            port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
+            if port:
+                touch_note = 0x68 + ch
+                port.send(mido.Message('note_on', note=touch_note, velocity=127, channel=0))
             return True
-        port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
-        if port:
-            touch_note = 0x68 + ch
-            port.send(mido.Message('note_on', note=touch_note, velocity=127, channel=0))
-            self._touch_state[ch] = True
-        return True
+        except Exception:
+            return False
 
     def on_encoder_released(self, encoder_name):
-        if encoder_name not in self.encoder_names:
-            return False
-        ch = self.encoder_names.index(encoder_name)
-        if hasattr(self, "_flush_pending_tx"):
-            self._pb_last_ts[ch] = 0.0
-            self._vpot_last_ts[ch] = 0.0
-            self._flush_pending_tx()
-        if not hasattr(self, "_touch_state") or not self._touch_state[ch]:
+        """
+        Send MCU fader-touch OFF, flush any throttled PB/VPOT,
+        and clear the v2 GUI focus overlay for the appropriate strip.
+        """
+        try:
+            if encoder_name not in self.encoder_names:
+                return False
+
+            local_idx = self.encoder_names.index(encoder_name)  # 0..7
+
+            # Compute which strip the overlay was targeting:
+            #  • Normal: the same local_idx
+            #  • Volume detail submode: Enc1/Enc2 target the SELECTED strip (not the physical one)
+            target_local = local_idx
+            if self.active_mode == MODE_VOLUME and getattr(MackieControlMode, "_volume_submode", 0) == 1:
+                if local_idx in (0, 1):
+                    mm = getattr(self.app, "mcu_manager", None)
+                    if mm and mm.selected_track_idx is not None:
+                        target_local = int(mm.selected_track_idx) % 8
+
+            # Clear the v2 renderer overlay if available
+            if getattr(self, "renderer", None) and hasattr(self.renderer, "on_strip_release"):
+                try:
+                    self.renderer.on_strip_release(int(target_local))
+                    self.app.display_dirty = True
+                except Exception:
+                    pass
+
+            # Force-send any pending throttled PB/VPOT updates for this channel
+            if hasattr(self, "_flush_pending_tx"):
+                try:
+                    # zero the per-channel budget so a flush can happen immediately
+                    if hasattr(self, "_pb_last_ts"):
+                        self._pb_last_ts[local_idx] = 0.0
+                    if hasattr(self, "_vpot_last_ts"):
+                        self._vpot_last_ts[local_idx] = 0.0
+                except Exception:
+                    pass
+                self._flush_pending_tx()
+
+            # Send MCU fader touch OFF
+            if not hasattr(self, "_touch_state"):
+                self._touch_state = [False] * 8
+
+            port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
+            if port:
+                touch_note = 0x68 + local_idx  # MCU touch notes 0x68–0x6F
+                port.send(mido.Message('note_on', note=touch_note, velocity=0, channel=0))
+                self._touch_state[local_idx] = False
+
             return True
-        port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
-        if port:
-            touch_note = 0x68 + ch
-            port.send(mido.Message('note_on', note=touch_note, velocity=0, channel=0))
-            self._touch_state[ch] = False
-        return True
+
+        except Exception:
+            return False
 
     # ================================ Misc
     @property
