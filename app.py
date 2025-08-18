@@ -38,6 +38,7 @@ class LogicApp(object):
     # Collapse Scale
     collapse_scale = True
 
+    gui_profile = None
     # midi
     midi_out = None
     available_midi_out_device_names = []
@@ -111,7 +112,7 @@ class LogicApp(object):
         self.bank_reassert_delay = settings.get("bank_reassert_delay", 0.2)
         self.use_mcu = settings.get("use_mcu", True)
         self.debug_mcu = settings.get("debug_mcu", False)
-
+        self.gui_profile = settings.get("gui_profile", "legacy")
         self.set_midi_in_channel(settings.get('midi_in_default_channel', 0))
         self.set_midi_out_channel(settings.get('midi_out_default_channel', 0))
         self.target_frame_rate = settings.get('target_frame_rate', 60)
@@ -463,6 +464,24 @@ class LogicApp(object):
     def unset_preset_selection_mode(self):
         self.unset_mode_for_xor_group(self.preset_selection_mode)
 
+    def set_gui_profile(self, profile: str):
+        valid = {"legacy", "mackie_v2"}
+        if profile not in valid:
+            print(f"[GUI] Invalid gui_profile '{profile}'. Valid: {valid}")
+            return False
+        if profile == self.gui_profile:
+            return True
+        self.gui_profile = profile
+        # Force redraw on next frame
+        self.display_dirty = True
+        # Persist + toast
+        self.save_current_settings_to_file()
+        try:
+            self.add_display_notification(f"GUI: {profile}")
+        except Exception:
+            pass
+        return True
+
     def save_current_settings_to_file(self):
         # NOTE: when saving device names, eliminate the last bit with XX:Y numbers as this might vary across runs
         # if different devices are connected
@@ -478,6 +497,7 @@ class LogicApp(object):
             'debug_logs': self.debug_logs,
             'collapse_scale': self.collapse_scale,
             'use_mcu': self.use_mcu,
+            'gui_profile': self.gui_profile,
             'debug_mcu': self.debug_mcu,
             'solo_off_confirm_time': self.solo_off_confirm_time,
             'bank_reassert_delay': self.bank_reassert_delay,
