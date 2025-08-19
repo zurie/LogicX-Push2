@@ -9,6 +9,7 @@ import definitions
 from typing import Optional
 from mcu_mode_detector import MackieModeDetector
 from mcu_state import MCU_STATE
+
 _TAP_OFF_DELAY = 0.001  # 1 ms tap
 _ASSIGN_FROM_VAL = {
     0x00: "TRACK",  # In/Out
@@ -18,10 +19,13 @@ _ASSIGN_FROM_VAL = {
     0x04: "EQ",
     0x05: "DYNAMICS",
 }
+
+
 def _on_mode_changed(mode, sub):
     # Use this to drive your GUI, global state, etc.
     # Example: self.app.current_mcu_mode = mode; self.app.current_mcu_submode = sub
     print(f"[GUI] MCU changed -> mode={mode} sub={sub}")
+
 
 class LogicMCUManager:
     MCU_NOTE_CURSOR_UP = 96
@@ -226,7 +230,7 @@ class LogicMCUManager:
         self._lcd_top = bytearray(b' ' * 56)
         self._lcd_bot = bytearray(b' ' * 56)
         self.debug_mcu = getattr(app, "debug_mcu", False)
-        self.flip = False           # boolean for UI/logic
+        self.flip = False  # boolean for UI/logic
         self._flip_mode = 'off'
         self.mode_detector = MackieModeDetector(
             log=self._debug_log,
@@ -331,6 +335,7 @@ class LogicMCUManager:
             # nudge UI to refresh
             self.pending_update = True
             print(f"[MCU] Flip LED -> {mode}")
+            self._notify_change()
             # if getattr(self, "debug_mcu", False) or getattr(self.app, "DEBUG_LOGS", False):
             #     print(f"[MCU] Flip LED -> {mode}")
 
@@ -403,7 +408,7 @@ class LogicMCUManager:
                     continue
                 # Zoom/Scrub LEDs (use your reverse map with safe fallbacks)
                 try:
-                    ZOOM_NOTE  = self.BUTTON_CODE.get("ZOOM", 72)
+                    ZOOM_NOTE = self.BUTTON_CODE.get("ZOOM", 72)
                     SCRUB_NOTE = self.BUTTON_CODE.get("SCRUB", 67)
                 except Exception:
                     ZOOM_NOTE, SCRUB_NOTE = 72, 67
@@ -420,17 +425,17 @@ class LogicMCUManager:
                     continue
                 # Modifiers (Shift/Ctrl/Option/Alt) – configurable, with common MCU defaults
                 MOD_SHIFT = getattr(definitions, "MCU_SHIFT", 54)
-                MOD_CTRL  = getattr(definitions, "MCU_CTRL", 55)
-                MOD_OPT   = getattr(definitions, "MCU_OPTION", 56)
-                MOD_ALT   = getattr(definitions, "MCU_ALT", 57)
+                MOD_CTRL = getattr(definitions, "MCU_CTRL", 55)
+                MOD_OPT = getattr(definitions, "MCU_OPTION", 56)
+                MOD_ALT = getattr(definitions, "MCU_ALT", 57)
                 if msg.note in (MOD_SHIFT, MOD_CTRL, MOD_OPT, MOD_ALT):
                     try:
                         from mcu_state import MCU_STATE
                         MCU_STATE()._set_modifiers(
-                            shift = pressed if msg.note == MOD_SHIFT else None,
-                            ctrl  = pressed if msg.note == MOD_CTRL  else None,
-                            option= pressed if msg.note == MOD_OPT   else None,
-                            alt   = pressed if msg.note == MOD_ALT   else None,
+                            shift=pressed if msg.note == MOD_SHIFT else None,
+                            ctrl=pressed if msg.note == MOD_CTRL else None,
+                            option=pressed if msg.note == MOD_OPT else None,
+                            alt=pressed if msg.note == MOD_ALT else None,
                         )
                     except Exception:
                         pass
@@ -485,7 +490,6 @@ class LogicMCUManager:
                     self.flush_updates()
                     self.last_update_time = now
                     self.pending_update = False
-
 
     def flush_updates(self):
         changed = False
