@@ -395,6 +395,34 @@ class MackieControlMode(definitions.LogicMode):
             self.app.buttons_need_update = True
         except Exception:
             pass
+
+    def _ensure_flip_off(self, why: str = ""):
+        """
+        Force local routing to FLIP=OFF and, if host is ON, send FLIP once to turn it OFF.
+        """
+        with self._route_lock:
+            self._flip_on = False
+            self._rebind_controls()
+
+        host_on = False
+        try:
+            host_on = bool(MCU_STATE().flip())
+        except Exception:
+            host_on = False
+
+        if host_on:
+            try:
+                self._tap_mcu_button(MCU_ASSIGN_FLIP)
+                self._dbg(f"ensure_flip_off: sent FLIP (reason={why})")
+            except Exception:
+                pass
+
+        try:
+            self.update_buttons()
+            self.app.buttons_need_update = True
+        except Exception:
+            pass
+
     # ================================ GUI-agnostic helpers consumed by renderers
     def _upper_row_label_and_color(self):
         """Returns (label, color) for the 8 upper per-channel buttons, based on active_mode."""
@@ -569,7 +597,13 @@ class MackieControlMode(definitions.LogicMode):
         self._paint_selector_row()
         self.app.pads_need_update = True
         self.app.buttons_need_update = True
-        self._ensure_flip_on(why=f"mode={mode}")
+
+        # --- enforce flip policy per mode ---
+        if mode == MODE_VOLUME:
+            self._ensure_flip_on(why=f"mode={mode}")
+        elif mode == MODE_PAN:
+            self._ensure_flip_off(why=f"mode={mode}")
+
         # Flip can invert routing; rebind after any mode change
         with self._route_lock:
             self._rebind_controls()
@@ -908,9 +942,16 @@ class MackieControlMode(definitions.LogicMode):
         if not MackieControlMode._fired_inout_once:
             self._send_assignment(MCU_ASSIGN_INOUT)  # note 40
             MackieControlMode._fired_inout_once = True
-        self._ensure_flip_on(why="activate")
+        if self.active_mode == MODE_PAN:
+            self._ensure_flip_off(why="activate:pan")
+        elif self.active_mode == MODE_VOLUME:
+            self._ensure_flip_on(why="activate:volume")
+        else:
+            # leave as-is for other modes
+            pass
+
         names = (self.app.mcu_manager.get_visible_track_names()
-                 if hasattr(self.app.mcu_manager, "get_visible_track_names")
+     if hasattr(self.app.mcu_manager, "get_visible_track_names")
                  else getattr(self.app.mcu_manager, "track_names", [])[:self.tracks_per_page])
         self.set_visible_names(names)
 
@@ -1161,9 +1202,9 @@ class MackieControlMode(definitions.LogicMode):
 
                 if wanted_mode == MODE_PAN:
                     if self.active_mode == MODE_PAN:
-                        # Re-send PAN (42) and force FLIP ON (no toggle)
+                        # Re-send PAN (42) and force FLIP OFF (no toggle)
                         self._send_assignment(MCU_ASSIGN_PAN)
-                        self._ensure_flip_on(why="press PAN in PAN")
+                        self._ensure_flip_off(why="press PAN in PAN")
                         self._submodes[MODE_PAN] = 0 if self._submodes.get(MODE_PAN, 0) else 1
                         if hasattr(self.app, "_btn_color_cache"):
                             self.app._btn_color_cache.clear()
@@ -1176,6 +1217,7 @@ class MackieControlMode(definitions.LogicMode):
                     else:
                         self._set_mode(MODE_PAN)
                         return True
+
 
                 self._set_mode(wanted_mode)
                 return True
