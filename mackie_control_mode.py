@@ -6,7 +6,7 @@ import mido
 import push2_python
 from push2_python import constants as P2
 from push2_python.constants import ANIMATION_STATIC
-
+from mcu_state import MCU_STATE
 import definitions
 from display_utils import show_text
 from ui import create_renderer
@@ -321,6 +321,7 @@ class MackieControlMode(definitions.LogicMode):
         # page keys
         push2_python.constants.BUTTON_PAGE_LEFT,
         push2_python.constants.BUTTON_PAGE_RIGHT,
+        push2_python.constants.BUTTON_MASTER
     ]
 
     n_pages = 1
@@ -847,7 +848,11 @@ class MackieControlMode(definitions.LogicMode):
         self.current_page = 0
         self._last_grid_snapshot = None
         self.push.pads.reset_current_pads_state()
-
+        # keep MASTER LED in sync with host-driven FLIP changes
+        try:
+            MCU_STATE().subscribe(self._on_mcu_state_flip)
+        except Exception:
+            pass
         if not MackieControlMode._fired_inout_once:
             self._send_assignment(MCU_ASSIGN_INOUT)  # note 40
             MackieControlMode._fired_inout_once = True
@@ -889,7 +894,19 @@ class MackieControlMode(definitions.LogicMode):
             animation_end_color='black'
         )
         self._blank_buttons_used()
+        try:
+            MCU_STATE().unsubscribe(self._on_mcu_state_flip)
+        except Exception:
+            pass
         self.app.pads_need_update = True
+
+    # ---- MCU state callback: refresh MASTER LED when FLIP changes ----
+    def _on_mcu_state_flip(self, snapshot=None):
+        try:
+            # whatever your redraw path is—this flags a button refresh
+            self.app.buttons_need_update = True
+        except Exception:
+            pass
 
     # ================================ Small helpers
     def get_current_page(self) -> int:
@@ -929,6 +946,17 @@ class MackieControlMode(definitions.LogicMode):
     def update_buttons(self):
         mm = getattr(self.app, "mcu_manager", None)
         self._blank_buttons_used()
+        # --- MASTER reflects FLIP state ---
+        try:
+            flip_on = bool(MCU_STATE().flip())
+        except Exception:
+            flip_on = False
+        on_color  = getattr(definitions, "WHITE", "white")
+        off_color = getattr(definitions, "GRAY_DARK", "gray")
+        try:
+            self.push.buttons.set_button_color(P2.BUTTON_MASTER, on_color if flip_on else off_color)
+        except Exception:
+            pass
         if not mm:
             return
 
@@ -969,6 +997,14 @@ class MackieControlMode(definitions.LogicMode):
             pass
 
     def on_button_pressed_raw(self, btn):
+        # MASTER => toggle FLIP
+        if btn == P2.BUTTON_MASTER:
+            try:
+                # Uses your existing Mackie helper + constant (FLIP = 50)
+                self._tap_mcu_button(MCU_ASSIGN_FLIP)
+            except Exception:
+                pass
+            return True
         # PAGE < / >  (Shift = Page, no shift = Bank)
         if btn in (push2_python.constants.BUTTON_PAGE_LEFT, push2_python.constants.BUTTON_PAGE_RIGHT):
             shift = bool(getattr(self.app, "shift_held", False))
