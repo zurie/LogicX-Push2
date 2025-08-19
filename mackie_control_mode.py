@@ -321,7 +321,12 @@ class MackieControlMode(definitions.LogicMode):
         # page keys
         push2_python.constants.BUTTON_PAGE_LEFT,
         push2_python.constants.BUTTON_PAGE_RIGHT,
-        push2_python.constants.BUTTON_MASTER
+        push2_python.constants.BUTTON_MASTER,
+        push2_python.constants.BUTTON_PAGE_RIGHT,
+        push2_python.constants.BUTTON_MASTER,
+        # rate row controls we’re reusing for “clear” actions
+        getattr(push2_python.constants, "BUTTON_1_32", None),
+        getattr(push2_python.constants, "BUTTON_1_16T", None),
     ]
 
     n_pages = 1
@@ -850,7 +855,7 @@ class MackieControlMode(definitions.LogicMode):
         self.push.pads.reset_current_pads_state()
         # keep MASTER LED in sync with host-driven FLIP changes
         try:
-            MCU_STATE().subscribe(self._on_mcu_state_flip)
+            MCU_STATE().subscribe(self._on_mcu_state_changed)
         except Exception:
             pass
         if not MackieControlMode._fired_inout_once:
@@ -895,18 +900,18 @@ class MackieControlMode(definitions.LogicMode):
         )
         self._blank_buttons_used()
         try:
-            MCU_STATE().unsubscribe(self._on_mcu_state_flip)
+            MCU_STATE().unsubscribe(self._on_mcu_state_changed)
         except Exception:
             pass
         self.app.pads_need_update = True
 
-    # ---- MCU state callback: refresh MASTER LED when FLIP changes ----
-    def _on_mcu_state_flip(self, snapshot=None):
+    # ---- Any MCU state change -> repaint buttons/GUI ----
+    def _on_mcu_state_changed(self, snapshot=None):
         try:
-            # whatever your redraw path is—this flags a button refresh
             self.app.buttons_need_update = True
         except Exception:
             pass
+
 
     # ================================ Small helpers
     def get_current_page(self) -> int:
@@ -944,15 +949,27 @@ class MackieControlMode(definitions.LogicMode):
 
     # ================================ Inputs
     def update_buttons(self):
+
         mm = getattr(self.app, "mcu_manager", None)
         self._blank_buttons_used()
+        snap = MCU_STATE().snapshot()
+        on_color  = getattr(definitions, "WHITE", "white")
+        off_color = getattr(definitions, "GRAY_DARK", "gray")
         # --- MASTER reflects FLIP state ---
         try:
             flip_on = bool(MCU_STATE().flip())
         except Exception:
             flip_on = False
-        on_color  = getattr(definitions, "WHITE", "white")
-        off_color = getattr(definitions, "GRAY_DARK", "gray")
+
+
+        try:
+            self.push.buttons.set_button_color(P2.BUTTON_1_4, on_color if snap.zoom else off_color)
+        except Exception:
+            pass
+        try:
+            self.push.buttons.set_button_color(P2.BUTTON_1_4t, on_color if snap.scrub else off_color)
+        except Exception:
+            pass
         try:
             self.push.buttons.set_button_color(P2.BUTTON_MASTER, on_color if flip_on else off_color)
         except Exception:
@@ -1002,6 +1019,39 @@ class MackieControlMode(definitions.LogicMode):
             try:
                 # Uses your existing Mackie helper + constant (FLIP = 50)
                 self._tap_mcu_button(MCU_ASSIGN_FLIP)
+            except Exception:
+                pass
+            return True
+        # 1/32 => clear MUTES in current bank (visible 8)
+        if btn == getattr(P2, "BUTTON_1_32", -1):
+            try:
+                mm = getattr(self.app, "mcu_manager", None)
+                if mm:
+                    sel = int(getattr(mm, "selected_track_idx", 0) or 0)
+                    bank_start = (sel // 8) * 8
+                    for i in range(8):
+                        ch = bank_start + i
+                        if ch < len(mm.mute_states) and mm.mute_states[ch]:
+                            # MCU channel MUTE notes are 16..23
+                            self._tap(16 + (ch - bank_start))
+                    # optionally refresh LEDs from host
+                    mm.request_bank_led_states(sel)
+            except Exception:
+                pass
+            return True
+        # 1/16T => clear SOLOS in current bank
+        if btn == getattr(P2, "BUTTON_1_16T", -1):
+            try:
+                mm = getattr(self.app, "mcu_manager", None)
+                if mm:
+                    sel = int(getattr(mm, "selected_track_idx", 0) or 0)
+                    bank_start = (sel // 8) * 8
+                    for i in range(8):
+                        ch = bank_start + i
+                        if ch < len(mm.solo_states) and mm.solo_states[ch]:
+                            # MCU channel SOLO notes are 8..15
+                            self._tap(8 + (ch - bank_start))
+                    mm.request_bank_led_states(sel)
             except Exception:
                 pass
             return True

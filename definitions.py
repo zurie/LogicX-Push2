@@ -5,7 +5,10 @@ import colorsys
 import threading
 
 from functools import wraps
-
+MCU_SHIFT = 54
+MCU_CTRL  = 55
+MCU_OPTION= 56
+MCU_ALT   = 57
 MC_DEBUG_HEIGHT = 16  # was 22 — shrinks the banner rows
 MC_DEBUG_FONT = "Menlo"  #
 from push2_python.constants import ANIMATION_STATIC
@@ -28,7 +31,7 @@ MC_DEBUG_FONT = "Menlo"  #(or any mono)
 # Row 6 behavior config (can be overridden in definitions.py)
 ROW6_MODE_FUNCTION = "function"  # F1..F8 (MCU 40..47)
 MIX_ROW6_MODE = "custom"
-MIX_ROW6_CUSTOM_NOTES = [91, 92, 93, 94, 95, 96, 97, 70]  # example: F1..F6, UNDO, ENTER
+MIX_ROW6_CUSTOM_NOTES = [50, 51, 52, 53, 70, 73, 100, 101]  # example: F1..F6, UNDO, ENTER
 # ---- 56-char test toggles ----
 MC_SCRIBBLE_TEST    = False       # turn the test line on/off
 MC_TEST_MODE        = "cells"    # "cells" or "stretch"

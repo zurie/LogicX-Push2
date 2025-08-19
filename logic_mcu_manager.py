@@ -401,6 +401,40 @@ class LogicMCUManager:
                     vel = msg.velocity if msg.type == "note_on" else 0
                     self._set_flip_from_led(vel)
                     continue
+                # Zoom/Scrub LEDs (use your reverse map with safe fallbacks)
+                try:
+                    ZOOM_NOTE  = self.BUTTON_CODE.get("ZOOM", 72)
+                    SCRUB_NOTE = self.BUTTON_CODE.get("SCRUB", 67)
+                except Exception:
+                    ZOOM_NOTE, SCRUB_NOTE = 72, 67
+                if msg.note in (ZOOM_NOTE, SCRUB_NOTE):
+                    try:
+                        from mcu_state import MCU_STATE
+                        if msg.note == ZOOM_NOTE:
+                            MCU_STATE()._set_zoom(pressed)
+                        else:
+                            MCU_STATE()._set_scrub(pressed)
+                    except Exception:
+                        pass
+                    # do not fall-through to handle_button for host LED
+                    continue
+                # Modifiers (Shift/Ctrl/Option/Alt) – configurable, with common MCU defaults
+                MOD_SHIFT = getattr(definitions, "MCU_SHIFT", 54)
+                MOD_CTRL  = getattr(definitions, "MCU_CTRL", 55)
+                MOD_OPT   = getattr(definitions, "MCU_OPTION", 56)
+                MOD_ALT   = getattr(definitions, "MCU_ALT", 57)
+                if msg.note in (MOD_SHIFT, MOD_CTRL, MOD_OPT, MOD_ALT):
+                    try:
+                        from mcu_state import MCU_STATE
+                        MCU_STATE()._set_modifiers(
+                            shift = pressed if msg.note == MOD_SHIFT else None,
+                            ctrl  = pressed if msg.note == MOD_CTRL  else None,
+                            option= pressed if msg.note == MOD_OPT   else None,
+                            alt   = pressed if msg.note == MOD_ALT   else None,
+                        )
+                    except Exception:
+                        pass
+                    continue
                 # Normalize Maschine/Logic assign IDs before BUTTON_MAP lookup
                 try:
                     msg_note = self._translate_assign_alias(msg.note)
