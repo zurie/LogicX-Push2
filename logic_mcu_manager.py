@@ -2,6 +2,9 @@
 # LogicMCUManager with Assign translation normalization at input
 
 import re, mido, threading, time
+
+import push2_python.constants
+
 import definitions
 from typing import Optional
 from mcu_mode_detector import MackieModeDetector
@@ -223,6 +226,8 @@ class LogicMCUManager:
         self._lcd_top = bytearray(b' ' * 56)
         self._lcd_bot = bytearray(b' ' * 56)
         self.debug_mcu = getattr(app, "debug_mcu", False)
+        self.flip = False           # boolean for UI/logic
+        self._flip_mode = 'off'
         self.mode_detector = MackieModeDetector(
             log=self._debug_log,
             on_mode_changed=lambda mode, sub: state._set_mode_sub(mode, sub),
@@ -310,6 +315,25 @@ class LogicMCUManager:
             if self.debug_mcu:
                 print("[MCU] Output port closed")
 
+    def _set_flip_from_led(self, vel: int):
+        """Track Flip LED from host: vel 0=off, 1=blink/swap, 127=on."""
+        mode = 'off' if vel == 0 else ('swap' if vel == 1 else 'on')
+        flip_on = (mode != 'off')
+        if (self.flip != flip_on) or (self._flip_mode != mode):
+            self.flip = flip_on
+            self._flip_mode = mode
+            # propagate to global state if you want listeners/UI to react
+            try:
+                from mcu_state import MCU_STATE
+                MCU_STATE()._set_flip(flip_on)  # uses your singleton
+            except Exception:
+                pass
+            # nudge UI to refresh
+            self.pending_update = True
+            print(f"[MCU] Flip LED -> {mode}")
+            # if getattr(self, "debug_mcu", False) or getattr(self.app, "DEBUG_LOGS", False):
+            #     print(f"[MCU] Flip LED -> {mode}")
+
     # ──────────────────────────────────────────────────────────────────────────
     # Events
     # ──────────────────────────────────────────────────────────────────────────
@@ -373,7 +397,10 @@ class LogicMCUManager:
 
             elif msg.type in ("note_on", "note_off"):
                 pressed = (msg.type == "note_on" and msg.velocity > 0)
-
+                if msg.note == getattr(definitions, "MCU_FLIP", 50):
+                    vel = msg.velocity if msg.type == "note_on" else 0
+                    self._set_flip_from_led(vel)
+                    continue
                 # Normalize Maschine/Logic assign IDs before BUTTON_MAP lookup
                 try:
                     msg_note = self._translate_assign_alias(msg.note)
