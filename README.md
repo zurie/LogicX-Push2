@@ -63,6 +63,10 @@ python -m pip install -r requirements.txt
 python app.py
 ```
 
+To RUN from Root/ Directory
+
+`./run.sh`
+
 IF YOU DO NOT SEE OR HEAR ANY MIDI when pressing the pads on the push2 in Logic, YOU MUST GO IN THE `Setup` button on Push2 (press it twice to get to page 2) and make sure the default Midi out is set to the IAC DEFAULT.
 
 ![push2.jpg](docs/push2.jpg)
