@@ -63,22 +63,64 @@ class LogicInterface(definitions.LogicMode):
 
     # === MCU-aware methods ===
 
-    def _send_or_keybind(self, mcu_button, keybind_path):
-        """Send MCU button if available, else fall back to keybind."""
-        if getattr(self.app, "mcu_manager", None) and self.app.mcu_manager.enabled:
-            self.app.mcu_manager.send_mcu_button(mcu_button)
-        else:
-            press_command(keybind_path)
+    def _send_or_keybind(
+            self,
+            mcu_button: str,
+            keybind_path: str,
+            *,
+            shift: bool = False,
+            loop: bool = False,
+            quantize: bool = False,
+            select: bool = False,
+            require_mc_mode: bool = False,
+    ):
+        """
+        Send MCU button if available, else fall back to keybind.
+
+        If require_mc_mode=True, only send MCU when the Mackie/Mix mode (mc_mode) is active.
+        """
+        mcu = getattr(self.app, "mcu_manager", None)
+        if mcu and getattr(mcu, "enabled", False):
+            if not require_mc_mode:
+                mcu.send_mcu_button(mcu_button)
+                return
+
+            mc_mode = getattr(self.app, "mc_mode", None)
+            if mc_mode is not None and self.app.is_mode_active(mc_mode):
+                mcu.send_mcu_button(mcu_button)
+                return
+
+        # Keybind fallback
+        press_command(
+            keybind_path,
+            shift=shift,
+            loop=loop,
+            quantize=quantize,
+            select=select,
+        )
+
 
     def mute(self, shift=False, select=False):
-        self._send_or_keybind("MUTE", "/push2/mute")
+        self._send_or_keybind(
+            "MUTE",
+            "/push2/mute",
+            shift=shift,
+            select=select,
+            require_mc_mode=True,
+        )
 
     def mute_off(self, shift=False, select=False):
         # This is not directly supported by MCU — fallback to keybind
         press_command('/push2/mute_off', shift=shift, select=select)
 
     def solo(self, shift=False, select=False):
-        self._send_or_keybind("SOLO", "/push2/solo")
+        self._send_or_keybind(
+            "SOLO",
+            "/push2/solo",
+            shift=shift,
+            select=select,
+            require_mc_mode=True,
+        )
 
     def solo_lock(self, shift=False, select=False):
         # No direct MCU command — fallback to keybind

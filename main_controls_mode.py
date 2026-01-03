@@ -352,8 +352,11 @@ class MainControlsMode(definitions.LogicMode):
 
             # SOLO
             elif button_name == self.solo_button:
-                if getattr(self.app, "mcu_manager", None) and self.app.mcu_manager.enabled:
-                    # Use MCU protocol instead of keybind
+                if (getattr(self.app, "mcu_manager", None)
+                        and self.app.mcu_manager.enabled
+                        and getattr(self.app, "mc_mode", None) is not None
+                        and self.app.is_mode_active(self.app.mc_mode)):
+                    # Only use MCU in Mackie/Mix mode
                     self.app.mcu_manager.send_mcu_button("SOLO")
                 else:
                     if long_press:
@@ -365,8 +368,11 @@ class MainControlsMode(definitions.LogicMode):
 
             # MUTE
             elif button_name == self.mute_button:
-                if getattr(self.app, "mcu_manager", None) and self.app.mcu_manager.enabled:
-                    # Use MCU protocol instead of keybind
+                if (getattr(self.app, "mcu_manager", None)
+                        and self.app.mcu_manager.enabled
+                        and getattr(self.app, "mc_mode", None) is not None
+                        and self.app.is_mode_active(self.app.mc_mode)):
+                    # Only use MCU in Mackie/Mix mode
                     self.app.mcu_manager.send_mcu_button("MUTE")
                 else:
                     if long_press:
