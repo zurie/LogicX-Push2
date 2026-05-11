@@ -1,4 +1,4 @@
-# LogicX-Push2 - Logic Pro 11.2.2 - Apple Silicon OS 26.x
+# LogicX-Push2 - Logic Pro 11.2.2 - Apple (Intel / Silicon)
 
 
 ![push2a.jpg](docs/push2a.jpg)
@@ -86,6 +86,7 @@ LogicX-Push2 allows your ableton PUSH2 to have more functionality in Logic Pro b
 * Full keybind support for Logic Pro (bind any key in Logic to anything on the PUSH2)
 
 #### Other Features
+* Serum2 macro midi map. (make sure to load the midi map Serum2 provides and if you want set it as default)
 * Use classic 4x4 (and up to 8x8!) pad grid in the rhythm layout mode
 * Choose between channel aftertouch and polyphonic aftertouch
 * Use *accent* mode for fixed 127 velocity playing

@@ -1,0 +1,26 @@
+{
+  "instrument_name": "SERUM2",
+  "instrument_short_name": "SERUM2",
+  "illuminate_local_notes": false,
+  "color": "green",
+  "midi_channel": 1,
+  "n_banks": 1,
+  "midi_cc": [
+    {
+      "section": "Macros",
+      "controls": [
+        ["MACRO 1", 14],
+        ["MACRO 2", 15],
+        ["MACRO 3", 16],
+        ["MACRO 4", 17],
+        ["MACRO 5", 18],
+        ["MACRO 6", 19],
+        ["MACRO 7", 20],
+        ["MACRO 8", 21]
+      ]
+    }
+  ]
+}
+
+
+
