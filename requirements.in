@@ -27,3 +27,6 @@ pynput>=1.7,<2
 
 # Keep NumPy on 1.x to avoid NumPy 2.x migration surprises unless you need 2.x
 numpy>=1.26,<2
+
+# Dev / testing
+pytest>=8,<9

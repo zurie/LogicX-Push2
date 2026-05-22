@@ -31,6 +31,7 @@ from midi_cc_mode import MIDICCMode
 from preset_selection_mode import PresetSelectionMode
 from logic_interface import LogicInterface
 from display_utils import show_notification, show_help
+from settings_schema import Settings
 
 
 class LogicApp(object):
@@ -100,35 +101,34 @@ class LogicApp(object):
 
         if os.path.exists('settings.json'):
             with open('settings.json') as f:
-                settings = json.load(f)
+                self.settings = Settings.from_dict(json.load(f))
         else:
-            settings = {}
-        self.settings = settings
+            self.settings = Settings()
         self.logic_interface = LogicInterface(self)
         self.shift_held = False
         self.select_held = False
         self.quantize_held = False
         self.quantize_used_as_modifier = False
-        self.debug_logs = settings.get("debug_logs", False)
-        self.collapse_scale = settings.get("collapse_scale", False)
-        self.solo_off_confirm_time = settings.get("solo_off_confirm_time", 2.0)
-        self.bank_reassert_delay = settings.get("bank_reassert_delay", 0.2)
-        self.use_mcu = settings.get("use_mcu", True)
-        self.debug_mcu = settings.get("debug_mcu", False)
-        self.gui_profile = settings.get("gui_profile", "legacy")
-        self.set_midi_in_channel(settings.get('midi_in_default_channel', 0))
-        self.set_midi_out_channel(settings.get('midi_out_default_channel', 0))
-        self.target_frame_rate = settings.get('target_frame_rate', 60)
-        self.use_push2_display = settings.get('use_push2_display', True)
+        self.debug_logs = self.settings.debug_logs
+        self.collapse_scale = self.settings.collapse_scale
+        self.solo_off_confirm_time = self.settings.solo_off_confirm_time
+        self.bank_reassert_delay = self.settings.bank_reassert_delay
+        self.use_mcu = self.settings.use_mcu
+        self.debug_mcu = self.settings.debug_mcu
+        self.gui_profile = self.settings.gui_profile
+        self.set_midi_in_channel(self.settings.midi_in_default_channel)
+        self.set_midi_out_channel(self.settings.midi_out_default_channel)
+        self.target_frame_rate = self.settings.target_frame_rate
+        self.use_push2_display = self.settings.use_push2_display
 
-        self.init_midi_in(device_name=settings.get('default_midi_in_device_name', None))
-        self.init_midi_out(device_name=settings.get('default_midi_out_device_name', None))
-        self.init_notes_midi_in(device_name=settings.get('default_notes_midi_in_device_name', None))
+        self.init_midi_in(device_name=self.settings.default_midi_in_device_name)
+        self.init_midi_out(device_name=self.settings.default_midi_out_device_name)
+        self.init_notes_midi_in(device_name=self.settings.default_notes_midi_in_device_name)
         self.init_push()
 
-        if settings.get("use_mcu", False):
+        if self.settings.use_mcu:
             # after creating the manager
-            self.mcu_manager = LogicMCUManager(self, port_name=self.settings.get("mcu_port_name"))
+            self.mcu_manager = LogicMCUManager(self, port_name=self.settings.mcu_port_name)
             self.mcu_manager.on_vpot_display = self._on_mcu_vpot_display
             self.mcu_manager.start()
 
@@ -144,13 +144,13 @@ class LogicApp(object):
         else:
             # --- Logic MIDI listener (non-MCU mode)
             self.logic_listener = LogicMidiListener(
-                midi_port_name=settings.get("default_midi_port_name", "IAC Driver Default"),
+                midi_port_name=self.settings.default_midi_port_name,
                 play_state_callback=self.update_play_button_color,
                 record_state_callback=self.update_record_button_color
             )
             self.logic_listener.start()
 
-        self.init_modes(settings)
+        self.init_modes(self.settings.to_dict())
 
     def _on_mcu_vpot_display(self, ch: int, pos: int):
         idx  = int(ch) & 0x07
