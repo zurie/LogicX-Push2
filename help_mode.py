@@ -1,6 +1,9 @@
 from operator import index
+import logging
 
 import definitions
+
+logger = logging.getLogger(__name__)
 import push2_python.constants
 import os
 import json
@@ -49,7 +52,8 @@ class HelpMode(definitions.LogicMode):
 
     def load_help(self):
         if os.path.exists('button_docs.json'):
-            help_data = json.load(open('button_docs.json'))
+            with open('button_docs.json') as f:
+                help_data = json.load(f)
         else:
             help_data = {}
 
@@ -70,7 +74,7 @@ class HelpMode(definitions.LogicMode):
             # self.app.add_display_help("{0}".format(self.help_docs[0]['title']))
 
     def show_help(self, button_name):
-        print(button_name)
+        logger.debug('show_help: %s', button_name)
         for j, i in enumerate(self.help_docs):
             if self.help_docs[j]['button'] == button_name:
                 self.app.add_display_help(self.help_docs[j]['title'],

@@ -1,7 +1,7 @@
 import json
+import logging
 import os
 import time
-import traceback
 
 import cairocffi as cairo
 import platform
@@ -9,6 +9,8 @@ import definitions
 import mido
 import numpy
 import push2_python
+
+logger = logging.getLogger(__name__)
 
 from collections import defaultdict
 from logic_midi_listener import LogicMidiListener
@@ -97,7 +99,8 @@ class LogicApp(object):
         self._channels_this_tick = set()
 
         if os.path.exists('settings.json'):
-            settings = json.load(open('settings.json'))
+            with open('settings.json') as f:
+                settings = json.load(f)
         else:
             settings = {}
         self.settings = settings
@@ -162,7 +165,7 @@ class LogicApp(object):
         self.active_modes.append(self.main_controls_mode)
 
         self.melodic_mode = MelodicMode(self, settings=settings)
-        self.rhyhtmic_mode = RhythmicMode(self, settings=settings)
+        self.rhythmic_mode = RhythmicMode(self, settings=settings)
         self.slice_notes_mode = SliceNotesMode(self, settings=settings)
         self.set_melodic_mode()
         self.track_selection_mode = TrackSelectionMode(self, settings=settings)
@@ -412,10 +415,10 @@ class LogicApp(object):
             mute_state = mcu.mute_states[track_idx]
             solo_state = mcu.solo_states[track_idx]
 
-            # Debug logging
             if self.debug_mcu:
-                print(
-                    f"[Push2] Updating Mute/Solo LEDs for track {track_idx + 1}: mute={mute_state}, solo={solo_state}")
+                logger.debug(
+                    "Updating Mute/Solo LEDs for track %d: mute=%s, solo=%s",
+                    track_idx + 1, mute_state, solo_state)
 
             # Set Mute button color
             if mute_state:
@@ -429,8 +432,8 @@ class LogicApp(object):
             else:
                 self.push.buttons.set_button_color(push2_python.constants.BUTTON_SOLO, definitions.OFF_BTN_COLOR)
 
-        except Exception as e:
-            print(f"[Push2] Error updating Mute/Solo LEDs: {e}")
+        except Exception:
+            logger.exception('Error updating Mute/Solo LEDs')
 
     def toggle_mode(self, mode):
         if self.is_mode_active(mode):
@@ -441,7 +444,7 @@ class LogicApp(object):
     def toggle_melodic_rhythmic_slice_modes(self):
         if self.is_mode_active(self.melodic_mode):
             self.set_rhythmic_mode()
-        elif self.is_mode_active(self.rhyhtmic_mode):
+        elif self.is_mode_active(self.rhythmic_mode):
             self.set_slice_notes_mode()
         elif self.is_mode_active(self.slice_notes_mode):
             self.set_melodic_mode()
@@ -453,7 +456,7 @@ class LogicApp(object):
         self.set_mode_for_xor_group(self.melodic_mode)
 
     def set_rhythmic_mode(self):
-        self.set_mode_for_xor_group(self.rhyhtmic_mode)
+        self.set_mode_for_xor_group(self.rhythmic_mode)
 
     def set_slice_notes_mode(self):
         self.set_mode_for_xor_group(self.slice_notes_mode)
@@ -467,7 +470,7 @@ class LogicApp(object):
     def set_gui_profile(self, profile: str):
         valid = {"legacy", "mackie_v2"}
         if profile not in valid:
-            print(f"[GUI] Invalid gui_profile '{profile}'. Valid: {valid}")
+            logger.warning("Invalid gui_profile '%s'. Valid: %s", profile, valid)
             return False
         if profile == self.gui_profile:
             return True
@@ -507,10 +510,11 @@ class LogicApp(object):
             mode_settings = mode.get_settings_to_save()
             if mode_settings:
                 settings.update(mode_settings)
-        json.dump(settings, open('settings.json', 'w'))
+        with open('settings.json', 'w') as f:
+            json.dump(settings, f)
 
     def init_midi_in(self, device_name=None):
-        print('Configuring MIDI in to {}...'.format(device_name))
+        logger.info('Configuring MIDI in to %s...', device_name)
         self.available_midi_in_device_names = [name for name in mido.get_input_names() if
                                                'Ableton Push' not in name and 'RtMidi' not in name and 'Through' not in name]
         if device_name is not None:
@@ -524,13 +528,12 @@ class LogicApp(object):
                 try:
                     self.midi_in = mido.open_input(full_name)
                     self.midi_in.callback = self.midi_in_handler
-                    print('Receiving MIDI in from "{0}"'.format(full_name))
+                    logger.info('Receiving MIDI in from "%s"', full_name)
                 except IOError:
-                    print('Could not connect to MIDI input port "{0}"\nAvailable device names:'.format(full_name))
-                    for name in self.available_midi_in_device_names:
-                        print(' - {0}'.format(name))
+                    logger.warning('Could not connect to MIDI input port "%s". Available: %s',
+                                   full_name, self.available_midi_in_device_names)
             else:
-                print('No available device name found for {}'.format(device_name))
+                logger.warning('No available device name found for %s', device_name)
         else:
             if self.midi_in is not None:
                 self.midi_in.callback = None  # Disable current callback (if any)
@@ -538,10 +541,10 @@ class LogicApp(object):
                 self.midi_in = None
 
         if self.midi_in is None:
-            print('Not receiving from any MIDI input')
+            logger.info('Not receiving from any MIDI input')
 
     def init_midi_out(self, device_name=None):
-        print('Configuring MIDI out to {}...'.format(device_name))
+        logger.info('Configuring MIDI out to %s...', device_name)
         self.available_midi_out_device_names = [name for name in mido.get_output_names() if
                                                 'Ableton Push' not in name and 'RtMidi' not in name and 'Through' not in name]
         self.available_midi_out_device_names += ['Virtual']
@@ -557,23 +560,22 @@ class LogicApp(object):
                         self.midi_out = mido.open_output(full_name, virtual=True)
                     else:
                         self.midi_out = mido.open_output(full_name)
-                    print('Will send MIDI to "{0}"'.format(full_name))
+                    logger.info('Will send MIDI to "%s"', full_name)
                 except IOError:
-                    print('Could not connect to MIDI output port "{0}"\nAvailable device names:'.format(full_name))
-                    for name in self.available_midi_out_device_names:
-                        print(' - {0}'.format(name))
+                    logger.warning('Could not connect to MIDI output port "%s". Available: %s',
+                                   full_name, self.available_midi_out_device_names)
             else:
-                print('No available device name found for {}'.format(device_name))
+                logger.warning('No available device name found for %s', device_name)
         else:
             if self.midi_out is not None:
                 self.midi_out.close()
                 self.midi_out = None
 
         if self.midi_out is None:
-            print('Won\'t send MIDI to any device')
+            logger.info("Won't send MIDI to any device")
 
     def init_notes_midi_in(self, device_name=None):
-        print('Configuring notes MIDI in to {}...'.format(device_name))
+        logger.info('Configuring notes MIDI in to %s...', device_name)
         self.available_midi_in_device_names = [name for name in mido.get_input_names() if
                                                'Ableton Push' not in name and 'RtMidi' not in name and 'Through' not in name]
 
@@ -588,13 +590,12 @@ class LogicApp(object):
                 try:
                     self.notes_midi_in = mido.open_input(full_name)
                     self.notes_midi_in.callback = self.notes_midi_in_handler
-                    print('Receiving notes MIDI in from "{0}"'.format(full_name))
+                    logger.info('Receiving notes MIDI in from "%s"', full_name)
                 except IOError:
-                    print('Could not connect to notes MIDI input port "{0}"\nAvailable device names:'.format(full_name))
-                    for name in self.available_midi_in_device_names:
-                        print(' - {0}'.format(name))
+                    logger.warning('Could not connect to notes MIDI input port "%s". Available: %s',
+                                   full_name, self.available_midi_in_device_names)
             else:
-                print('No available device name found for {}'.format(device_name))
+                logger.warning('No available device name found for %s', device_name)
         else:
             if self.notes_midi_in is not None:
                 self.notes_midi_in.callback = None  # Disable current callback (if any)
@@ -602,7 +603,7 @@ class LogicApp(object):
                 self.notes_midi_in = None
 
         if self.notes_midi_in is None:
-            print('Could not configures notes MIDI input')
+            logger.info('Could not configure notes MIDI input')
 
     def set_midi_in_channel(self, channel, wrap=False):
         self.midi_in_channel = channel
@@ -683,7 +684,7 @@ class LogicApp(object):
             track_midi_channel = self.track_selection_mode.get_current_track_info()['midi_channel']
             if msg.channel == track_midi_channel - 1:  # msg.channel is 0- indexed
                 for mode in self.active_modes:
-                    if mode == self.melodic_mode or mode == self.rhyhtmic_mode:
+                    if mode == self.melodic_mode or mode == self.rhythmic_mode:
                         mode.on_midi_in(msg, source=self.notes_midi_in.name)
                         if mode.lumi_midi_out is not None:
                             mode.lumi_midi_out.send(msg)
@@ -713,7 +714,7 @@ class LogicApp(object):
         self.help_time = time.time()
 
     def init_push(self):
-        print('Configuring Push...')
+        logger.info('Configuring Push...')
         self.push = push2_python.Push2(run_simulator=platform.system() != "Linux")
         if platform.system() == "Linux":
             # When this app runs in Linux is because it is running on the Raspberrypi
@@ -790,7 +791,7 @@ class LogicApp(object):
             self.update_push_from_mcu()
 
     def run_loop(self):
-        print('Time to give Logic PRO a little PUSH...(>^_^)>')
+        logger.info('Time to give Logic PRO a little PUSH...(>^_^)>')
         try:
             while True:
                 before_draw_time = time.time()
@@ -818,7 +819,7 @@ class LogicApp(object):
                     time.sleep(sleep_time)
 
         except KeyboardInterrupt:
-            print('Exiting Logic...')
+            logger.info('Exiting Logic...')
             if self.mcu_manager:
                 self.mcu_manager.stop()
             self.push.f_stop.set()
@@ -845,7 +846,7 @@ class LogicApp(object):
 
     def on_midi_push_connection_established(self):
         # Do initial configuration of Push
-        print('Doing initial Push config...')
+        logger.info('Doing initial Push config...')
 
         # Force configure MIDI out (in case it wasn't...)
         try:
@@ -883,13 +884,10 @@ class LogicApp(object):
         app.update_push2_pads()
 
     def is_button_being_pressed(self, button_name):
-        global buttons_pressed_state
-        return buttons_pressed_state.get(button_name, False)
+        return _bsm.is_button_pressed(button_name)
 
     def set_button_ignore_next_action_if_not_yet_triggered(self, button_name):
-        global buttons_should_ignore_next_release_action, buttons_waiting_to_trigger_processed_action
-        if buttons_waiting_to_trigger_processed_action.get(button_name, False):
-            buttons_should_ignore_next_release_action[button_name] = True
+        _bsm.set_ignore_next_release(button_name)
 
 
 @push2_python.on_encoder_rotated()
@@ -914,22 +912,39 @@ def on_encoder_rotated(_, encoder_name, increment):
             if action_performed:
                 break
     except NameError as e:
-        print('Error:  {}'.format(str(e)))
-        traceback.print_exc()
+        logger.exception('Error in Push2 callback')
 
 
 
-pads_pressing_log = defaultdict(list)
-pads_timers = defaultdict(None)
-pads_pressed_state = {}
-pads_should_ignore_next_release_action = {}
-pads_last_pressed_veocity = {}
+class ButtonStateManager:
+    """Encapsulates press/release state, timing, and velocity for Push2 pads and buttons."""
+
+    def __init__(self):
+        self.pads_pressing_log = defaultdict(list)
+        self.pads_timers = defaultdict(None)
+        self.pads_pressed_state = {}
+        self.pads_should_ignore_next_release_action = {}
+        self.pads_last_pressed_velocity = {}
+
+        self.buttons_pressing_log = defaultdict(list)
+        self.buttons_timers = defaultdict(None)
+        self.buttons_pressed_state = {}
+        self.buttons_should_ignore_next_release_action = {}
+        self.buttons_waiting_to_trigger_processed_action = {}
+
+    def is_button_pressed(self, name):
+        return self.buttons_pressed_state.get(name, False)
+
+    def set_ignore_next_release(self, name):
+        if self.buttons_waiting_to_trigger_processed_action.get(name, False):
+            self.buttons_should_ignore_next_release_action[name] = True
+
+
+_bsm = ButtonStateManager()
 
 
 @push2_python.on_pad_pressed()
 def on_pad_pressed(_, pad_n, pad_ij, velocity):
-    global pads_pressing_log, pads_timers, pads_pressed_state, pads_should_ignore_next_release_action
-
     # - Trigger raw pad pressed action
     try:
         for mode in app.active_modes[::-1]:
@@ -937,61 +952,57 @@ def on_pad_pressed(_, pad_n, pad_ij, velocity):
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:
-        print('Error:  {}'.format(str(e)))
-        traceback.print_exc()
+        logger.exception('Error in Push2 callback')
 
     # - Trigger processed pad actions
     def delayed_long_press_pad_check(pad_n, pad_ij, velocity):
         # If the maximum time to consider a long press has passed and pad has not yet been released,
         # trigger the long press pad action already and make sure when pad is actually released
         # no new processed pad action is triggered
-        if pads_pressed_state.get(pad_n, False):
+        if _bsm.pads_pressed_state.get(pad_n, False):
             # If pad has not been released, trigger the long press action
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_pad_pressed(pad_n, pad_ij, velocity, long_press=True,
-                                                           loop=pads_pressed_state.get(
+                                                           loop=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_DOUBLE_LOOP, False),
-                                                           quantize=pads_pressed_state.get(
+                                                           quantize=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_QUANTIZE, False),
-                                                           shift=pads_pressed_state.get(
+                                                           shift=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_SHIFT, False),
-                                                           select=pads_pressed_state.get(
+                                                           select=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_SELECT, False))
                     if action_performed:
                         break  # If mode took action, stop event propagation
             except NameError as e:
-                print('Error:  {}'.format(str(e)))
-                traceback.print_exc()
+                logger.exception('Error in Push2 callback')
 
             # Store that next release action should be ignored so that long press action is not retriggered when
             # actual pad release takes place
-            pads_should_ignore_next_release_action[pad_n] = True
+            _bsm.pads_should_ignore_next_release_action[pad_n] = True
 
     # Save the current time the pad is pressed and clear any delayed execution timer that existed Also save
     # velocity of the current pressing as it will be used when triggering the actual porcessed action when
     # release action is triggered
-    pads_last_pressed_veocity[pad_n] = velocity
-    pads_pressing_log[pad_n].append(time.time())
-    pads_pressing_log[pad_n] = pads_pressing_log[pad_n][
+    _bsm.pads_last_pressed_velocity[pad_n] = velocity
+    _bsm.pads_pressing_log[pad_n].append(time.time())
+    _bsm.pads_pressing_log[pad_n] = _bsm.pads_pressing_log[pad_n][
                                -2:]  # Keep only last 2 records (needed to check double presses)
-    if pads_timers.get(pad_n, None) is not None:
-        pads_timers[pad_n].setClearTimer()
+    if _bsm.pads_timers.get(pad_n, None) is not None:
+        _bsm.pads_timers[pad_n].setClearTimer()
 
     # Schedule a delayed action for the pad long press that will fire as soon as the pad is being pressed for
     # more than definitions.BUTTON_LONG_PRESS_TIME
-    pads_timers[pad_n] = definitions.Timer()
-    pads_timers[pad_n].setTimeout(delayed_long_press_pad_check, [pad_n, pad_ij, velocity],
-                                  definitions.BUTTON_LONG_PRESS_TIME)
+    _bsm.pads_timers[pad_n] = definitions.Timer()
+    _bsm.pads_timers[pad_n].setTimeout(delayed_long_press_pad_check, [pad_n, pad_ij, velocity],
+                                       definitions.BUTTON_LONG_PRESS_TIME)
 
     # - Store pad pressed state
-    pads_pressed_state[pad_n] = True
+    _bsm.pads_pressed_state[pad_n] = True
 
 
 @push2_python.on_pad_released()
 def on_pad_released(_, pad_n, pad_ij, velocity):
-    global pads_pressing_log, pads_timers, pads_pressed_state, pads_should_ignore_next_release_action
-
     # - Trigger raw pad released action
     try:
         for mode in app.active_modes[::-1]:
@@ -999,14 +1010,13 @@ def on_pad_released(_, pad_n, pad_ij, velocity):
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:
-        print('Error:  {}'.format(str(e)))
-        traceback.print_exc()
+        logger.exception('Error in Push2 callback')
 
     # - Trigger processed pad actions
     def delayed_double_press_pad_check(pad_n, pad_ij, velocity):
-        last_time_pressed = pads_pressing_log[pad_n][-1]
+        last_time_pressed = _bsm.pads_pressing_log[pad_n][-1]
         try:
-            previous_time_pressed = pads_pressing_log[pad_n][-2]
+            previous_time_pressed = _bsm.pads_pressing_log[pad_n][-2]
         except IndexError:
             previous_time_pressed = 0
         if last_time_pressed - previous_time_pressed < definitions.BUTTON_DOUBLE_PRESS_TIME:
@@ -1014,52 +1024,50 @@ def on_pad_released(_, pad_n, pad_ij, velocity):
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_pad_pressed(pad_n, pad_ij, velocity, double_press=True,
-                                                           loop=pads_pressed_state.get(
+                                                           loop=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_DOUBLE_LOOP, False),
-                                                           quantize=pads_pressed_state.get(
+                                                           quantize=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_QUANTIZE, False),
-                                                           shift=pads_pressed_state.get(
+                                                           shift=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_SHIFT, False),
-                                                           select=pads_pressed_state.get(
+                                                           select=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_SELECT, False))
                     if action_performed:
                         break  # If mode took action, stop event propagation
             except NameError as e:
-                print('Error:  {}'.format(str(e)))
-                traceback.print_exc()
+                logger.exception('Error in Push2 callback')
         else:
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_pad_pressed(pad_n, pad_ij, velocity,
-                                                           loop=pads_pressed_state.get(
+                                                           loop=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_DOUBLE_LOOP, False),
-                                                           quantize=pads_pressed_state.get(
+                                                           quantize=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_QUANTIZE, False),
-                                                           shift=pads_pressed_state.get(
+                                                           shift=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_SHIFT, False),
-                                                           select=pads_pressed_state.get(
+                                                           select=_bsm.pads_pressed_state.get(
                                                                push2_python.constants.BUTTON_SELECT, False))
                     if action_performed:
                         break  # If mode took action, stop event propagation
             except NameError as e:
-                print('Error:  {}'.format(str(e)))
-                traceback.print_exc()
+                logger.exception('Error in Push2 callback')
 
-    if not pads_should_ignore_next_release_action.get(pad_n, False):
+    if not _bsm.pads_should_ignore_next_release_action.get(pad_n, False):
         # If pad is not marked to ignore the next release action, then use the delayed_double_press_pad_check to decide whether
         # a "normal press" or a "double press" should be triggered
         # Clear any delayed execution timer that existed to avoid duplicated events
-        if pads_timers.get(pad_n, None) is not None:
-            pads_timers[pad_n].setClearTimer()
-        pads_timers[pad_n] = definitions.Timer()
-        velocity_of_press_action = pads_last_pressed_veocity.get(pad_n, velocity)
-        pads_timers[pad_n].setTimeout(delayed_double_press_pad_check, [pad_n, pad_ij, velocity_of_press_action],
-                                      definitions.BUTTON_DOUBLE_PRESS_TIME)
+        if _bsm.pads_timers.get(pad_n, None) is not None:
+            _bsm.pads_timers[pad_n].setClearTimer()
+        _bsm.pads_timers[pad_n] = definitions.Timer()
+        velocity_of_press_action = _bsm.pads_last_pressed_velocity.get(pad_n, velocity)
+        _bsm.pads_timers[pad_n].setTimeout(delayed_double_press_pad_check, [pad_n, pad_ij, velocity_of_press_action],
+                                           definitions.BUTTON_DOUBLE_PRESS_TIME)
     else:
-        pads_should_ignore_next_release_action[pad_n] = False
+        _bsm.pads_should_ignore_next_release_action[pad_n] = False
 
     # Store pad pressed state
-    pads_pressed_state[pad_n] = False
+    _bsm.pads_pressed_state[pad_n] = False
 
 
 @push2_python.on_pad_aftertouch()
@@ -1070,21 +1078,11 @@ def on_pad_aftertouch(_, pad_n, pad_ij, velocity):
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:
-        print('Error:  {}'.format(str(e)))
-        traceback.print_exc()
-
-
-buttons_pressing_log = defaultdict(list)
-buttons_timers = defaultdict(None)
-buttons_pressed_state = {}
-buttons_should_ignore_next_release_action = {}
-buttons_waiting_to_trigger_processed_action = {}
+        logger.exception('Error in Push2 callback')
 
 
 @push2_python.on_button_pressed()
 def on_button_pressed(_, name):
-    global buttons_pressing_log, buttons_timers, buttons_pressed_state, buttons_should_ignore_next_release_action, buttons_waiting_to_trigger_processed_action
-
     # - Trigger raw button pressed action
     try:
         for mode in app.active_modes[::-1]:
@@ -1093,59 +1091,55 @@ def on_button_pressed(_, name):
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:
-        print('Error:  {}'.format(str(e)))
-        traceback.print_exc()
+        logger.exception('Error in Push2 callback')
 
     # - Trigger processed button actions
-    buttons_waiting_to_trigger_processed_action[name] = True
+    _bsm.buttons_waiting_to_trigger_processed_action[name] = True
 
     def delayed_long_press_button_check(name):
         # If the maximum time to consider a long press has passed and button has not yet been released,
         # trigger the long press button action already and make sure when button is actually released
         # no new processed button action is triggered
-        if buttons_pressed_state.get(name, False):
+        if _bsm.buttons_pressed_state.get(name, False):
             # If button has not been released, trigger the long press action
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_button_pressed(name, long_press=True,
-                                                              loop=buttons_pressed_state.get(
+                                                              loop=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_DOUBLE_LOOP, False),
-                                                              quantize=buttons_pressed_state.get(
+                                                              quantize=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_QUANTIZE, False),
-                                                              shift=buttons_pressed_state.get(
+                                                              shift=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_SHIFT, False),
-                                                              select=buttons_pressed_state.get(
+                                                              select=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_SELECT, False))
                     mode.set_buttons_need_update_if_button_used(name)
                     if action_performed:
                         break  # If mode took action, stop event propagation
-                buttons_waiting_to_trigger_processed_action[name] = False
+                _bsm.buttons_waiting_to_trigger_processed_action[name] = False
             except NameError as e:
-                print('Error:  {}'.format(str(e)))
-                traceback.print_exc()
+                logger.exception('Error in Push2 callback')
 
             # Store that next release action should be ignored so that long press action is not retriggered when actual button release takes place
-            buttons_should_ignore_next_release_action[name] = True
+            _bsm.buttons_should_ignore_next_release_action[name] = True
 
     # Save the current time the button is pressed and clear any delayed execution timer that existed
-    buttons_pressing_log[name].append(time.time())
-    buttons_pressing_log[name] = buttons_pressing_log[name][
+    _bsm.buttons_pressing_log[name].append(time.time())
+    _bsm.buttons_pressing_log[name] = _bsm.buttons_pressing_log[name][
                                  -2:]  # Keep only last 2 records (needed to check double presses)
-    if buttons_timers.get(name, None) is not None:
-        buttons_timers[name].setClearTimer()
+    if _bsm.buttons_timers.get(name, None) is not None:
+        _bsm.buttons_timers[name].setClearTimer()
 
     # Schedule a delayed action for the button long press that will fire as soon as the button is being pressed for more than definitions.BUTTON_LONG_PRESS_TIME
-    buttons_timers[name] = definitions.Timer()
-    buttons_timers[name].setTimeout(delayed_long_press_button_check, [name], definitions.BUTTON_LONG_PRESS_TIME)
+    _bsm.buttons_timers[name] = definitions.Timer()
+    _bsm.buttons_timers[name].setTimeout(delayed_long_press_button_check, [name], definitions.BUTTON_LONG_PRESS_TIME)
 
     # - Store button pressed state
-    buttons_pressed_state[name] = True
+    _bsm.buttons_pressed_state[name] = True
 
 
 @push2_python.on_button_released()
 def on_button_released(_, name):
-    global buttons_pressing_log, buttons_timers, buttons_pressed_state, buttons_should_ignore_next_release_action, buttons_waiting_to_trigger_processed_action
-
     # - Trigger raw button released action
     try:
         for mode in app.active_modes[::-1]:
@@ -1154,16 +1148,15 @@ def on_button_released(_, name):
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:
-        print('Error:  {}'.format(str(e)))
-        traceback.print_exc()
+        logger.exception('Error in Push2 callback')
 
     # - Trigger processed button actions
     def delayed_double_press_button_check(name):
-        if name not in buttons_pressing_log or not buttons_pressing_log[name]:
+        if name not in _bsm.buttons_pressing_log or not _bsm.buttons_pressing_log[name]:
             return  # or handle safely
-        last_time_pressed = buttons_pressing_log[name][-1]
+        last_time_pressed = _bsm.buttons_pressing_log[name][-1]
         try:
-            previous_time_pressed = buttons_pressing_log[name][-2]
+            previous_time_pressed = _bsm.buttons_pressing_log[name][-2]
         except IndexError:
             previous_time_pressed = 0
         if last_time_pressed - previous_time_pressed < definitions.BUTTON_DOUBLE_PRESS_TIME:
@@ -1171,54 +1164,52 @@ def on_button_released(_, name):
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_button_pressed(name, double_press=True,
-                                                              loop=buttons_pressed_state.get(
+                                                              loop=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_DOUBLE_LOOP, False),
-                                                              quantize=buttons_pressed_state.get(
+                                                              quantize=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_QUANTIZE, False),
-                                                              shift=buttons_pressed_state.get(
+                                                              shift=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_SHIFT, False),
-                                                              select=buttons_pressed_state.get(
+                                                              select=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_SELECT, False))
                     mode.set_buttons_need_update_if_button_used(name)
                     if action_performed:
                         break  # If mode took action, stop event propagation
-                buttons_waiting_to_trigger_processed_action[name] = False
+                _bsm.buttons_waiting_to_trigger_processed_action[name] = False
             except NameError as e:
-                print('Error:  {}'.format(str(e)))
-                traceback.print_exc()
+                logger.exception('Error in Push2 callback')
         else:
             try:
                 for mode in app.active_modes[::-1]:
                     action_performed = mode.on_button_pressed(name,
-                                                              loop=buttons_pressed_state.get(
+                                                              loop=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_DOUBLE_LOOP, False),
-                                                              quantize=buttons_pressed_state.get(
+                                                              quantize=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_QUANTIZE, False),
-                                                              shift=buttons_pressed_state.get(
+                                                              shift=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_SHIFT, False),
-                                                              select=buttons_pressed_state.get(
+                                                              select=_bsm.buttons_pressed_state.get(
                                                                   push2_python.constants.BUTTON_SELECT, False))
                     mode.set_buttons_need_update_if_button_used(name)
                     if action_performed:
                         break  # If mode took action, stop event propagation
-                buttons_waiting_to_trigger_processed_action[name] = False
+                _bsm.buttons_waiting_to_trigger_processed_action[name] = False
             except NameError as e:
-                print('Error:  {}'.format(str(e)))
-                traceback.print_exc()
+                logger.exception('Error in Push2 callback')
 
-    if not buttons_should_ignore_next_release_action.get(name, False):
+    if not _bsm.buttons_should_ignore_next_release_action.get(name, False):
         # If button is not marked to ignore the next release action, then use the delayed_double_press_button_check to decide whether
         # a "normal press" or a "double press" should be triggered
         # Clear any delayed execution timer that existed to avoid duplicated events
-        if buttons_timers.get(name, None) is not None:
-            buttons_timers[name].setClearTimer()
-        buttons_timers[name] = definitions.Timer()
-        buttons_timers[name].setTimeout(delayed_double_press_button_check, [name], definitions.BUTTON_DOUBLE_PRESS_TIME)
+        if _bsm.buttons_timers.get(name, None) is not None:
+            _bsm.buttons_timers[name].setClearTimer()
+        _bsm.buttons_timers[name] = definitions.Timer()
+        _bsm.buttons_timers[name].setTimeout(delayed_double_press_button_check, [name], definitions.BUTTON_DOUBLE_PRESS_TIME)
     else:
-        buttons_should_ignore_next_release_action[name] = False
+        _bsm.buttons_should_ignore_next_release_action[name] = False
 
     # Store button pressed state
-    buttons_pressed_state[name] = False
+    _bsm.buttons_pressed_state[name] = False
 
 
 @push2_python.on_touchstrip()
@@ -1229,8 +1220,7 @@ def on_touchstrip(_, value):
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:
-        print('Error:  {}'.format(str(e)))
-        traceback.print_exc()
+        logger.exception('Error in Push2 callback')
 
 
 @push2_python.on_sustain_pedal()
@@ -1241,8 +1231,7 @@ def on_sustain_pedal(_, sustain_on):
             if action_performed:
                 break  # If mode took action, stop event propagation
     except NameError as e:
-        print('Error:  {}'.format(str(e)))
-        traceback.print_exc()
+        logger.exception('Error in Push2 callback')
 
 
 midi_connected_received_before_app = False
@@ -1257,7 +1246,7 @@ def on_midi_connected(_):
     except NameError:
         # app is not yet created; flag to call later after initialization
         midi_connected_received_before_app = True
-        print("[Push2] MIDI connected before app initialized; will initialize later.")
+        logger.warning('[Push2] MIDI connected before app initialized; will initialize later.')
 
 
 @push2_python.on_encoder_touched()
@@ -1274,7 +1263,7 @@ def on_encoder_touched(_, encoder_name):
                 if mode.on_encoder_touched(encoder_name):
                     break
     except Exception:
-        traceback.print_exc()
+        logger.exception('Error in on_encoder_touched')
 
 
 @push2_python.on_encoder_released()
@@ -1291,12 +1280,19 @@ def on_encoder_released(_, encoder_name):
                 if mode.on_encoder_released(encoder_name):
                     break
     except Exception:
-        traceback.print_exc()
+        logger.exception('Error in on_encoder_released')
 
 
 # Run app main loop
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%H:%M:%S',
+    )
     app = LogicApp()
+    if app.debug_logs:
+        logging.getLogger().setLevel(logging.DEBUG)
     # Set global DEBUG_LOGS from app state
     import logic_keystrokes
 
@@ -1304,6 +1300,6 @@ if __name__ == "__main__":
 
     if midi_connected_received_before_app:
         # App received the "on_midi_connected" call before it was initialized. Do it now!
-        print('Missed MIDI initialization call, doing it now...')
+        logger.warning('Missed MIDI initialization call, doing it now...')
         app.on_midi_push_connection_established()
     app.run_loop()

@@ -24,24 +24,11 @@ class SliceNotesMode(MelodicMode):
     def pad_ij_to_midi_note(self, pad_ij):
         return self.start_note + 8 * (7 - pad_ij[0]) + pad_ij[1]
 
-    def update_pads(self):
-        color_matrix = []
-        for i in range(0, 8):
-            row_colors = []
-            for j in range(0, 8):
-                corresponding_midi_note = self.pad_ij_to_midi_note([i, j])
-                midi_16_note_groups_idx = corresponding_midi_note // 16
-                #cell_color = self.color_groups[midi_16_note_groups_idx]
-                if midi_16_note_groups_idx % 2 == 0:
-                    cell_color = self.app.track_selection_mode.get_current_track_color()
-                else:
-                    cell_color = definitions.WHITE
-                if self.is_midi_note_being_played(corresponding_midi_note):
-                    cell_color = definitions.NOTE_ON_COLOR
-                row_colors.append(cell_color)
-            color_matrix.append(row_colors)
-
-        self.push.pads.set_pads_color(color_matrix)
+    def _pad_color(self, i, j, midi_note):
+        color = self.app.track_selection_mode.get_current_track_color() if (midi_note // 16) % 2 == 0 else definitions.WHITE
+        if self.is_midi_note_being_played(midi_note):
+            color = definitions.NOTE_ON_COLOR
+        return color
 
     def on_button_pressed(self, button_name, loop=False, quantize=False, shift=False, select=False, long_press=False, double_press=False):
         if button_name == push2_python.constants.BUTTON_OCTAVE_UP:

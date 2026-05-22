@@ -31,29 +31,18 @@ class RhythmicMode(MelodicMode):
         # Rhythmic does not have octave buttons
         pass
 
-    def update_pads(self):
-        color_matrix = []
-        for i in range(0, 8):
-            row_colors = []
-            for j in range(0, 8):
-                corresponding_midi_note = self.pad_ij_to_midi_note([i, j])
-                cell_color = definitions.BLACK
-                if i >= 4 and j < 4:
-                    # This is the main 4x4 grid
-                    cell_color = self.app.track_selection_mode.get_current_track_color()
-                elif i >= 4 and j >= 4:
-                    cell_color = definitions.GRAY_LIGHT
-                elif i < 4 and j < 4:
-                    cell_color = definitions.GRAY_LIGHT
-                elif i < 4 and j >= 4:
-                    cell_color = definitions.GRAY_LIGHT
-                if self.is_midi_note_being_played(corresponding_midi_note):
-                    cell_color = definitions.NOTE_ON_COLOR
-
-                row_colors.append(cell_color)
-            color_matrix.append(row_colors)
-
-        self.push.pads.set_pads_color(color_matrix)
+    def _pad_color(self, i, j, midi_note):
+        if i >= 4 and j < 4:
+            color = self.app.track_selection_mode.get_current_track_color()  # main 4x4 grid
+        elif i >= 4 and j >= 4:
+            color = definitions.GRAY_LIGHT
+        elif i < 4 and j < 4:
+            color = definitions.GRAY_LIGHT
+        else:
+            color = definitions.GRAY_LIGHT
+        if self.is_midi_note_being_played(midi_note):
+            color = definitions.NOTE_ON_COLOR
+        return color
 
     def on_button_pressed(self, button_name, loop=False, quantize=False, shift=False, select=False, long_press=False, double_press=False):
         if button_name == push2_python.constants.BUTTON_OCTAVE_UP or button_name == push2_python.constants.BUTTON_OCTAVE_DOWN:

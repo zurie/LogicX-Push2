@@ -1,7 +1,10 @@
+import logging
 import math
 import threading
 import time
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 import mido
 import push2_python
@@ -357,6 +360,7 @@ class MackieControlMode(definitions.LogicMode):
         try:
             self._flip_on = bool(MCU_STATE().flip())
         except Exception:
+            logger.debug('MCU_STATE not ready at init; defaulting flip to False', exc_info=True)
             self._flip_on = False
         self._last_mode = None
         self._active_encoder_handler = None
@@ -365,10 +369,7 @@ class MackieControlMode(definitions.LogicMode):
 
     def _dbg(self, msg: str):
         if getattr(self, "_dbg_enabled", False):
-            try:
-                import time; print(f"[{time.time():.6f}] [MACKIE] {msg}")
-            except Exception:
-                pass
+            logger.debug('[MACKIE] %s', msg)
 
     def _ensure_flip_on(self, why: str = ""):
         """
@@ -383,18 +384,19 @@ class MackieControlMode(definitions.LogicMode):
         try:
             host_on = bool(MCU_STATE().flip())
         except Exception:
+            logger.debug('MCU_STATE unavailable in _ensure_flip_on', exc_info=True)
             host_on = False
         if not host_on:
             try:
                 self._tap_mcu_button(MCU_ASSIGN_FLIP)
                 self._dbg(f"ensure_flip_on: sent FLIP (reason={why})")
             except Exception:
-                pass
+                logger.warning('Failed to send FLIP button in _ensure_flip_on', exc_info=True)
         try:
             self.update_buttons()
             self.app.buttons_need_update = True
         except Exception:
-            pass
+            logger.warning('update_buttons failed in _ensure_flip_on', exc_info=True)
 
     def _ensure_flip_off(self, why: str = ""):
         """
@@ -408,6 +410,7 @@ class MackieControlMode(definitions.LogicMode):
         try:
             host_on = bool(MCU_STATE().flip())
         except Exception:
+            logger.debug('MCU_STATE unavailable in _ensure_flip_off', exc_info=True)
             host_on = False
 
         if host_on:
@@ -415,13 +418,13 @@ class MackieControlMode(definitions.LogicMode):
                 self._tap_mcu_button(MCU_ASSIGN_FLIP)
                 self._dbg(f"ensure_flip_off: sent FLIP (reason={why})")
             except Exception:
-                pass
+                logger.warning('Failed to send FLIP button in _ensure_flip_off', exc_info=True)
 
         try:
             self.update_buttons()
             self.app.buttons_need_update = True
         except Exception:
-            pass
+            logger.warning('update_buttons failed in _ensure_flip_off', exc_info=True)
 
     # ================================ GUI-agnostic helpers consumed by renderers
     def _upper_row_label_and_color(self):

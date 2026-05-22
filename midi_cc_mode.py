@@ -1,5 +1,9 @@
+import logging
+
 import definitions
 import mido
+
+logger = logging.getLogger(__name__)
 import push2_python
 import math
 import json
@@ -113,8 +117,9 @@ class MIDICCMode(LogicMode):
     def initialize(self, settings=None):
         for instrument_short_name in self.get_all_distinct_instrument_short_names_helper():
             try:
-                midi_cc = json.load(open(os.path.join(definitions.INSTRUMENT_DEFINITION_FOLDER,
-                                                      '{}.json'.format(instrument_short_name)))).get('midi_cc', None)
+                with open(os.path.join(definitions.INSTRUMENT_DEFINITION_FOLDER,
+                                       '{}.json'.format(instrument_short_name))) as f:
+                    midi_cc = json.load(f).get('midi_cc', None)
             except FileNotFoundError:
                 midi_cc = None
 
@@ -129,8 +134,8 @@ class MIDICCMode(LogicMode):
                         if section.get('control_value_label_maps', {}).get(name, False):
                             control.value_labels_map = section['control_value_label_maps'][name]
                         self.instrument_midi_control_ccs[instrument_short_name].append(control)
-                print('Loaded {0} MIDI cc mappings for instrument {1}'.format(
-                    len(self.instrument_midi_control_ccs[instrument_short_name]), instrument_short_name))
+                logger.info('Loaded %d MIDI cc mappings for instrument %s',
+                            len(self.instrument_midi_control_ccs[instrument_short_name]), instrument_short_name)
             else:
                 # No definition file for instrument exists, or no midi CC were defined for that instrument
                 self.instrument_midi_control_ccs[instrument_short_name] = []
@@ -140,7 +145,7 @@ class MIDICCMode(LogicMode):
                     control = MIDICCControl(i, 'CC {0}'.format(i), '{0} to {1}'.format(section_s, section_e),
                                             self.get_current_track_color_helper, self.app.send_midi)
                     self.instrument_midi_control_ccs[instrument_short_name].append(control)
-                print('Loaded default MIDI cc mappings for instrument {0}'.format(instrument_short_name))
+                logger.info('Loaded default MIDI cc mappings for instrument %s', instrument_short_name)
 
         # Fill in current page and section variables
         for instrument_short_name in self.instrument_midi_control_ccs:
