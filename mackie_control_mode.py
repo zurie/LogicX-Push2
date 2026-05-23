@@ -1,6 +1,5 @@
 import logging
 import math
-import threading
 import time
 from typing import Optional
 
@@ -277,13 +276,6 @@ class MackieControlMode(definitions.LogicMode):
     # === Mode state (class/shared) ============================================
     active_mode = MODE_VOLUME  # default
     _polling_active = False
-    _volume_submode = 0
-    _submodes = {
-        MODE_VOLUME: 0,
-        MODE_PAN: 0,
-    }
-    _startup_submodes_loaded = False
-
     # Pad brightness policy: OFF = dimmed gray, ON = full
     _PAD_OFF_COLOR = _DARK
 
@@ -292,7 +284,6 @@ class MackieControlMode(definitions.LogicMode):
     _pan_ring = [6] * 8
     _last_pan = [None] * 8
 
-    _fired_inout_once = False
     _name_cache = [""] * 8
     _last_names_print = 0  # throttle debug printing
     _last_grid_snapshot = None
@@ -355,76 +346,11 @@ class MackieControlMode(definitions.LogicMode):
         self._pad_color_cache = {}
         self.row6_mode = self.ROW6_DEFAULT_MODE
         self.row6_custom_notes = self.ROW6_CUSTOM_NOTES
-        # --- Flip-aware routing cache/lock
-        self._route_lock = threading.RLock()
-        try:
-            self._flip_on = bool(MCU_STATE().flip())
-        except Exception:
-            logger.debug('MCU_STATE not ready at init; defaulting flip to False', exc_info=True)
-            self._flip_on = False
-        self._last_mode = None
-        self._active_encoder_handler = None
-        self._rebind_controls()
         self._dbg_enabled = True
 
     def _dbg(self, msg: str):
         if getattr(self, "_dbg_enabled", False):
             logger.debug('[MACKIE] %s', msg)
-
-    def _ensure_flip_on(self, why: str = ""):
-        """
-        Force local routing to FLIP=ON and, if host isn't ON yet, send the FLIP note once.
-        """
-        # Local latch first
-        with self._route_lock:
-            self._flip_on = True
-            self._rebind_controls()
-        # Host parity (only if host appears OFF)
-        host_on = False
-        try:
-            host_on = bool(MCU_STATE().flip())
-        except Exception:
-            logger.debug('MCU_STATE unavailable in _ensure_flip_on', exc_info=True)
-            host_on = False
-        if not host_on:
-            try:
-                self._tap_mcu_button(MCU_ASSIGN_FLIP)
-                self._dbg(f"ensure_flip_on: sent FLIP (reason={why})")
-            except Exception:
-                logger.warning('Failed to send FLIP button in _ensure_flip_on', exc_info=True)
-        try:
-            self.update_buttons()
-            self.app.buttons_need_update = True
-        except Exception:
-            logger.warning('update_buttons failed in _ensure_flip_on', exc_info=True)
-
-    def _ensure_flip_off(self, why: str = ""):
-        """
-        Force local routing to FLIP=OFF and, if host is ON, send FLIP once to turn it OFF.
-        """
-        with self._route_lock:
-            self._flip_on = False
-            self._rebind_controls()
-
-        host_on = False
-        try:
-            host_on = bool(MCU_STATE().flip())
-        except Exception:
-            logger.debug('MCU_STATE unavailable in _ensure_flip_off', exc_info=True)
-            host_on = False
-
-        if host_on:
-            try:
-                self._tap_mcu_button(MCU_ASSIGN_FLIP)
-                self._dbg(f"ensure_flip_off: sent FLIP (reason={why})")
-            except Exception:
-                logger.warning('Failed to send FLIP button in _ensure_flip_off', exc_info=True)
-
-        try:
-            self.update_buttons()
-            self.app.buttons_need_update = True
-        except Exception:
-            logger.warning('update_buttons failed in _ensure_flip_off', exc_info=True)
 
     # ================================ GUI-agnostic helpers consumed by renderers
     def _upper_row_label_and_color(self):
@@ -587,29 +513,12 @@ class MackieControlMode(definitions.LogicMode):
         if mode not in MODE_LABELS:
             return
         self.active_mode = mode
-
-        if mode == MODE_VOLUME:
-            self._send_assignment(MCU_ASSIGN_INOUT)
-            MackieControlMode._volume_submode = self._submodes.get(MODE_VOLUME, 0)
-        elif mode == MODE_PAN:
-            self._send_assignment(MCU_ASSIGN_PAN)
-            MackieControlMode._pan_submode = self._submodes.get(MODE_PAN, 0)
-
         self.update_buttons()
         self.update_encoders()
         self._paint_selector_row()
         self.app.pads_need_update = True
         self.app.buttons_need_update = True
 
-        # --- enforce flip policy per mode ---
-        if mode == MODE_VOLUME:
-            self._ensure_flip_on(why=f"mode={mode}")
-        elif mode == MODE_PAN:
-            self._ensure_flip_off(why=f"mode={mode}")
-
-        # Flip can invert routing; rebind after any mode change
-        with self._route_lock:
-            self._rebind_controls()
 
     def _paint_selector_row(self):
         bottom_row = 7
@@ -644,7 +553,7 @@ class MackieControlMode(definitions.LogicMode):
 
         mute_states = getattr(mcu, "mute_states", []) or []
         solo_states = getattr(mcu, "solo_states", []) or []
-        rec_states = getattr(mcu, "recarm_states", []) or []
+        rec_states = getattr(mcu, "rec_states", []) or []
 
         def _state(arr, abs_idx):
             try:
@@ -942,16 +851,6 @@ class MackieControlMode(definitions.LogicMode):
             MCU_STATE().subscribe(self._on_mcu_state_changed)
         except Exception:
             pass
-        if not MackieControlMode._fired_inout_once:
-            self._send_assignment(MCU_ASSIGN_INOUT)  # note 40
-            MackieControlMode._fired_inout_once = True
-        if self.active_mode == MODE_PAN:
-            self._ensure_flip_off(why="activate:pan")
-        elif self.active_mode == MODE_VOLUME:
-            self._ensure_flip_on(why="activate:volume")
-        else:
-            # leave as-is for other modes
-            pass
 
         names = (self.app.mcu_manager.get_visible_track_names()
      if hasattr(self.app.mcu_manager, "get_visible_track_names")
@@ -998,20 +897,9 @@ class MackieControlMode(definitions.LogicMode):
 
     # ---- Any MCU state change -> repaint buttons/GUI ----
     def _on_mcu_state_changed(self, snapshot=None):
-        # Buttons repaint as before
+        # Repaint buttons so MASTER LED reflects Logic's flip LED state.
         try: self.app.buttons_need_update = True
         except Exception: pass
-        # Also update cached flip and rebind routing atomically
-        try:
-            flip_now = bool(MCU_STATE().flip())
-        except Exception:
-            flip_now = False
-        mode_now = self.active_mode
-        with self._route_lock:
-            if (flip_now != getattr(self, "_flip_on", None)) or (mode_now != getattr(self, "_last_mode", None)):
-                self._flip_on = flip_now
-                self._last_mode = mode_now
-                self._rebind_controls()
 
 
     # ================================ Small helpers
@@ -1019,6 +907,18 @@ class MackieControlMode(definitions.LogicMode):
         mm = getattr(self.app, "mcu_manager", None)
         sel = mm.selected_track_idx if mm else 0
         return (sel or 0) // 8
+
+    def _send_mcu_pan_cc_now(self, channel: int, delta: int):
+        """Send a single V-Pot CC immediately (no queue), matching volume's send-on-rotate behavior."""
+        if not delta:
+            return
+        port = getattr(self.app.mcu_manager, "output_port", None) or getattr(self.app, "midi_out", None)
+        if port is None:
+            return
+        ch = max(0, min(7, int(channel)))
+        mag = min(63, abs(int(delta)))
+        val = mag if delta > 0 else 64 + mag  # MCU relative format
+        port.send(mido.Message('control_change', control=16 + ch, value=val, channel=0))
 
     def _send_mcu_pan_delta(self, channel: int, delta: int):
         if not delta:
@@ -1056,8 +956,8 @@ class MackieControlMode(definitions.LogicMode):
         snap = MCU_STATE().snapshot()
         on_color  = getattr(definitions, "WHITE", "white")
         off_color = getattr(definitions, "GRAY_DARK", "gray")
-        # --- MASTER reflects cached FLIP state (deterministic UI) ---
-        flip_on = bool(getattr(self, "_flip_on", False))
+        # MASTER LED mirrors Logic's flip LED state (cosmetic only — doesn't affect routing)
+        flip_on = bool(snap.flip)
 
 
         try:
@@ -1112,28 +1012,10 @@ class MackieControlMode(definitions.LogicMode):
             pass
 
     def on_button_pressed_raw(self, btn):
-        # MASTER => toggle FLIP
+        # MASTER => send Flip toggle to Logic (cosmetic — doesn't affect our routing)
         if btn == P2.BUTTON_MASTER:
             try:
-                mm = getattr(self.app, "mcu_manager", None)
-                # If host thinks we're in PAN, force TRACK first so fader-layer = Volume
-                if mm and getattr(mm, "current_assign", None) in (getattr(self, "MCU_ASSIGN_PAN", 42),):
-                    self._tap_mcu_button(MCU_ASSIGN_TRACK)  # 40
-                    # tiny debounce helps Logic latch the layer before Flip
-                    time.sleep(0.01)
-            except Exception:
-                pass
-
-            # now toggle Flip as you already do
-            with self._route_lock:
-                self._flip_on = not bool(getattr(self, "_flip_on", False))
-                self._rebind_controls()
-            try:
-                self._tap_mcu_button(MCU_ASSIGN_FLIP)  # 50
-            except Exception:
-                pass
-            try:
-                self.update_buttons()
+                self._tap_mcu_button(MCU_ASSIGN_FLIP)
                 self.app.buttons_need_update = True
             except Exception:
                 pass
@@ -1188,9 +1070,6 @@ class MackieControlMode(definitions.LogicMode):
 
                 if wanted_mode == MODE_VOLUME:
                     if self.active_mode == MODE_VOLUME:
-                        # Re-send TRACK (40) and force FLIP ON (no toggle)
-                        self._send_assignment(MCU_ASSIGN_INOUT)
-                        self._ensure_flip_on(why="press TRACK in TRACK")
                         if hasattr(self.app, "_btn_color_cache"):
                             self.app._btn_color_cache.clear()
                         self._paint_selector_row()
@@ -1205,10 +1084,6 @@ class MackieControlMode(definitions.LogicMode):
 
                 if wanted_mode == MODE_PAN:
                     if self.active_mode == MODE_PAN:
-                        # Re-send PAN (42) and force FLIP OFF (no toggle)
-                        self._send_assignment(MCU_ASSIGN_PAN)
-                        self._ensure_flip_off(why="press PAN in PAN")
-                        self._submodes[MODE_PAN] = 0 if self._submodes.get(MODE_PAN, 0) else 1
                         if hasattr(self.app, "_btn_color_cache"):
                             self.app._btn_color_cache.clear()
                         self._paint_selector_row()
@@ -1326,95 +1201,40 @@ class MackieControlMode(definitions.LogicMode):
         self.app.buttons_need_update = True
 
     def on_encoder_rotated(self, encoder_name, increment):
-        """
-        Handle Push encoders:
-          • VOL / SOLO / MUTE → faders (coarse/fine per modifiers)
-          • VOL (detail submode=B) → Enc1=selected VOL (absolute), Enc2=selected PAN (relative)
-          • PAN → per-strip PAN (relative)
-        Also keeps the v2 GUI focus overlay alive while turning.
-        """
-        # Guard: is this one of the 8 track encoders?
         if encoder_name not in self.encoder_names:
             return False
 
-        local_idx = self.encoder_names.index(encoder_name)   # 0..7 within current bank page
-        strip_idx = (self.current_page * self.tracks_per_page) + local_idx
+        local_idx = self.encoder_names.index(encoder_name)
+        strip_idx = self.current_page * self.tracks_per_page + local_idx
         if strip_idx >= len(self.track_strips):
             return False
 
-        # Keep v2 overlay alive while turning (if renderer supports it)
         if getattr(self, "renderer", None) and hasattr(self.renderer, "poke_focus"):
             try:
-                # Default: focus the physical encoder's strip
-                focus_ch = local_idx
-
-                # Special-case: Volume detail submode (Enc1/Enc2 act on the SELECTED strip)
-                if self.active_mode == MODE_VOLUME and getattr(MackieControlMode, "_volume_submode", 0) == 1:
-                    mm = getattr(self.app, "mcu_manager", None)
-                    if mm:
-                        if mm.selected_track_idx is None:
-                            mm.selected_track_idx = self.current_page * self.tracks_per_page
-                        focus_ch = (mm.selected_track_idx % 8)
-
-                self.renderer.poke_focus(int(focus_ch))
+                self.renderer.poke_focus(local_idx)
             except Exception:
                 pass
 
-        # --- VOLUME / SOLO / MUTE: encoders move faders ---------------------------
-        if self.active_mode in (MODE_VOLUME, MODE_SOLO, MODE_MUTE):
-
-            # Detail submode (B): Enc1 → selected VOL, Enc2 → selected PAN (relative)
-            if self.active_mode == MODE_VOLUME and getattr(MackieControlMode, "_volume_submode", 0) == 1:
-                mm = getattr(self.app, "mcu_manager", None)
-                if mm:
-                    if mm.selected_track_idx is None:
-                        mm.selected_track_idx = self.current_page * self.tracks_per_page
-
-                    selected_abs = int(mm.selected_track_idx)
-                    selected_local = selected_abs % 8
-
-                    # Enc1: selected track volume (absolute)
-                    if local_idx == 0:
-                        sel_strip_idx = selected_idx
-                        if 0 <= selected_abs < len(self.track_strips):
-                            self.track_strips[selected_abs].update_value(increment)
-                            level = float(mm.fader_levels[selected_local])
-                            self._send_mcu_fader_move(selected_local, level)
-                            # NEW: scribble for selected column
-                            db = MackieControlMode._level_to_db(level)
-                            label = "-∞ dB" if db == float("-inf") else f"{db:+.1f} dB"
-                            self._scribble_set(local_sel, bottom=label)
-                        return True
-
-                    # Enc2: selected track pan (relative)
-                    if local_idx == 1:
-                        if increment != 0:
-                            self._send_mcu_pan_delta(selected_local, 1 if increment > 0 else -1)
-                        return True
-
-                    # Enc3..Enc8: no-ops in detail submode
-                    return True
-
-            # Normal: each encoder controls its own strip's fader
+        if self.active_mode in (MODE_VOLUME, MODE_MUTE, MODE_SOLO):
+            # Pitchbend on ch 0-7 = fader = volume in Logic, always, regardless of flip.
             self.track_strips[strip_idx].update_value(increment)
             mm = getattr(self.app, "mcu_manager", None)
             if mm:
                 level = float(mm.fader_levels[local_idx])
                 self._send_mcu_fader_move(local_idx, level)
-            # NEW: fast scribble bottom for this column (dB readout)
-            db = MackieControlMode._level_to_db(level)
-            label = "-∞ dB" if db == float("-inf") else f"{db:+.1f} dB"
-            self._scribble_set(local_idx, bottom=label)
+                db = MackieControlMode._level_to_db(level)
+                self._scribble_set(local_idx,
+                                   bottom="-∞ dB" if db == float("-inf") else f"{db:+.1f} dB")
             return True
 
-
-        # --- PAN mode: use prebound handler (atomic w.r.t. flip) ----------------
         if self.active_mode == MODE_PAN:
-            with self._route_lock:
-                handler = self._active_encoder_handler
-            return handler(local_idx, strip_idx, increment)
+            # CC 16-23 = V-Pot = pan in Logic, always, regardless of flip.
+            if increment:
+                self._pan_view[local_idx] = max(-64.0, min(64.0,
+                                                            self._pan_view[local_idx] + increment))
+                self._send_mcu_pan_cc_now(local_idx, increment)
+            return True
 
-        # Other modes not handled here
         return False
 
     def _scribble_set(self, ch: int, *, top=None, bottom=None):
@@ -1425,43 +1245,6 @@ class MackieControlMode(definitions.LogicMode):
             self.app.display_dirty = True  # nudge a frame
 
     # ──────────────────────────────────────────────────────────────────────────
-    # Flip-aware routing: bind once per (mode, flip)
-    # ──────────────────────────────────────────────────────────────────────────
-    def _rebind_controls(self):
-        """
-        PAN:
-          • Flip OFF → encoders = Pan (rel),   (virtual) faders = Volume
-          • Flip ON  → encoders = Volume (PB), (virtual) faders = Pan
-        """
-        mode = self.active_mode
-        if mode == MODE_PAN:
-            if self._flip_on:
-                self._active_encoder_handler = self._enc_as_volume
-            else:
-                self._active_encoder_handler = self._enc_as_pan
-        else:
-            # Not used outside PAN; keep a harmless default
-            self._active_encoder_handler = self._enc_as_pan
-
-    # --- concrete encoder targets ------------------------------------------------
-    def _enc_as_pan(self, local_idx: int, strip_idx: int, inc: int):
-        if inc:
-            self._send_mcu_pan_delta(local_idx, 1 if inc > 0 else -1)
-        return True
-
-    def _enc_as_volume(self, local_idx: int, strip_idx: int, inc: int):
-        # Reuse your TrackStrip nudge (coarse/fine w/ modifiers)
-        self.track_strips[strip_idx].update_value(inc)
-        mm = getattr(self.app, "mcu_manager", None)
-        if mm:
-            level = float(mm.fader_levels[local_idx])
-            self._send_mcu_fader_move(local_idx, level)
-            # quick scribble of dB for this column
-            db = MackieControlMode._level_to_db(level)
-            label = "-∞ dB" if db == float("-inf") else f"{db:+.1f} dB"
-            self._scribble_set(local_idx, bottom=label)
-        return True
-
     def _scribble_refresh_titles_for_visible_bank(self):
         base = (getattr(self, "current_page", 0) or 0) * getattr(self, "tracks_per_page", 8)
         for i in range(8):
@@ -1588,15 +1371,7 @@ class MackieControlMode(definitions.LogicMode):
 
             local_idx = self.encoder_names.index(encoder_name)  # 0..7
 
-            # Compute which strip the overlay was targeting:
-            #  • Normal: the same local_idx
-            #  • Volume detail submode: Enc1/Enc2 target the SELECTED strip (not the physical one)
             target_local = local_idx
-            if self.active_mode == MODE_VOLUME and getattr(MackieControlMode, "_volume_submode", 0) == 1:
-                if local_idx in (0, 1):
-                    mm = getattr(self.app, "mcu_manager", None)
-                    if mm and mm.selected_track_idx is not None:
-                        target_local = int(mm.selected_track_idx) % 8
 
             # Clear the v2 renderer overlay if available
             if getattr(self, "renderer", None) and hasattr(self.renderer, "on_strip_release"):

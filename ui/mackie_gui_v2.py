@@ -128,19 +128,15 @@ class MackieGuiV2(Renderer):
     def _draw_header(self, ctx, w, y, header_h):
         mm = getattr(self.mode.app, "mcu_manager", None)
         assignment = getattr(self.mode, "active_mode", "volume").upper()
-        subview = "A"
-        page_idx = getattr(mm, "page_index", 1) or 1
-        page_cnt = getattr(mm, "page_count", 1) or 1
         flip_on  = bool(getattr(mm, "flip", False))
-        bank_s   = (getattr(mm, "bank_start", 0) or 0) + 1
-        bank_e   = getattr(mm, "bank_end", 8) or 8
-        sel_idx  = getattr(mm, "selected_track_idx", None)
+        sel_idx  = getattr(mm, "selected_track_idx", None) if mm else None
         sel_lab  = f"T{sel_idx + 1}" if sel_idx is not None else "-"
+        bank_s   = ((sel_idx or 0) // 8) * 8 + 1
+        bank_e   = bank_s + 7
 
         x = 8
-        x += self._hdr_token(ctx, x, y + header_h, f"MODE: {assignment} • Sub: {subview}") + 10
+        x += self._hdr_token(ctx, x, y + header_h, f"MODE: {assignment}") + 10
         x += self._hdr_token(ctx, x, y + header_h, f"Bank: {bank_s}–{bank_e}") + 10
-        x += self._hdr_token(ctx, x, y + header_h, f"Page: {page_idx}/{page_cnt}") + 10
         x += self._hdr_token(ctx, x, y + header_h, f"FLIP: {'ON' if flip_on else 'OFF'}") + 10
         _    = self._hdr_token(ctx, x, y + header_h, f"SEL: {sel_lab}")
 

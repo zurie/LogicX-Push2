@@ -6,7 +6,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-VALID_GUI_PROFILES = {"legacy", "mackie_v2"}
+VALID_GUI_PROFILES = {"legacy", "mackie_v2", "mackie_v3"}
 
 
 @dataclass
