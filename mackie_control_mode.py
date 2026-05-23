@@ -926,6 +926,16 @@ class MackieControlMode(definitions.LogicMode):
         val = mag if delta > 0 else 64 + mag  # MCU relative format
         port.send(mido.Message('control_change', control=16 + ch, value=val, channel=0))
 
+    def _reset_channel_pan(self, ch: int):
+        if ch < 0 or ch >= len(self._pan_view):
+            return
+        delta = -int(self._pan_view[ch])
+        while delta != 0:
+            chunk = max(-63, min(63, delta))
+            self._send_mcu_pan_cc_now(ch, chunk)
+            delta -= chunk
+        self._pan_view[ch] = 0.0
+
     def _send_mcu_pan_delta(self, channel: int, delta: int):
         if not delta:
             return
@@ -1128,7 +1138,7 @@ class MackieControlMode(definitions.LogicMode):
                     self.app.buttons_need_update = True
                     return True
 
-                elif self.active_mode in (MODE_VOLUME, MODE_PAN, MODE_VPOT):
+                elif self.active_mode == MODE_VPOT:
                     mm = self.app.mcu_manager
                     if mm:
                         abs_idx = self.current_page * self.tracks_per_page + i
@@ -1138,9 +1148,38 @@ class MackieControlMode(definitions.LogicMode):
                     self.app.buttons_need_update = True
                     return True
 
+                elif self.active_mode in (MODE_VOLUME, MODE_PAN):
+                    # Claim the button; select vs reset is resolved in on_button_pressed
+                    return True
+
         return btn in self.buttons_used
 
-    def on_button_pressed(self, button_name, **_):
+    def on_button_pressed(self, button_name, long_press=False, **_):
+        for i in range(8):
+            upper_btn = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
+            if button_name == upper_btn:
+                if self.active_mode == MODE_VOLUME:
+                    if long_press:
+                        self._reset_channel_volume(i)
+                    else:
+                        mm = self.app.mcu_manager
+                        if mm:
+                            mm.selected_track_idx = self.current_page * self.tracks_per_page + i
+                        self._tap_mcu_button(24 + i)  # SELECT
+                        self._render_mix_grid("on button pressed")
+                        self.app.buttons_need_update = True
+                    return True
+                elif self.active_mode == MODE_PAN:
+                    if long_press:
+                        self._reset_channel_pan(i)
+                    else:
+                        mm = self.app.mcu_manager
+                        if mm:
+                            mm.selected_track_idx = self.current_page * self.tracks_per_page + i
+                        self._tap_mcu_button(24 + i)  # SELECT
+                        self._render_mix_grid("on button pressed")
+                        self.app.buttons_need_update = True
+                    return True
         return button_name in self.buttons_used
 
     def on_button_released(self, button_name):
@@ -1166,6 +1205,13 @@ class MackieControlMode(definitions.LogicMode):
             port.send(mido.Message('pitchwheel', pitch=pb_val, channel=ch))
         else:
             self._pb_pending[ch] = pb_val
+
+    def _reset_channel_volume(self, ch: int):
+        level = definitions.db_to_pb(0.0) / 16383.0  # 0 dB as normalized 0.0–1.0
+        self._send_mcu_fader_move(ch, level)
+        mm = getattr(self.app, "mcu_manager", None)
+        if mm and hasattr(mm, "fader_levels"):
+            mm.fader_levels[ch] = level
 
     def _flush_pending_tx(self):
         self._init_tx_coalesce()
