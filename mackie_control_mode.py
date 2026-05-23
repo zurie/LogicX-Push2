@@ -897,7 +897,13 @@ class MackieControlMode(definitions.LogicMode):
 
     # ---- Any MCU state change -> repaint buttons/GUI ----
     def _on_mcu_state_changed(self, snapshot=None):
-        # Repaint buttons so MASTER LED reflects Logic's flip LED state.
+        # Auto-correct: if Logic signals Flip is on, immediately turn it back off.
+        # Flip is meaningless without hardware faders and breaks our MIDI routing.
+        try:
+            if snapshot is not None and getattr(snapshot, "flip", False):
+                self._tap_mcu_button(MCU_ASSIGN_FLIP)
+        except Exception:
+            pass
         try: self.app.buttons_need_update = True
         except Exception: pass
 
@@ -1012,7 +1018,9 @@ class MackieControlMode(definitions.LogicMode):
             pass
 
     def on_button_pressed_raw(self, btn):
-        # MASTER => send Flip toggle to Logic (cosmetic — doesn't affect our routing)
+        # MASTER button toggles Flip on Logic's side.
+        # The state-change subscriber auto-corrects it back off immediately,
+        # so this effectively becomes a "force Flip off" button.
         if btn == P2.BUTTON_MASTER:
             try:
                 self._tap_mcu_button(MCU_ASSIGN_FLIP)
