@@ -19,7 +19,8 @@ class PresetSelectionMode(definitions.LogicMode):
 
     def initialize(self, settings=None):
         if os.path.exists(self.favourtie_presets_filename):
-            self.favourtie_presets = json.load(open(self.favourtie_presets_filename))
+            with open(self.favourtie_presets_filename) as f:
+                self.favourtie_presets = json.load(f)
 
     def new_track_selected(self):
         self.current_page = 0
@@ -31,7 +32,8 @@ class PresetSelectionMode(definitions.LogicMode):
         if instrument_short_name not in self.favourtie_presets:
             self.favourtie_presets[instrument_short_name] = []
         self.favourtie_presets[instrument_short_name].append((preset_number, bank_number))
-        json.dump(self.favourtie_presets, open(self.favourtie_presets_filename, 'w'))  # Save to file
+        with open(self.favourtie_presets_filename, 'w') as f:
+            json.dump(self.favourtie_presets, f)  # Save to file
 
     def remove_favourite_preset(self, preset_number, bank_number):
         instrument_short_name = self.app.track_selection_mode.get_current_track_instrument_short_name()
@@ -40,7 +42,8 @@ class PresetSelectionMode(definitions.LogicMode):
                 [(fp_preset_number, fp_bank_number) for fp_preset_number, fp_bank_number in
                  self.favourtie_presets[instrument_short_name]
                  if preset_number != fp_preset_number or bank_number != fp_bank_number]
-            json.dump(self.favourtie_presets, open(self.favourtie_presets_filename, 'w'))  # Save to file
+            with open(self.favourtie_presets_filename, 'w') as f:
+                json.dump(self.favourtie_presets, f)  # Save to file
 
     def preset_num_in_favourites(self, preset_number, bank_number):
         instrument_short_name = self.app.track_selection_mode.get_current_track_instrument_short_name()

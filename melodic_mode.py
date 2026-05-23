@@ -270,26 +270,24 @@ class MelodicMode(definitions.LogicMode):
         self.update_octave_buttons()
         self.update_accent_button()
 
+    def _pad_color(self, i, j, midi_note):
+        color = definitions.WHITE
+        if not self.app.collapse_scale and not self.scale[midi_note % 12]:
+            color = definitions.BLACK
+        if self.is_midi_note_root_octave(midi_note):
+            try:
+                color = self.app.track_selection_mode.get_current_track_color()
+            except AttributeError:
+                color = definitions.YELLOW
+        if self.is_midi_note_being_played(midi_note):
+            color = definitions.NOTE_ON_COLOR
+        return color
+
     def update_pads(self):
-        color_matrix = []
-        for i in range(0, 8):
-            row_colors = []
-            for j in range(0, 8):
-                note = self.pad_ij_to_midi_note([i, j])
-                color = definitions.WHITE
-                if not self.app.collapse_scale and not self.scale[note % 12]:
-                    color = definitions.BLACK
-                if self.is_midi_note_root_octave(note):
-                    try:
-                        color = self.app.track_selection_mode.get_current_track_color()
-                    except AttributeError:
-                        color = definitions.YELLOW
-                if self.is_midi_note_being_played(note):
-                    color = definitions.NOTE_ON_COLOR
-
-                row_colors.append(color)
-            color_matrix.append(row_colors)
-
+        color_matrix = [
+            [self._pad_color(i, j, self.pad_ij_to_midi_note([i, j])) for j in range(8)]
+            for i in range(8)
+        ]
         self.push.pads.set_pads_color(color_matrix)
 
     def on_pad_pressed_raw(self, pad_n, pad_ij, velocity):

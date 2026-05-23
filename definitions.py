@@ -1,5 +1,6 @@
 from typing import NamedTuple
 
+import bisect
 import push2_python
 import colorsys
 import threading
@@ -9,8 +10,6 @@ MCU_SHIFT = 54
 MCU_CTRL  = 55
 MCU_OPTION= 56
 MCU_ALT   = 57
-MC_DEBUG_HEIGHT = 16  # was 22 — shrinks the banner rows
-MC_DEBUG_FONT = "Menlo"  #
 from push2_python.constants import ANIMATION_STATIC
 
 VERSION = '1.1.1'
@@ -23,11 +22,11 @@ isRecording = 0.0
 MC_DRAW_DEBUG = True
 MC_DEBUG_LAYOUT = "continuous"  # or "cells"
 MC_DEBUG_COLLAPSE_SPACES = False
-MC_DEBUG_HEIGHT = 40
+MC_DEBUG_HEIGHT = 30  # target row height
 MC_DEBUG_SMART_GLUE = False
 MC_DEBUG_DEBOUNCE_MS = 20
-MC_DEBUG_GUIDES = False  #(or True to see 8 columns)
-MC_DEBUG_FONT = "Menlo"  #(or any mono)
+MC_DEBUG_GUIDES = False  # (or True to see 8 columns)
+MC_DEBUG_FONT = "Menlo"  # preferred monospace
 # Row 6 behavior config (can be overridden in definitions.py)
 ROW6_MODE_FUNCTION = "function"  # F1..F8 (MCU 40..47)
 MIX_ROW6_MODE = "custom"
@@ -41,8 +40,6 @@ MC_TEST_MIN_SIZE    = 22
 MC_TEST_MAX_SIZE    = 22
 MC_TEST_FUDGE       = 0.0        # px added to target width (stretch mode)
 MC_SCRIBBLE_GUIDES  = True       # draw guides (8 columns + 56 ticks)
-MC_DEBUG_FONT       = "Menlo"    # preferred monospace
-MC_DEBUG_HEIGHT     = 30         # target row height
 # -----------------------------------------------------------------------------
 # Mackie/MCU Model IDs & SysEx prefixes
 # -----------------------------------------------------------------------------
@@ -301,7 +298,6 @@ _PB, _DB = zip(*_FADER_TABLE)
 
 def _interp(xs, ys, x):
     """Simple monotonic linear interpolation/extrapolation."""
-    import bisect
     pos = bisect.bisect_left(xs, x)
     if pos == 0:
         return ys[0]
@@ -321,7 +317,6 @@ def pb_to_db(pb):
 def db_to_pb(db):
     """dB → nearest unsigned pitch-bend (int 0…16383)."""
     # reverse interpolation by searching in the _DB list
-    import bisect
     pos = bisect.bisect_left(_DB, db)
     if pos == 0:
         return _PB[0]

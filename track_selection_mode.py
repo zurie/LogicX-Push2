@@ -1,6 +1,9 @@
+import logging
 import math
 
 import definitions
+
+logger = logging.getLogger(__name__)
 import push2_python.constants
 import os
 import json
@@ -37,12 +40,14 @@ class TrackSelectionMode(definitions.LogicMode):
         tmp_instruments_data = {}
 
         if os.path.exists(definitions.TRACK_LISTING_PATH):
-            track_instruments = json.load(open(definitions.TRACK_LISTING_PATH))
+            with open(definitions.TRACK_LISTING_PATH) as f:
+                track_instruments = json.load(f)
             for i, instrument_short_name in enumerate(track_instruments):
                 if instrument_short_name not in tmp_instruments_data:
                     try:
-                        instrument_data = json.load(open(os.path.join(definitions.INSTRUMENT_DEFINITION_FOLDER,
-                                                                      '{}.json'.format(instrument_short_name))))
+                        with open(os.path.join(definitions.INSTRUMENT_DEFINITION_FOLDER,
+                                               '{}.json'.format(instrument_short_name))) as f:
+                            instrument_data = json.load(f)
                         tmp_instruments_data[instrument_short_name] = instrument_data
                     except FileNotFoundError:
                         # No definition file for instrument exists
@@ -66,8 +71,7 @@ class TrackSelectionMode(definitions.LogicMode):
                     'default_layout': instrument_data.get('default_layout', definitions.LAYOUT_MELODIC),
                     'illuminate_local_notes': instrument_data.get('illuminate_local_notes', True),
                 })
-            #print('Created {0} tracks!'.format(len(self.tracks_info)))
-            print('Created {0} tracks!'.format(self.tracks_info))
+            logger.info('Created %d tracks', len(self.tracks_info))
         else:
             # Create 64 empty tracks
             for i in range(0, len(self.tracks_info)):
@@ -129,8 +133,8 @@ class TrackSelectionMode(definitions.LogicMode):
     def clean_currently_notes_being_played(self):
         if self.app.is_mode_active(self.app.melodic_mode):
             self.app.melodic_mode.remove_all_notes_being_played()
-        elif self.app.is_mode_active(self.app.rhyhtmic_mode):
-            self.app.rhyhtmic_mode.remove_all_notes_being_played()
+        elif self.app.is_mode_active(self.app.rhythmic_mode):
+            self.app.rhythmic_mode.remove_all_notes_being_played()
 
     def select_track(self, track_idx):
         # Selects a track and activates its melodic/rhythmic layout
