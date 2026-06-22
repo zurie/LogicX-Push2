@@ -86,6 +86,10 @@ Set the ports as follows:
 
 ![mackie.jpg](docs/mackie.jpg)
 
+**Step 3a — Set the Channel Strip Parameter to "Pan"**
+
+In the Mackie Control's inspector (right-click the control surface → **Show/Hide Inspector**, or open it from the setup window), set **Channel Strip Parameter** to **Pan**. This makes the encoders/V-Pots address pan correctly so PAN mode on the Push 2 works as expected.
+
 **Step 4 — CRITICAL: MIDI Port Settings in Logic**
 
 - **Disable** the "Ableton Push 2" Live and User ports going into Logic
@@ -140,6 +144,7 @@ Other MIDI devices (keyboards, external gear) can remain enabled.
 | **Play** | Play/Stop (Space) |
 | **Play** (long press) | Stop |
 | **Record** | Record (`R`) |
+| **Tap Tempo** | Tap Tempo (`Shift+Ctrl+Alt+Cmd+T`) — *custom key command, see below* |
 | **Metronome** | Toggle metronome (`K`) |
 | **Delete** | Delete (`Delete`) |
 | **Duplicate** | Duplicate (`D`) |
@@ -147,6 +152,8 @@ Other MIDI devices (keyboards, external gear) can remain enabled.
 | **Automate** | Automate (`A`) |
 | **Mute** | Mute (`M`) |
 | **Solo** | Solo (`S`) |
+
+> **Tap Tempo requires a custom key command.** Logic has no Tap Tempo shortcut by default. In Logic Pro, go to `Logic Pro → Settings → Key Commands` (or `Cmd+K`/`Alt+K`), search for **Tap Tempo**, and assign it to **`Shift+Ctrl+Alt+Cmd+T`** so the Push 2 Tap Tempo button works. See [KEYBINDS.md](KEYBINDS.md).
 
 ---
 

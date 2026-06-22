@@ -18,9 +18,12 @@ Keybindings are defined in `push2_keymap.json`. Holding **Shift** on the Push 2 
 |---|---|---|---|---|
 | Play | Play / Stop | `Space` | Play (alternate) | `Shift+Space` |
 | Record | Record | `R` | Record alternate | `Shift+R` |
+| Tap Tempo | Tap Tempo | `Shift+Ctrl+Alt+Cmd+T` † | — | — |
 | Undo | Undo | `Cmd+Z` | Undo (shift) | `Shift+Cmd+Z` |
 | Redo | Redo | `Cmd+Shift+Z` | — | — |
 | Metronome | Toggle Metronome | `K` | Metronome alt | `Shift+K` |
+
+> † **Tap Tempo requires a custom key command in Logic.** Logic has no Tap Tempo shortcut by default. Open `Logic Pro → Settings → Key Commands`, search for **Tap Tempo**, and assign it to `Shift+Ctrl+Alt+Cmd+T` to match the binding above.
 
 ---
 
