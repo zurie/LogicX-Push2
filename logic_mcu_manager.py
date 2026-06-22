@@ -276,6 +276,12 @@ class LogicMCUManager:
         self.pan_text = [None] * 8
         self.vpot_ring = [6] * 8
 
+        # Authoritative flag: are Logic's V-Pots currently in a pan assignment?
+        # Set by the Mix mode when it taps an assignment note (the Push knows what
+        # it requested). Gates LCD bottom-row pan scraping so EQ/Send/Plug-In
+        # parameter values can't corrupt pan_levels. Defaults True (pan/track).
+        self.vpot_is_pan = True
+
         self.selected_track_idx = None
         self.playhead = 0.0
 
@@ -384,6 +390,24 @@ class LogicMCUManager:
         self.output_port.send(mido.Message("note_on", note=note_num, velocity=0, channel=0))
         if self.debug_mcu:
             print(f"[MCU] Sent {button_type} (note {note_num})")
+
+    def jog(self, steps):
+        """Move the Logic playhead via the Mackie Control jog wheel.
+
+        MCU encodes the jog wheel as relative CC 0x3C (channel 0) in
+        sign-magnitude form: 0x01..0x3F = clockwise (forward), 0x41..0x7F =
+        counter-clockwise (rewind). ``steps`` is the signed detent count.
+        """
+        if not self.output_port:
+            print("[MCU] No output port available to jog")
+            return
+        if not steps:
+            return
+        magnitude = min(abs(int(steps)), 0x3F)
+        value = magnitude if steps > 0 else 0x40 + magnitude
+        self.output_port.send(mido.Message("control_change", control=0x3C, value=value, channel=0))
+        if self.debug_mcu:
+            print(f"[MCU] Jog {steps:+d} (cc 0x3C value {value})")
 
     # ──────────────────────────────────────────────────────────────────────────
     # Main listen loop
@@ -636,7 +660,9 @@ class LogicMCUManager:
             if cmd == 0x21:  # transport bits
                 self._handle_transport(payload)
                 return
-            if cmd == 0x72:  # time
+            if cmd == 0x72:  # time / position display (NOT ring modes — value is
+                             # identical in Pan and Surround, so useless as a view
+                             # signal; see feedback_vpot_assignment_map)
                 self._handle_time(payload[1:])
                 self.mode_detector.handle_vpot_ring_sysex(data)
                 return
@@ -734,11 +760,21 @@ class LogicMCUManager:
                 self.app.mc_mode.set_visible_names(self.track_names)
 
         # --- BOTTOM: pans ("+40", "-12", "0", "C")
+        # Only interpret numeric bottom cells as pan when the Push has Logic's
+        # V-Pots in a pan assignment. In EQ/Send/Plug-In the bottom row carries
+        # other parameter values that would otherwise corrupt pan_levels.
+        # vpot_is_pan is set authoritatively by Mix mode (it knows which
+        # assignment note it sent) — far more reliable than scraping LCD text,
+        # which says "Pan" in non-pan views when Channel Strip Parameter=Pan.
+        pan_like = getattr(self, "vpot_is_pan", True)
+
         bot = bytes(self._lcd_bot)
         cells_bot = [bot[i:i + 7].decode('ascii', 'ignore').strip() for i in range(0, 56, 7)]
 
         _PAN_RE = re.compile(r'^(?:[+\-]?\d{1,3}|C)$')
         for i, cell in enumerate(cells_bot[:8]):
+            if not pan_like:
+                break
             if not cell:
                 continue
             if cell == "C":
@@ -1074,16 +1110,16 @@ class LogicMCUManager:
             self.handle_sysex(list(msg.data))
 
     def handle_cc(self, control, value):
-        # --- VPOTs (Pan) 48..55: use CC only to refresh the ring (keep numbers from LCD)
+        # --- V-Pot LED ring echo 48..55: low nibble = ring LED position 0..11.
+        # Drives the GUI arc in V-Pot modes (Surround/Send/Plug-In Channel View);
+        # pan-base/volume use their own sources so this is additive.
         if 48 <= control <= 55:
-            # ch  = control - 48
-            # val = int(value)
-            # ring = (val * 12) // 128
-            # if 0 <= ch <= 7 and self.vpot_ring[ch] != ring:
-            #     self.vpot_ring[ch] = ring
-            #     if self.on_vpot_display:
-            #         try: self.on_vpot_display(ch, ring)
-            #         except Exception: pass
+            ch = control - 48
+            if 0 <= ch <= 7:
+                self.vpot_ring[ch] = int(value) & 0x0F
+                mc = getattr(self.app, "mc_mode", None)
+                if mc is not None and self.app.is_mode_active(mc):
+                    self.app.display_dirty = True
             return
 
         # --- Faders 72..79 ---

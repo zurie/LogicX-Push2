@@ -79,7 +79,12 @@ def draw_column(ctx, x0: float, y0: float, col_w: float, h: float,
     _draw_name(ctx, x0, y_name, col_w, _NAME_H, vm.name, cr, vm.badge.selected)
 
     # ── mode graphic ─────────────────────────────────────────────────────────
-    if active_mode == MODE_VOLUME:
+    gfx = getattr(vm, "gfx", None)
+    if gfx == "bipolar":
+        _draw_param_bar(ctx, x0, y_gfx, col_w, gfx_h, vm.normalized, cr, bipolar=True)
+    elif gfx == "unipolar":
+        _draw_param_bar(ctx, x0, y_gfx, col_w, gfx_h, vm.normalized, cr, bipolar=False)
+    elif active_mode == MODE_VOLUME:
         _draw_level_bar(ctx, x0, y_gfx, col_w, gfx_h, vm.normalized, cr)
     elif active_mode == MODE_PAN:
         _draw_pan_bar(ctx, x0, y_gfx, col_w, gfx_h, vm.normalized, cr)
@@ -220,6 +225,54 @@ def _draw_pan_bar(ctx, x0, y0, col_w, h, normalized: float, cr):
     ctx.show_text("L")
     ctx.move_to(bar_x + bar_w - 6, bar_y + bar_h_px + 10)
     ctx.show_text("R")
+
+    ctx.restore()
+
+
+def _draw_param_bar(ctx, x0, y0, col_w, h, normalized: float, cr, bipolar: bool):
+    """Horizontal parameter bar for Surround V-Pots.
+    bipolar=True  → segment from center + center notch (Pan, Spread, X/Y, Elevation)
+    bipolar=False → fill from left (Diversity, LFE, Object Size).
+    """
+    bar_h_px = 10
+    pad      = _PAD_X + 2
+    bar_x    = x0 + pad
+    bar_w    = col_w - pad * 2
+    bar_y    = y0 + (h - bar_h_px) / 2.0
+    norm     = max(0.0, min(1.0, normalized))
+
+    ctx.save()
+    # background track
+    ctx.set_source_rgb(0.08, 0.08, 0.08)
+    _rounded_rect(ctx, bar_x, bar_y, bar_w, bar_h_px, 4)
+    ctx.fill()
+
+    # colored fill (clipped to rounded track)
+    ctx.set_source_rgb(*cr)
+    ctx.save()
+    _rounded_rect(ctx, bar_x, bar_y, bar_w, bar_h_px, 4)
+    ctx.clip()
+    if bipolar:
+        cx    = bar_x + bar_w / 2.0
+        cur_x = bar_x + norm * bar_w
+        seg_x = min(cx, cur_x)
+        seg_w = abs(cur_x - cx)
+        if seg_w > 0.5:
+            ctx.rectangle(seg_x, bar_y, seg_w, bar_h_px)
+            ctx.fill()
+    else:
+        ctx.rectangle(bar_x, bar_y, norm * bar_w, bar_h_px)
+        ctx.fill()
+    ctx.restore()
+
+    # center notch for bipolar params
+    if bipolar:
+        cx = bar_x + bar_w / 2.0
+        ctx.set_source_rgba(0.9, 0.9, 0.9, 0.8)
+        ctx.set_line_width(1.5)
+        ctx.move_to(cx, bar_y - 3)
+        ctx.line_to(cx, bar_y + bar_h_px + 3)
+        ctx.stroke()
 
     ctx.restore()
 

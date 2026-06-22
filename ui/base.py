@@ -29,6 +29,8 @@ class StripVM:
     value_label: str                # e.g., "0.0 dB", "L12", etc.
     normalized: float               # 0..1 for rings/meters
     badge: StripBadge
+    gfx: Optional[str] = None       # per-strip graphic override: "bipolar"|"unipolar"
+                                    # (used by Surround view); None = use active_mode
 
 @dataclass
 class UiFrame:

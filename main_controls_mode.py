@@ -8,8 +8,6 @@ from logic_keystrokes import press_command
 class MainControlsMode(definitions.LogicMode):
     preset_selection_button_pressing_time = None
 
-    last_tap_tempo_times = []
-
     # BUTTONS (TOP RIGHT TO BOTTOM RIGHT OF PUSH2)
     add_track_button = push2_python.constants.BUTTON_ADD_TRACK
     device_button = push2_python.constants.BUTTON_DEVICE
@@ -23,6 +21,10 @@ class MainControlsMode(definitions.LogicMode):
 
     tap_tempo_button = push2_python.constants.BUTTON_TAP_TEMPO
     metronome_button = push2_python.constants.BUTTON_METRONOME
+
+    # Encoder directly above the Tap Tempo button: jogs/scrubs the Logic playhead
+    # via the MCU jog wheel (the MCU protocol has no tempo control).
+    tempo_encoder = push2_python.constants.ENCODER_TEMPO_ENCODER
 
     delete_button = push2_python.constants.BUTTON_DELETE
     undo_button = push2_python.constants.BUTTON_UNDO
@@ -230,6 +232,12 @@ class MainControlsMode(definitions.LogicMode):
                 self.app.logic_interface.metronome_on_off()
                 return True
 
+            # TAP TEMPO - each press taps Logic's native Tap Tempo command;
+            # Logic computes the BPM from the tap intervals.
+            elif button_name == self.tap_tempo_button:
+                self.app.logic_interface.tap_tempo()
+                return True
+
             # PLAY
             elif button_name == self.play_button:
                 if getattr(self.app, "mcu_manager", None) and self.app.mcu_manager.enabled:
@@ -420,6 +428,17 @@ class MainControlsMode(definitions.LogicMode):
                         off=False
                     )
                     return True
+        return None
+
+    def on_encoder_rotated(self, encoder_name, increment):
+        # Tempo encoder -> jog/scrub the Logic playhead through the MCU jog wheel.
+        if encoder_name == self.tempo_encoder:
+            mm = getattr(self.app, "mcu_manager", None)
+            if mm and mm.enabled:
+                # Shift scrubs faster (coarser playhead movement).
+                steps = increment * 10 if self.app.shift_held else increment
+                mm.jog(steps)
+                return True
         return None
 
     def on_button_pressed_raw(self, button_name):

@@ -62,25 +62,27 @@ MODE_VOLUME = "volume"
 MODE_MUTE = "mute"
 MODE_SOLO = "solo"
 MODE_PAN = "pan"
-MODE_VPOT = "vpot"
-MODE_EXTRA1 = "extra1"
-MODE_EXTRA2 = "extra2"
-MODE_EXTRA3 = "extra3"
+# V-Pot assignment modes — STOCK Mackie Control note map (documented & standard):
+#   40=Track, 41=Send, 42=Pan, 43=Plug-In, 44=EQ, 45=Instrument.
+MODE_SEND = "send"      # note 41
+MODE_PLUGIN = "plugin"  # note 43
+MODE_EQ = "eq"          # note 44
+MODE_INSTR = "instr"    # note 45
 
 MODE_LABELS = {
     MODE_VOLUME: "VOL",
     MODE_MUTE: "MUTE",
     MODE_SOLO: "SOLO",
     MODE_PAN: "PAN",
-    MODE_VPOT: "VPOT",
-    MODE_EXTRA1: "X1",
-    MODE_EXTRA2: "X2",
-    MODE_EXTRA3: "X3",
+    MODE_SEND: "SEND",
+    MODE_PLUGIN: "PLUG",
+    MODE_EQ: "EQ",
+    MODE_INSTR: "INST",
 }
 
 LOWER_ROW_MODES = [
     MODE_VOLUME, MODE_MUTE, MODE_SOLO, MODE_PAN,
-    MODE_VPOT, MODE_EXTRA1, MODE_EXTRA2, MODE_EXTRA3,
+    MODE_SEND, MODE_PLUGIN, MODE_EQ, MODE_INSTR,
 ]
 
 MODE_COLORS = {
@@ -88,10 +90,10 @@ MODE_COLORS = {
     MODE_MUTE: _SKY,
     MODE_SOLO: _YELLOW,
     MODE_PAN: getattr(definitions, "KARMA", getattr(definitions, "ORANGE", "orange")),
-    MODE_VPOT: getattr(definitions, "PINK", "magenta"),
-    MODE_EXTRA1: getattr(definitions, "GRAY_DARK", "gray"),
-    MODE_EXTRA2: getattr(definitions, "GREEN_LIGHT", getattr(definitions, "GREEN", "green")),
-    MODE_EXTRA3: getattr(definitions, "RED_LIGHT", getattr(definitions, "RED", "red")),
+    MODE_SEND: getattr(definitions, "BLUE", "blue"),
+    MODE_PLUGIN: getattr(definitions, "PINK", "magenta"),
+    MODE_EQ: getattr(definitions, "PURPLE", "purple"),
+    MODE_INSTR: getattr(definitions, "GREEN_LIGHT", getattr(definitions, "GREEN", "green")),
 }
 
 ROW6_MODE_FUNCTION = "function"  # F1..F8 (MCU 40..47)
@@ -108,6 +110,30 @@ MCU_ASSIGN_BANK_LEFT = 46
 MCU_ASSIGN_BANK_RIGHT = 47
 MCU_ASSIGN_TRACK = 40   # "Track / Volume"
 MCU_ASSIGN_FLIP = 50
+
+# Entering a V-Pot assignment mode taps the matching MCU note so Logic re-targets
+# the 8 V-Pots. PAN re-sends its assignment too so it restores pan on CC 16-23
+# (see feedback_mcu_flip_routing). Standard Mackie notes (see map above).
+# NOTE: 42 (Pan/Surround) toggles to Surround on repeat presses, so PAN taps
+# Track(40) first then Pan(42) to land on Pan reliably from any prior state.
+MODE_ASSIGN_NOTE = {
+    MODE_PAN: (40, 42),
+    MODE_SEND: 41,
+    MODE_PLUGIN: 43,
+    MODE_EQ: 44,
+    MODE_INSTR: 45,
+}
+
+# Parameter/band paging inside a V-Pot assignment uses the MCU cursor keys
+# (96-99), confirmed from the Maschine MCU editor (Left=98, Right=99).
+MCU_CURSOR_UP = 96
+MCU_CURSOR_DOWN = 97
+MCU_CURSOR_LEFT = 98
+MCU_CURSOR_RIGHT = 99
+
+# Push arrow -> MCU cursor note, applied only while in a V-Pot assignment mode so
+# normal Logic arrow navigation is preserved elsewhere. PAN excluded.
+PARAM_PAGE_MODES = (MODE_SEND, MODE_PLUGIN, MODE_EQ, MODE_INSTR)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -347,10 +373,38 @@ class MackieControlMode(definitions.LogicMode):
         self.row6_mode = self.ROW6_DEFAULT_MODE
         self.row6_custom_notes = self.ROW6_CUSTOM_NOTES
         self._dbg_enabled = True
+        # Which parameter sub-page of the active V-Pot assignment we're on
+        # (advances on re-pressing the mode button). 1 = base page.
+        self._subpage = 1
+        # Last time an encoder was turned/touched. Used by the GUI to tell a
+        # transient LCD overlay (knob turn) apart from a real Logic reset (idle).
+        self._last_encoder_ts = 0.0
 
     def _dbg(self, msg: str):
         if getattr(self, "_dbg_enabled", False):
             logger.debug('[MACKIE] %s', msg)
+
+    def mode_indicator_text(self) -> str:
+        """Header label for the active mode, with sub-page info: PAN shows
+        PAN/SURR (note 42 toggles), assignment modes show LABEL·N past page 1."""
+        base = MODE_LABELS.get(self.active_mode, self.active_mode.upper())
+        page = getattr(self, "_subpage", 1)
+        if self.active_mode == MODE_PAN:
+            return "SURR" if (page % 2 == 0) else "PAN"
+        if self.active_mode in PARAM_PAGE_MODES and page > 1:
+            return f"{base}·{page}"
+        return base
+
+    def is_param_view(self) -> bool:
+        """True when the 8 V-Pots map to parameters of the SELECTED track ('Channel
+        View') rather than one parameter across the 8-track bank ('Mixer View').
+        Confirmed from Logic's Controller Assignments: every V-Pot assignment
+        toggles Mixer View (1st press) <-> Channel View (2nd press), so odd
+        sub-pages are per-track and even sub-pages are per-param. In param view the
+        GUI shows Logic's LCD param names/values instead of per-track fader/pan."""
+        if self.active_mode == MODE_PAN or self.active_mode in PARAM_PAGE_MODES:
+            return (getattr(self, "_subpage", 1) % 2 == 0)  # even = Channel View
+        return False
 
     # ================================ GUI-agnostic helpers consumed by renderers
     def _upper_row_label_and_color(self):
@@ -512,12 +566,38 @@ class MackieControlMode(definitions.LogicMode):
     def _set_mode(self, mode: str):
         if mode not in MODE_LABELS:
             return
+        re_press = (mode == self.active_mode)
         self.active_mode = mode
+        # V-Pot assignment modes re-target Logic's V-Pots; tap the assignment note.
+        note = MODE_ASSIGN_NOTE.get(mode)
+        if note is not None:
+            if re_press:
+                # Re-pressing the active assignment cycles Logic's parameter
+                # sub-pages (Pan<->Surround, send pages, etc). Send only the
+                # advance/toggle note (the last of a landing sequence).
+                self._subpage += 1
+                advance = note[-1] if isinstance(note, (tuple, list)) else note
+                self._send_assignment(advance)
+            else:
+                # Fresh entry: reset to page 1 and tap the full landing sequence.
+                self._subpage = 1
+                notes = note if isinstance(note, (tuple, list)) else (note,)
+                for n in notes:
+                    self._send_assignment(n)
+            # Tell the manager whether the V-Pots are now in a pan assignment, so
+            # it only scrapes the LCD bottom row as pan when it really is pan.
+            # Odd PAN sub-pages = Pan; even = Surround (don't scrape as pan).
+            mm = getattr(self.app, "mcu_manager", None)
+            if mm is not None:
+                mm.vpot_is_pan = (mode == MODE_PAN and self._subpage % 2 == 1)
+        elif not re_press:
+            self._subpage = 1
         self.update_buttons()
         self.update_encoders()
         self._paint_selector_row()
         self.app.pads_need_update = True
         self.app.buttons_need_update = True
+        self.app.display_dirty = True
 
 
     def _paint_selector_row(self):
@@ -926,6 +1006,13 @@ class MackieControlMode(definitions.LogicMode):
         val = mag if delta > 0 else 64 + mag  # MCU relative format
         port.send(mido.Message('control_change', control=16 + ch, value=val, channel=0))
 
+    def _vpot_push(self, ch: int):
+        """Press the MCU V-Pot switch (note 0x20+ch) — the encoder 'click'. For
+        selector params (e.g. output routing) this commits the scrolled choice;
+        for continuous params it's the standard V-Pot push."""
+        if 0 <= ch < 8:
+            self._tap(0x20 + ch)
+
     def _reset_channel_pan(self, ch: int):
         if ch < 0 or ch >= len(self._pan_view):
             return
@@ -1003,7 +1090,7 @@ class MackieControlMode(definitions.LogicMode):
                 self.push.buttons.set_button_color(upper, definitions.YELLOW if solo else definitions.OFF_BTN_COLOR)
             elif self.active_mode == MODE_MUTE:
                 self.push.buttons.set_button_color(upper, _SKY if mute else definitions.OFF_BTN_COLOR)
-            elif self.active_mode in (MODE_VOLUME, MODE_PAN, MODE_VPOT):
+            elif self.active_mode in (MODE_VOLUME, MODE_PAN, MODE_SEND, MODE_PLUGIN, MODE_EQ, MODE_INSTR):
                 selected_idx = getattr(mm, "selected_track_idx", None)
                 self.push.buttons.set_button_color(
                     upper,
@@ -1100,21 +1187,8 @@ class MackieControlMode(definitions.LogicMode):
                         self._set_mode(MODE_VOLUME)
                         return True
 
-                if wanted_mode == MODE_PAN:
-                    if self.active_mode == MODE_PAN:
-                        if hasattr(self.app, "_btn_color_cache"):
-                            self.app._btn_color_cache.clear()
-                        self._paint_selector_row()
-                        self.update_buttons()
-                        self.update_encoders()
-                        self.app.pads_need_update = True
-                        self.app.buttons_need_update = True
-                        return True
-                    else:
-                        self._set_mode(MODE_PAN)
-                        return True
-
-
+                # PAN re-press flows through _set_mode so it toggles Pan<->Surround
+                # (fresh entry lands on Pan via the 40,42 sequence).
                 self._set_mode(wanted_mode)
                 return True
 
@@ -1138,23 +1212,27 @@ class MackieControlMode(definitions.LogicMode):
                     self.app.buttons_need_update = True
                     return True
 
-                elif self.active_mode == MODE_VPOT:
-                    mm = self.app.mcu_manager
-                    if mm:
-                        abs_idx = self.current_page * self.tracks_per_page + i
-                        mm.selected_track_idx = abs_idx
-                    self._tap_mcu_button(24 + i)  # SELECT
-                    self._render_mix_grid("on button pressed raw")
-                    self.app.buttons_need_update = True
-                    return True
-
-                elif self.active_mode in (MODE_VOLUME, MODE_PAN):
+                elif self.active_mode in (MODE_VOLUME, MODE_PAN, MODE_SEND, MODE_PLUGIN, MODE_EQ, MODE_INSTR):
                     # Claim the button; select vs reset is resolved in on_button_pressed
                     return True
 
         return btn in self.buttons_used
 
     def on_button_pressed(self, button_name, long_press=False, **_):
+        # In a V-Pot assignment, the Push arrows act as the MCU cursor keys
+        # (96-99) to page the parameter set — e.g. step through EQ bands. Other
+        # modes fall through so the arrows keep normal Logic navigation.
+        if self.active_mode in PARAM_PAGE_MODES:
+            cursor = {
+                push2_python.constants.BUTTON_LEFT: MCU_CURSOR_LEFT,
+                push2_python.constants.BUTTON_RIGHT: MCU_CURSOR_RIGHT,
+                push2_python.constants.BUTTON_UP: MCU_CURSOR_UP,
+                push2_python.constants.BUTTON_DOWN: MCU_CURSOR_DOWN,
+            }.get(button_name)
+            if cursor is not None:
+                self._tap(cursor)
+                return True
+
         for i in range(8):
             upper_btn = getattr(push2_python.constants, f"BUTTON_UPPER_ROW_{i + 1}")
             if button_name == upper_btn:
@@ -1179,6 +1257,21 @@ class MackieControlMode(definitions.LogicMode):
                         self._tap_mcu_button(24 + i)  # SELECT
                         self._render_mix_grid("on button pressed")
                         self.app.buttons_need_update = True
+                    return True
+                elif self.active_mode in (MODE_SEND, MODE_PLUGIN, MODE_EQ, MODE_INSTR):
+                    # Tap = push that channel's V-Pot. For selector params (output
+                    # routing) this COMMITS the scrolled choice; for continuous
+                    # params it's the standard V-Pot click. Long-press selects the
+                    # track (track-select is otherwise available in VOL/PAN).
+                    if long_press:
+                        mm = self.app.mcu_manager
+                        if mm:
+                            mm.selected_track_idx = self.current_page * self.tracks_per_page + i
+                        self._tap_mcu_button(24 + i)  # SELECT
+                        self._render_mix_grid("on button pressed")
+                        self.app.buttons_need_update = True
+                    else:
+                        self._vpot_push(i)  # commit / click the V-Pot
                     return True
         return button_name in self.buttons_used
 
@@ -1258,6 +1351,7 @@ class MackieControlMode(definitions.LogicMode):
         if encoder_name not in self.encoder_names:
             return False
 
+        self._last_encoder_ts = time.time()
         local_idx = self.encoder_names.index(encoder_name)
         strip_idx = self.current_page * self.tracks_per_page + local_idx
         if strip_idx >= len(self.track_strips):
@@ -1286,6 +1380,13 @@ class MackieControlMode(definitions.LogicMode):
             if increment:
                 self._pan_view[local_idx] = max(-64.0, min(64.0,
                                                             self._pan_view[local_idx] + increment))
+                self._send_mcu_pan_cc_now(local_idx, increment)
+            return True
+
+        if self.active_mode in (MODE_SEND, MODE_PLUGIN, MODE_EQ, MODE_INSTR):
+            # Same V-Pot transport as PAN (relative CC 16-23). Logic feeds the
+            # parameter name/value back over the LCD, which the GUI displays.
+            if increment:
                 self._send_mcu_pan_cc_now(local_idx, increment)
             return True
 
@@ -1398,6 +1499,7 @@ class MackieControlMode(definitions.LogicMode):
             # existing MCU touch-on code...
             if encoder_name not in self.encoder_names:
                 return False
+            self._last_encoder_ts = time.time()
             ch = self.encoder_names.index(encoder_name)  # 0..7
 
             # NEW: tell the renderer which strip is focused

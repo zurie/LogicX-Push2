@@ -264,6 +264,12 @@ class LogicInterface(definitions.LogicMode):
     def metronome_on_off():
         press_command('/push2/metronome')
 
+    @staticmethod
+    def tap_tempo():
+        # Each press fires Logic's native "Tap Tempo" key command; Logic
+        # computes the BPM from the tap intervals itself.
+        press_command('/push2/tap_tempo')
+
     def get_buttons_state(self):
         self.app.push.buttons.set_button_color(
             push2_python.constants.BUTTON_RECORD,

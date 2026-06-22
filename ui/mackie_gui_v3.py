@@ -17,6 +17,20 @@ _HEADER_H = 20
 _BAR_H    = 24
 _STRIP_Y  = _HEADER_H   # strip area starts here
 
+# Surround Channel View V-Pot layout (matches Logic's Controller Assignments).
+# (display name, bipolar?) — bipolar params draw a centered bar, others fill bar.
+# Value text comes from Logic's LCD; arc position from the V-Pot ring.
+_SURROUND_SPECS = [
+    ("Pan",       True),   # -64..+63
+    ("Diversity", False),  # 0..100 %
+    ("LFE",       False),  # mute..+6 dB
+    ("Spread",    True),   # -180..+179°
+    ("Surr X",    True),   # -1000..+1000
+    ("Surr Y",    True),   # -1000..+1000
+    ("Size",      False),  # 0..100  (Object Size)
+    ("Elevation", True),   # -90..+90°
+]
+
 
 class MackieGuiV3(Renderer):
     def __init__(self, mode):
@@ -111,21 +125,50 @@ class MackieGuiV3(Renderer):
         if mm and hasattr(mm, "get_visible_lcd_lines"):
             top_cells, bot_cells = mm.get_visible_lcd_lines()
 
+        # Parameter view (Surround / Channel View): the 8 V-Pots are parameters of
+        # the selected track, so labels come from Logic's LCD, not track names.
+        param_view = False
+        _ipv = getattr(self.mode, "is_param_view", None)
+        if callable(_ipv):
+            try:
+                param_view = bool(_ipv())
+            except Exception:
+                param_view = False
+
+        # Surround view = PAN param sub-page. Verify against the live LCD: if Logic
+        # reset to plain Pan (e.g. after tabbing out of Logic and back), the top
+        # cells are track names, not surround params — resync our sub-page to Pan
+        # base instead of rendering a stale surround layout over per-track data.
+        # Surround = the PAN even sub-page (entered by re-pressing PAN). Driven
+        # purely by our button state, NOT the LCD: on this rig "Display Mode:
+        # Name" makes Logic show TRACK NAMES on the LCD even while in Surround, so
+        # the LCD top row can't tell Surround from Pan Mixer. Trust the sub-page;
+        # PAN re-press toggles back to per-track pan.
+        surround_view = (active_mode == "pan" and param_view)
+
         vms = []
         for i in range(8):
             abs_idx = base + i
+            spec = _SURROUND_SPECS[i] if (surround_view and i < len(_SURROUND_SPECS)) else None
 
-            # track name: prefer mm.track_names (visible bank, 8 entries),
-            # fall back to LCD top cell, then generic label
-            name = f"T{abs_idx + 1}"
-            if mm and hasattr(mm, "track_names"):
-                try:
-                    n = mm.track_names[i]
-                    name = n if n else (top_cells[i] or name)
-                except Exception:
-                    pass
-            elif top_cells[i]:
-                name = top_cells[i]
+            if surround_view:
+                # name = fixed surround parameter name for this V-Pot
+                name = spec[0]
+            elif param_view:
+                # name = LCD param name for this V-Pot
+                name = top_cells[i] or f"VPot {i + 1}"
+            else:
+                # track name: prefer mm.track_names (visible bank, 8 entries),
+                # fall back to LCD top cell, then generic label
+                name = f"T{abs_idx + 1}"
+                if mm and hasattr(mm, "track_names"):
+                    try:
+                        n = mm.track_names[i]
+                        name = n if n else (top_cells[i] or name)
+                    except Exception:
+                        pass
+                elif top_cells[i]:
+                    name = top_cells[i]
 
             # track color
             color_rgb = (90, 90, 90)
@@ -143,11 +186,30 @@ class MackieGuiV3(Renderer):
             rec  = bool(mm.rec_states[abs_idx])  if mm and abs_idx < len(mm.rec_states)  else False
             selected = (abs_idx == sel_abs)
 
-            badge = StripBadge(rec=rec, solo=solo, mute=mute, selected=selected)
+            # In param view the strips are parameters of one track, so per-track
+            # rec/solo/mute/selected badges aren't meaningful — suppress them.
+            if param_view:
+                badge = StripBadge(rec=False, solo=False, mute=False, selected=False)
+            else:
+                badge = StripBadge(rec=rec, solo=solo, mute=mute, selected=selected)
 
             # mode-specific normalized value + display label
-            normalized, value_label = self._strip_value(mm, active_mode, i, abs_idx,
-                                                         mute, solo, bot_cells[i])
+            gfx = None
+            if surround_view:
+                # Value text from Logic's LCD; arc position from the V-Pot ring
+                # (Logic scales each parameter's range into the 0..11 LED ring).
+                value_label = (bot_cells[i] or "").strip()
+                normalized = 0.0
+                ring = getattr(mm, "vpot_ring", None)
+                if ring and i < len(ring):
+                    try:
+                        normalized = max(0.0, min(1.0, float(ring[i]) / 11.0))
+                    except Exception:
+                        normalized = 0.0
+                gfx = "bipolar" if spec[1] else "unipolar"
+            else:
+                normalized, value_label = self._strip_value(mm, active_mode, i, abs_idx,
+                                                             mute, solo, bot_cells[i])
 
             vms.append(StripVM(
                 name=name,
@@ -155,12 +217,30 @@ class MackieGuiV3(Renderer):
                 value_label=value_label,
                 normalized=normalized,
                 badge=badge,
+                gfx=gfx,
             ))
         return vms
 
     def _strip_value(self, mm, active_mode: str, local_idx: int, abs_idx: int,
                      mute: bool, solo: bool, lcd_bot_cell: str):
         """Return (normalized 0..1, display_label) for the given mode and channel."""
+        # Parameter view: value/label come straight from Logic's LCD; the arc
+        # follows the V-Pot ring position Logic echoed (0..11), if available.
+        _ipv = getattr(self.mode, "is_param_view", None)
+        if callable(_ipv):
+            try:
+                if _ipv():
+                    norm = 0.0
+                    ring = getattr(mm, "vpot_ring", None)
+                    if ring and local_idx < len(ring):
+                        try:
+                            norm = max(0.0, min(1.0, float(ring[local_idx]) / 11.0))
+                        except Exception:
+                            norm = 0.0
+                    return norm, lcd_bot_cell
+            except Exception:
+                pass
+
         if active_mode == "volume":
             level = float(mm.fader_levels[local_idx]) if mm else 0.0
             level = max(0.0, min(1.0, level))
@@ -207,6 +287,12 @@ class MackieGuiV3(Renderer):
         bank_s   = ((sel_idx or 0) // 8) * 8 + 1
         bank_e   = bank_s + 7
         mode_lab = active_mode.upper()
+        _mi = getattr(self.mode, "mode_indicator_text", None)
+        if callable(_mi):
+            try:
+                mode_lab = _mi()
+            except Exception:
+                pass
 
         x = 8
         x += self._hdr_token(ctx, x, mode_lab,
