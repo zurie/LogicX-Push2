@@ -23,10 +23,10 @@ LogicX-Push2 is a Python app that turns your **Ableton Push 2** into a native **
 
 ### Easy Install — Push2.app (Recommended)
 
-1. Download the latest **Push2.app** from [Releases](https://github.com/zurie/pysha/releases)
+1. Download the latest **Push2.app** from [Releases](https://github.com/zurie/LogicX-Push2/releases)
 2. Clone or download this repo:
    ```
-   git clone https://github.com/zurie/pysha.git
+   git clone https://github.com/zurie/LogicX-Push2.git
    ```
 3. Double-click **Push2.app** — it will ask you to choose the repo folder on first launch
 4. Click **Setup... → Install Deps** — this opens Terminal and runs `install.sh` automatically
