@@ -12,7 +12,7 @@ MCU_OPTION= 56
 MCU_ALT   = 57
 from push2_python.constants import ANIMATION_STATIC
 
-VERSION = '1.1.1'
+VERSION = '1.2.0'
 
 DELAYED_ACTIONS_APPLY_TIME = 1.0  # Encoder changes won't be applied until this time has passed since last moved
 isPlaying = 0.0  # instead of False
