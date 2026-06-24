@@ -114,14 +114,21 @@ MCU_ASSIGN_FLIP = 50
 # Entering a V-Pot assignment mode taps the matching MCU note so Logic re-targets
 # the 8 V-Pots. PAN re-sends its assignment too so it restores pan on CC 16-23
 # (see feedback_mcu_flip_routing). Standard Mackie notes (see map above).
-# NOTE: 42 (Pan/Surround) toggles to Surround on repeat presses, so PAN taps
-# Track(40) first then Pan(42) to land on Pan reliably from any prior state.
+#
+# Every assignment is a toggle: 1st press = Mixer View (one param across the
+# 8-track bank), 2nd press = Channel View (8 params of the selected track) — see
+# is_param_view(). To land on Mixer View deterministically on FRESH entry,
+# regardless of whether Logic remembers each type's prior toggle state, we tap
+# Track(40) first then the target note. _set_mode taps every note in the tuple on
+# fresh entry, but only the LAST note on re-press (so re-press still toggles to
+# Channel View). Originally only PAN did this (42 also cycles to Surround); the
+# same Track-prefix is now applied to every assignment for the same reason.
 MODE_ASSIGN_NOTE = {
     MODE_PAN: (40, 42),
-    MODE_SEND: 41,
-    MODE_PLUGIN: 43,
-    MODE_EQ: 44,
-    MODE_INSTR: 45,
+    MODE_SEND: (40, 41),
+    MODE_PLUGIN: (40, 43),
+    MODE_EQ: (40, 44),
+    MODE_INSTR: (40, 45),
 }
 
 # Parameter/band paging inside a V-Pot assignment uses the MCU cursor keys
