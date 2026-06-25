@@ -35,6 +35,27 @@ LogicX-Push2 is a Python app that turns your **Ableton Push 2** into a native **
 
 The launcher also checks for new releases on startup and can update itself automatically.
 
+### First Launch — Approve in macOS Privacy & Security
+
+**Push2.app** is open-source and signed for local use, but it is **not notarized by Apple**, so macOS Gatekeeper will block it the first time. This is expected — you only need to do this once.
+
+When you double-click **Push2.app** you'll see a warning like *“Apple could not verify Push2.app is free of malware”* (or *“…cannot be opened because it is from an unidentified developer”*). To allow it:
+
+1. Open  **Apple menu → System Settings → Privacy & Security**.
+2. Scroll down to the **Security** section. You'll see a message:
+   *“Push2.app was blocked to protect your Mac.”*
+3. Click **Open Anyway**.
+4. Confirm with **Open** (and Touch ID / your password) in the dialog that follows.
+
+> **Alternatively** (fastest): right-click (or Control-click) **Push2.app → Open**, then click **Open** in the dialog. Right-clicking gives you the **Open** option even when a normal double-click won't.
+>
+> **Command line:** you can also clear the quarantine flag yourself with:
+> ```bash
+> xattr -dr com.apple.quarantine /path/to/Push2.app
+> ```
+
+After you approve it once, it launches normally from then on — including after auto-updates.
+
 ### Manual Install
 
 Open Terminal in the repo folder and run:

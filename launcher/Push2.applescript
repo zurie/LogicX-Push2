@@ -1,6 +1,6 @@
 property appName : "LogicX-Push2 Launcher"
-property appVersion : "1.1.1"
-property githubRepo : "zurie/pysha"
+property appVersion : "1.2.0"
+property githubRepo : "zurie/LogicX-Push2"
 property configDir : ""
 property configFile : ""
 property push2PID : ""
@@ -179,12 +179,19 @@ on performUpdate(newVersion)
 		display dialog "Downloading v" & newVersion & "..." buttons {"OK"} default button "OK" giving up after 2
 		
 		do shell script "curl -L --max-time 120 -o " & quoted form of tmpZip & " " & quoted form of downloadURL
-		do shell script "rm -rf " & quoted form of tmpDir & " && unzip -q " & quoted form of tmpZip & " -d " & quoted form of tmpDir
+		-- ditto (not unzip): restores the custom-icon resource fork + FinderInfo bit
+		do shell script "rm -rf " & quoted form of tmpDir & " && mkdir -p " & quoted form of tmpDir & " && ditto -x -k " & quoted form of tmpZip & " " & quoted form of tmpDir
 		do shell script "test -d " & quoted form of (tmpDir & "/Push2.app")
 		
 		-- Backup then replace
 		do shell script "rm -rf " & quoted form of (appBundlePath & ".backup") & " && cp -R " & quoted form of appBundlePath & " " & quoted form of (appBundlePath & ".backup")
 		do shell script "cp -Rf " & quoted form of (tmpDir & "/Push2.app/") & " " & quoted form of appBundlePath & "/"
+
+		-- Re-apply the custom Finder icon: the kHasCustomIcon FinderInfo bit is
+		-- not carried inside a zip, so it must be re-set on this machine.
+		try
+			do shell script "test -x " & quoted form of (appBundlePath & "/Contents/Resources/apply_icon.sh") & " && " & quoted form of (appBundlePath & "/Contents/Resources/apply_icon.sh") & " " & quoted form of appBundlePath
+		end try
 		
 		do shell script "rm -rf " & quoted form of tmpDir & " " & quoted form of tmpZip
 		
